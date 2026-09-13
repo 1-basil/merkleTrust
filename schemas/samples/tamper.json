@@ -1,0 +1,84 @@
+{
+  "job_id": "8d2c1e40-5a3d-4f7b-9c2e-1b8f0a2d3e4f",
+  "engine": "tamper",
+  "status": "ok",
+  "findings": [
+    {
+      "id": "TAMPER_CERT_CHANGED",
+      "severity": "critical",
+      "title": "Signing certificate differs from trusted baseline",
+      "evidence": "Baseline cert: 4b3d8819a552de8f..., Current cert: e3b0c44298fc1c14..."
+    },
+    {
+      "id": "TAMPER_DEX_MODIFIED",
+      "severity": "critical",
+      "title": "Executable Dalvik bytecode modified vs baseline",
+      "evidence": "Modified DEX: classes.dex (2 chunks changed)"
+    },
+    {
+      "id": "TAMPER_PERMISSIONS_ADDED",
+      "severity": "high",
+      "title": "Privilege escalation: 1 new permission(s) added",
+      "evidence": "Added permissions: android.permission.SEND_SMS"
+    },
+    {
+      "id": "TAMPER_COMPONENTS_ADDED",
+      "severity": "medium",
+      "title": "New application components added (1)",
+      "evidence": "Added components: com.example.app.BgService"
+    }
+  ],
+  "role": "comparison",
+  "baseline_found": true,
+  "baseline_job_id": "1a2b3c4d-5e6f-7a8b-9c0d-1e2f3a4b5c6d",
+  "changed_chunks": [
+    {
+      "index": 42,
+      "old_hash": "a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60718293a4b5c6d7e8f90",
+      "new_hash": "f0e1d2c3b4a5968778695a4b3c2d1e0ff0e1d2c3b4a5968778695a4b3c2d1e0f"
+    },
+    {
+      "index": 43,
+      "old_hash": "b2c3d4e5f6a10718293a4b5c6d7e8f90a1b2c3d4e5f60718293a4b5c6d7e8f91",
+      "new_hash": "e1d2c3b4a5f0968778695a4b3c2d1e0ff0e1d2c3b4a5968778695a4b3c2d1e0e"
+    }
+  ],
+  "changed_files": [
+    {
+      "path": "classes.dex",
+      "change_type": "modified",
+      "chunks": [
+        42,
+        43
+      ]
+    }
+  ],
+  "manifest_diff": {
+    "permissions_added": [
+      "android.permission.SEND_SMS"
+    ],
+    "permissions_removed": [],
+    "components_added": [
+      "com.example.app.BgService"
+    ],
+    "components_removed": []
+  },
+  "certificate_changed": true,
+  "suspicious_targets": [
+    {
+      "type": "class",
+      "value": "dalvik.system.DexClassLoader",
+      "reason": "Dangerous API DexClassLoader in modified DEX"
+    },
+    {
+      "type": "service",
+      "value": "com.example.app.BgService",
+      "reason": "Component added vs baseline"
+    },
+    {
+      "type": "url",
+      "value": "http://c2.example-threat.xyz/beacon",
+      "reason": "New network IOC detected vs baseline"
+    }
+  ]
+}

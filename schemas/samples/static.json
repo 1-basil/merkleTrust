@@ -1,0 +1,113 @@
+{
+  "job_id": "8d2c1e40-5a3d-4f7b-9c2e-1b8f0a2d3e4f",
+  "engine": "static",
+  "status": "ok",
+  "findings": [
+    {
+      "id": "STATIC_DANGEROUS_PERM",
+      "severity": "high",
+      "title": "App requests 2 dangerous permission(s)",
+      "evidence": "Permissions: android.permission.SEND_SMS, android.permission.READ_CONTACTS"
+    },
+    {
+      "id": "STATIC_DCL",
+      "severity": "high",
+      "title": "Dynamic Code Loading (DCL) capability",
+      "evidence": "API: DexClassLoader in classes.dex"
+    },
+    {
+      "id": "STATIC_HARDCODED_IP",
+      "severity": "medium",
+      "title": "Hardcoded external IP address(es) detected (1)",
+      "evidence": "IPs: 198.51.100.42"
+    }
+  ],
+  "package_name": "com.example.app",
+  "version_name": "1.2.3",
+  "version_code": 123,
+  "min_sdk": 24,
+  "target_sdk": 34,
+  "permissions": [
+    {
+      "name": "android.permission.INTERNET",
+      "protection_level": "normal",
+      "is_dangerous": false
+    },
+    {
+      "name": "android.permission.SEND_SMS",
+      "protection_level": "dangerous",
+      "is_dangerous": true
+    },
+    {
+      "name": "android.permission.READ_CONTACTS",
+      "protection_level": "dangerous",
+      "is_dangerous": true
+    }
+  ],
+  "components": {
+    "activities": [
+      "com.example.app.MainActivity",
+      "com.example.app.SettingsActivity"
+    ],
+    "services": [
+      "com.example.app.SyncService"
+    ],
+    "receivers": [
+      "com.example.app.BootReceiver"
+    ],
+    "providers": []
+  },
+  "certificate": {
+    "sha256": "4b3d8819a552de8f5f1908bf3710892019ab94d93e872c0c1b72e61a86a6058e",
+    "issuer": "CN=Example Developer, O=Example Org, C=US",
+    "subject": "CN=Example Developer, O=Example Org, C=US",
+    "valid_from": "2024-01-01T00:00:00+00:00",
+    "valid_to": "2049-01-01T00:00:00+00:00",
+    "self_signed": true,
+    "schemes": [
+      "v1",
+      "v2"
+    ]
+  },
+  "native_libs": [
+    {
+      "path": "lib/arm64-v8a/libcrypto_helper.so",
+      "arch": "arm64-v8a",
+      "sha256": "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08"
+    }
+  ],
+  "iocs": {
+    "urls": [
+      "https://api.example.com/v1/sync",
+      "http://c2.example-threat.xyz/beacon"
+    ],
+    "ips": [
+      "198.51.100.42"
+    ],
+    "domains": [
+      "api.example.com",
+      "c2.example-threat.xyz"
+    ],
+    "emails": [
+      "security@example.com"
+    ]
+  },
+  "dangerous_apis": [
+    {
+      "api": "DexClassLoader",
+      "class": "dalvik.system.DexClassLoader",
+      "method": "loadClass/init",
+      "source": "classes.dex"
+    },
+    {
+      "api": "RuntimeExec",
+      "class": "java.lang.Runtime",
+      "method": "exec",
+      "source": "classes.dex"
+    }
+  ],
+  "artifacts": {
+    "apktool_dir": "static/apktool",
+    "jadx_dir": "static/jadx"
+  }
+}

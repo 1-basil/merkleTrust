@@ -1,0 +1,124 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "StaticReport",
+  "type": "object",
+  "required": [
+    "job_id",
+    "engine",
+    "status",
+    "findings",
+    "package_name",
+    "version_name",
+    "version_code",
+    "min_sdk",
+    "target_sdk",
+    "permissions",
+    "components",
+    "certificate",
+    "native_libs",
+    "iocs",
+    "dangerous_apis",
+    "artifacts"
+  ],
+  "properties": {
+    "job_id": { "type": "string" },
+    "engine": { "type": "string", "enum": ["static"] },
+    "status": { "type": "string", "enum": ["ok", "partial"] },
+    "findings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "severity", "title", "evidence"],
+        "properties": {
+          "id": { "type": "string" },
+          "severity": { "type": "string", "enum": ["info", "low", "medium", "high", "critical"] },
+          "title": { "type": "string" },
+          "evidence": { "type": "string" }
+        }
+      }
+    },
+    "package_name": { "type": "string" },
+    "version_name": { "type": "string" },
+    "version_code": { "type": "integer" },
+    "min_sdk": { "type": "integer" },
+    "target_sdk": { "type": "integer" },
+    "permissions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name", "protection_level", "is_dangerous"],
+        "properties": {
+          "name": { "type": "string" },
+          "protection_level": { "type": "string" },
+          "is_dangerous": { "type": "boolean" }
+        }
+      }
+    },
+    "components": {
+      "type": "object",
+      "required": ["activities", "services", "receivers", "providers"],
+      "properties": {
+        "activities": { "type": "array", "items": { "type": "string" } },
+        "services": { "type": "array", "items": { "type": "string" } },
+        "receivers": { "type": "array", "items": { "type": "string" } },
+        "providers": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "certificate": {
+      "type": "object",
+      "required": ["sha256", "issuer", "subject", "valid_from", "valid_to", "self_signed", "schemes"],
+      "properties": {
+        "sha256": { "type": "string" },
+        "issuer": { "type": "string" },
+        "subject": { "type": "string" },
+        "valid_from": { "type": "string" },
+        "valid_to": { "type": "string" },
+        "self_signed": { "type": "boolean" },
+        "schemes": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "native_libs": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["path", "arch", "sha256"],
+        "properties": {
+          "path": { "type": "string" },
+          "arch": { "type": "string" },
+          "sha256": { "type": "string" }
+        }
+      }
+    },
+    "iocs": {
+      "type": "object",
+      "required": ["urls", "ips", "domains", "emails"],
+      "properties": {
+        "urls": { "type": "array", "items": { "type": "string" } },
+        "ips": { "type": "array", "items": { "type": "string" } },
+        "domains": { "type": "array", "items": { "type": "string" } },
+        "emails": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "dangerous_apis": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["api", "class", "method", "source"],
+        "properties": {
+          "api": { "type": "string" },
+          "class": { "type": "string" },
+          "method": { "type": "string" },
+          "source": { "type": "string" }
+        }
+      }
+    },
+    "artifacts": {
+      "type": "object",
+      "required": ["apktool_dir", "jadx_dir"],
+      "properties": {
+        "apktool_dir": { "type": "string" },
+        "jadx_dir": { "type": "string" }
+      }
+    }
+  }
+}
