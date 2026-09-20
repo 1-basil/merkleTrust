@@ -24,6 +24,7 @@ TODO for Bhavish:
 """
 
 import sys
+import os
 import json
 import tempfile
 
@@ -61,14 +62,26 @@ def run(job_id: str, ctx: JobContext) -> dict:
         "process_events": [],
         "hooks": [],
         "runtime_permissions": [],
-        "artifacts": {"pcap": "dynamic/capture.pcap", "logcat": "dynamic/logcat.txt"},
+        "artifacts": {"pcap": "dynamic/capture.pcap", "logcat": "dynamic/logcat.txt", "screenshots": []},
     }
     return emit(ctx, "dynamic.json", report)
 
 
 if __name__ == "__main__":
-    apk = sys.argv[1]
-    prior = json.load(open(sys.argv[2], encoding="utf-8")) if len(sys.argv) > 2 else {}
-    ctx = JobContext(apk_path=apk, workspace=tempfile.mkdtemp(prefix="mt_"), prior=prior,
+    import argparse
+    parser = argparse.ArgumentParser(description="MerkleTrust Dynamic Analysis Engine")
+    parser.add_argument("--apk", required=True, help="Path to the APK file")
+    parser.add_argument("--workspace", default=None,
+                        help="Job workspace directory (default: auto-created temp dir)")
+    parser.add_argument("--prior", default=None,
+                        help="Path to prior.json with upstream engine results")
+    args = parser.parse_args()
+
+    workspace = args.workspace or tempfile.mkdtemp(prefix="mt_")
+    os.makedirs(workspace, exist_ok=True)
+    prior = json.load(open(args.prior, encoding="utf-8")) if args.prior else {}
+    ctx = JobContext(apk_path=args.apk, workspace=workspace, prior=prior,
                      config={"emulator_avd": "mt_api30_root", "dynamic_timeout_s": 90})
-    print(json.dumps(run("local-test", ctx), indent=2))
+    result = run("local-test", ctx)
+    print(json.dumps(result, indent=2))
+    print(f"\nwrote: {ctx.out('dynamic.json')}")

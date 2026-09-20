@@ -1,0 +1,15 @@
+# Python cache
+__pycache__/
+*.py[cod]
+
+# Local Phase 1 test APK
+test_dummy.apk
+
+# Local generated test workspace
+test_workspace/
+
+# Generated Dynamic Engine output
+dynamic.json
+
+#file
+MerkleTrust_Work_Split.md

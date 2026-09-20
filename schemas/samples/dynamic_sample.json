@@ -1,0 +1,118 @@
+{
+  "job_id": "a1b2c3d4-5678-9abc-def0-1234567890ab",
+  "engine": "dynamic",
+  "status": "ok",
+  "findings": [
+    {
+      "id": "DYN_001",
+      "severity": "high",
+      "title": "Network connection to known C2 domain",
+      "evidence": "TCP connection to c2.example.com:443 at ts=12.3"
+    },
+    {
+      "id": "DYN_002",
+      "severity": "medium",
+      "title": "Runtime.exec invoked",
+      "evidence": "Hooked Runtime.exec(['su', '-c', 'id']) at ts=8.1"
+    },
+    {
+      "id": "DYN_003",
+      "severity": "low",
+      "title": "DexClassLoader usage detected",
+      "evidence": "Hooked DexClassLoader('/data/data/com.example.app/files/payload.dex') at ts=15.7"
+    }
+  ],
+  "emulator": {
+    "avd": "mt_api30_root",
+    "api_level": 30,
+    "rooted": true
+  },
+  "installed": true,
+  "launched": true,
+  "duration_s": 90,
+  "network": [
+    {
+      "ts": 2.1,
+      "proto": "tcp",
+      "dst_ip": "93.184.216.34",
+      "dst_port": 443,
+      "host": "example.com",
+      "sni": "example.com",
+      "bytes": 2048
+    },
+    {
+      "ts": 12.3,
+      "proto": "tcp",
+      "dst_ip": "198.51.100.77",
+      "dst_port": 443,
+      "host": "c2.example.com",
+      "sni": "c2.example.com",
+      "bytes": 512
+    }
+  ],
+  "dns": [
+    {
+      "ts": 1.9,
+      "query": "example.com",
+      "answers": ["93.184.216.34"]
+    },
+    {
+      "ts": 12.0,
+      "query": "c2.example.com",
+      "answers": ["198.51.100.77"]
+    }
+  ],
+  "file_ops": [
+    {
+      "ts": 5.4,
+      "op": "write",
+      "path": "/data/data/com.example.app/shared_prefs/config.xml"
+    },
+    {
+      "ts": 15.2,
+      "op": "write",
+      "path": "/data/data/com.example.app/files/payload.dex"
+    }
+  ],
+  "process_events": [
+    {
+      "ts": 3.0,
+      "event": "fork",
+      "detail": "com.example.app forked pid 4321"
+    },
+    {
+      "ts": 8.1,
+      "event": "exec",
+      "detail": "Runtime.exec(['su', '-c', 'id'])"
+    }
+  ],
+  "hooks": [
+    {
+      "ts": 8.1,
+      "target": "Ljava/lang/Runtime;",
+      "api": "exec",
+      "args_sample": "['su', '-c', 'id']"
+    },
+    {
+      "ts": 12.5,
+      "target": "Lcom/evil/Payload;",
+      "api": "sendData",
+      "args_sample": "('c2.example.com', 443, <byte[512]>)"
+    },
+    {
+      "ts": 15.7,
+      "target": "Ldalvik/system/DexClassLoader;",
+      "api": "<init>",
+      "args_sample": "('/data/data/com.example.app/files/payload.dex', ...)"
+    }
+  ],
+  "runtime_permissions": [
+    "android.permission.INTERNET",
+    "android.permission.READ_PHONE_STATE"
+  ],
+  "artifacts": {
+    "pcap": "dynamic/capture.pcap",
+    "logcat": "dynamic/logcat.txt",
+    "screenshots": []
+  }
+}
