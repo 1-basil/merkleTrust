@@ -170,9 +170,9 @@ Dynamic runs **after** tamper, **before** trust_score.
 |---|---|---|
 | **0** | Understand repository, read `worksplit.md`, inspect existing code | ✅ **COMPLETE** |
 | **1** | Contract/stub — fix `core/dynamic.py` to match frozen schema, standalone runner, sample fixtures | ✅ **COMPLETE** |
-| **2** | Android emulator / AVD — reproducible AVD setup | 🔲 Next |
-| **3** | APK installation and launch | 🔲 |
-| **4** | Runtime collection — logcat, PCAP, DNS, file ops, process events, permissions | 🔲 |
+| **2** | Android emulator / AVD — reproducible AVD setup | ✅ **COMPLETE** |
+| **3** | APK installation and launch | ✅ **COMPLETE** |
+| **4** | Runtime collection — logcat, PCAP, DNS, file ops, process events, permissions | 🔲 Next |
 | **5** | Frida integration — targeted + generic hooks | 🔲 |
 | **6** | Findings — stable IDs, severity, consumable by Trust Score | 🔲 |
 | **7** | Database integration — write to Bhavish's tables only | 🔲 |
@@ -293,8 +293,42 @@ Repository inspected, worksplit.md read, all contracts understood.
 
 **What does NOT exist yet:**
 - `db/` directory — not created (Basil's responsibility)
-- No real test APKs in the repository
 - No `quarantine/` directory
+
+### Phase 2 — COMPLETE ✅
+
+**Changes made:**
+1. Created `scripts/setup_avd.ps1` — reproducible AVD setup script (worksplit.md §7 line 237)
+2. Script resolves SDK via `ANDROID_HOME` / `ANDROID_SDK_ROOT` / `%LOCALAPPDATA%` — no hardcoded paths
+3. Script is non-destructive: skips existing packages and AVDs
+4. Manually corrected `sdkmanager --list_installed` to handle stderr deprecation warnings under `$ErrorActionPreference = "Stop"`
+
+**Verified:**
+- AVD `mt_api30_root` created and boots successfully ✅
+- `adb devices` detects `emulator-5554` ✅
+- `ro.build.version.sdk` returns `30` ✅
+- `adb root` + `adb shell id` confirms `uid=0(root)` ✅
+
+### Phase 3 — COMPLETE ✅
+
+**Changes made:**
+1. Replaced stub `run()` in `core/dynamic.py` with real emulator connection, APK install, and launch
+2. Added ADB helpers: `_run_cmd`, `_adb`, `_wait_for_device`, `_get_emulator_info`, `_install_apk`
+3. Added `_find_aapt` — discovers `aapt` from PATH or SDK `build-tools/` (same pattern as `setup_avd.ps1`)
+4. Added `_resolve_package_name` — prefers `ctx.prior["static"]["package_name"]`, falls back to `aapt dump badging`
+5. Added `_resolve_launch_activity` — prefers `ctx.prior["static"]["components"]["activities"][0]`, falls back to `aapt`
+6. Added `_launch_app` — uses `am start -n` when activity known, falls back to `monkey -p`
+7. Added `encoding="utf-8", errors="replace"` to `subprocess.run` for Windows compatibility
+
+**Verified (real APK: `booking.hotelcom.hotelbooking`):**
+- Emulator detected: `api_level: 30`, `rooted: true` ✅
+- APK installed: `installed: true` ✅
+- Package discovered via `aapt`: `booking.hotelcom.hotelbooking` ✅
+- App launched via `am start`: `launched: true` ✅
+- `status: "ok"` on full success ✅
+- `status: "partial"` with `DYN_xxx` finding on failure (emulator down, launch mismatch) ✅
+- Frozen schema preserved — all 19 fields present ✅
+- Prior-mode tested: engine correctly prefers `ctx.prior["static"]` over `aapt` ✅
 
 ---
 
