@@ -1,0 +1,42 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Testing and coverage
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Job workspaces and quarantine
+jobs/
+quarantine/
+
+# Local baseline database and persistent stores
+data/
+*.db
+*.sqlite3
+
+# Binaries, archives and test artifacts
+*.apk
+*.dex
+*.jar
+*.so
+
+# Environment and sensitive secrets
+.env
+.env.*
+*.pem
+*.key
+*.pfx
+*.p12
+secrets/
+
+# Logs
+*.log
+
+# IDE and OS metadata
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
