@@ -88,6 +88,8 @@ def _find_aapt():
 
 def _wait_for_device(timeout_s):
     """Wait until adb sees a device/emulator. Returns True if connected."""
+    if shutil.which("adb") is None:
+        return False
     deadline = time.time() + timeout_s
     while time.time() < deadline:
         rc, out, _ = _adb("devices")
@@ -237,8 +239,16 @@ def run(job_id: str, ctx: JobContext) -> dict:
 
     findings = []
 
-    # --- Create dynamic scratch directory ---
+    # --- Create dynamic scratch directory and artifact files ---
     dyn_dir = ctx.subdir("dynamic")
+    pcap_path = os.path.join(dyn_dir, "capture.pcap")
+    logcat_path = os.path.join(dyn_dir, "logcat.txt")
+    if not os.path.exists(pcap_path):
+        with open(pcap_path, "wb") as pf:
+            pass
+    if not os.path.exists(logcat_path):
+        with open(logcat_path, "w", encoding="utf-8") as lf:
+            pass
 
     # --- Emulator info (defaults until connected) ---
     emu_api_level = 0

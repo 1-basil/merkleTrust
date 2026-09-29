@@ -1,0 +1,34 @@
+{
+  "job_id": "8d2c1e40-5b3a-4a8e-9021-e73e7a01f944",
+  "engine": "score",
+  "status": "ok",
+  "findings": [],
+  "score": 37,
+  "verdict": "suspicious",
+  "rules_fired": [
+    {
+      "rule_id": "R_CERT_CHANGED",
+      "weight": -40,
+      "source": "tamper",
+      "reason": "Signing certificate differs from trusted baseline"
+    },
+    {
+      "rule_id": "R_FILES_MODIFIED",
+      "weight": -25,
+      "source": "tamper",
+      "reason": "Detected 1 tampered file(s) against baseline (DEX modified)"
+    },
+    {
+      "rule_id": "STATIC_DANGEROUS_PERM",
+      "weight": -8,
+      "source": "static",
+      "reason": "App requests dangerous runtime permissions"
+    }
+  ],
+  "inputs": {
+    "integrity_sha256": "783c9145c8eda9530d293c27dcf5ac94b2d222d8b13c1a3439fdaab07c27219e",
+    "static_sha256": "12984abce940291fbcdaee1234567890abcdef1234567890abcdef1234567890",
+    "tamper_sha256": "439810afbc1234567890abcdef1234567890abcdef1234567890abcdef123456",
+    "dynamic_sha256": "6543210987abcdef1234567890abcdef1234567890abcdef1234567890abcdef"
+  }
+}

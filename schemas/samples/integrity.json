@@ -1,0 +1,65 @@
+{
+  "job_id": "8d2c1e40-5b3a-4a8e-9021-e73e7a01f944",
+  "engine": "integrity",
+  "status": "ok",
+  "findings": [
+    {
+      "id": "INTEGRITY_VERIFIED",
+      "severity": "info",
+      "title": "APK chunking and Merkle root computed successfully",
+      "evidence": "Total 4 chunks, root: 783c9145c8eda9530d293c27dcf5ac94b2d222d8b13c1a3439fdaab07c27219e, mapped 3 files"
+    }
+  ],
+  "sha256": "783c9145c8eda9530d293c27dcf5ac94b2d222d8b13c1a3439fdaab07c27219e",
+  "file_size": 245760,
+  "chunk_size": 65536,
+  "chunk_count": 4,
+  "chunks": [
+    {
+      "index": 0,
+      "offset": 0,
+      "length": 65536,
+      "hash": "a1b2c3d4e5f60718293a4b5c6d7e8f90123456789abcdef0123456789abcdef0"
+    },
+    {
+      "index": 1,
+      "offset": 65536,
+      "length": 65536,
+      "hash": "b2c3d4e5f60718293a4b5c6d7e8f90123456789abcdef0123456789abcdef01"
+    },
+    {
+      "index": 2,
+      "offset": 131072,
+      "length": 65536,
+      "hash": "c3d4e5f60718293a4b5c6d7e8f90123456789abcdef0123456789abcdef012"
+    },
+    {
+      "index": 3,
+      "offset": 196608,
+      "length": 49152,
+      "hash": "d4e5f60718293a4b5c6d7e8f90123456789abcdef0123456789abcdef0123"
+    }
+  ],
+  "merkle_root": "783c9145c8eda9530d293c27dcf5ac94b2d222d8b13c1a3439fdaab07c27219e",
+  "tree_depth": 3,
+  "file_map": [
+    {
+      "path": "AndroidManifest.xml",
+      "offset": 0,
+      "length": 4096,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "classes.dex",
+      "offset": 4096,
+      "length": 180000,
+      "sha256": "ca978112ca1bbdcafac231b39a23dc4da786eff8147c4e72b9807785afee48bb"
+    },
+    {
+      "path": "META-INF/CERT.RSA",
+      "offset": 184096,
+      "length": 61664,
+      "sha256": "4e07408562bedb8b60ce05c1decfe3ad16b72230967de01f640b7e4729b49fce"
+    }
+  ]
+}

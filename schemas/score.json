@@ -1,0 +1,46 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "ScoreReport",
+  "type": "object",
+  "required": [
+    "job_id",
+    "engine",
+    "status",
+    "findings",
+    "score",
+    "verdict",
+    "rules_fired",
+    "inputs"
+  ],
+  "properties": {
+    "job_id": { "type": "string" },
+    "engine": { "type": "string", "enum": ["score"] },
+    "status": { "type": "string", "enum": ["ok", "partial"] },
+    "findings": { "type": "array" },
+    "score": { "type": "integer", "minimum": 0, "maximum": 100 },
+    "verdict": { "type": "string", "enum": ["trusted", "suspicious", "malicious"] },
+    "rules_fired": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["rule_id", "weight", "source", "reason"],
+        "properties": {
+          "rule_id": { "type": "string" },
+          "weight": { "type": "integer" },
+          "source": { "type": "string" },
+          "reason": { "type": "string" }
+        }
+      }
+    },
+    "inputs": {
+      "type": "object",
+      "properties": {
+        "integrity_sha256": { "type": "string" },
+        "static_sha256": { "type": "string" },
+        "tamper_sha256": { "type": "string" },
+        "dynamic_sha256": { "type": "string" }
+      }
+    }
+  },
+  "additionalProperties": true
+}

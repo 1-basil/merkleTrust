@@ -18,6 +18,8 @@ apks/
 # Local baseline database and persistent stores
 data/*.sqlite3
 data/*.db
+data/keys/
+data/repository_ledger.json
 
 # Binaries, archives and test artifacts (exclude tracked sample)
 *.apk
