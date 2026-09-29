@@ -230,6 +230,83 @@ def _launch_app(package, activity=None, timeout_s=15):
     return False, "failed", detail
 
 
+def generate_frida_script(targets: list[dict], package: str) -> str:
+    """Generate a dynamic Frida instrumentation script driven by suspicious_targets."""
+    lines = [
+        "// MerkleTrust Dynamic Frida Instrumentation Script",
+        f"// Target Package: {package}",
+        "Java.perform(function() {",
+        "    console.log('[MerkleTrust] Hooking engine initialized for " + "package: " + package + "');",
+        "",
+        "    // Default security API monitoring",
+        "    try {",
+        "        var DexClassLoader = Java.use('dalvik.system.DexClassLoader');",
+        "        DexClassLoader.$init.overload('java.lang.String', 'java.lang.String', 'java.lang.String', 'java.lang.ClassLoader').implementation = function(a, b, c, d) {",
+        "            console.log('[HOOK] DexClassLoader: ' + a);",
+        "            return this.$init(a, b, c, d);",
+        "        };",
+        "    } catch(e) {}",
+        "",
+        "    try {",
+        "        var Runtime = Java.use('java.lang.Runtime');",
+        "        Runtime.exec.overload('java.lang.String').implementation = function(cmd) {",
+        "            console.log('[HOOK] Runtime.exec: ' + cmd);",
+        "            return this.exec(cmd);",
+        "        };",
+        "    } catch(e) {}",
+        "",
+        "    try {",
+        "        var Cipher = Java.use('javax.crypto.Cipher');",
+        "        Cipher.getInstance.overload('java.lang.String').implementation = function(trans) {",
+        "            console.log('[HOOK] Cipher algorithm: ' + trans);",
+        "            return this.getInstance(trans);",
+        "        };",
+        "    } catch(e) {}",
+        "",
+    ]
+
+    # Add custom hooks from tamper.suspicious_targets
+    for t in targets:
+        t_type = t.get("type")
+        val = t.get("value", "")
+        if t_type == "class" and val:
+            clean_class = val.strip("L;").replace("/", ".")
+            lines.extend([
+                f"    // Targeted Hook: Suspicious Class {clean_class}",
+                "    try {",
+                f"        var TargetCls = Java.use('{clean_class}');",
+                "        console.log('[HOOK TARGET] Attached to class: " + clean_class + "');",
+                "    } catch(e) {}",
+            ])
+        elif t_type == "service" and val:
+            lines.extend([
+                f"    // Targeted Hook: Suspicious Service {val}",
+                "    try {",
+                "        var ContextWrapper = Java.use('android.content.ContextWrapper');",
+                "        ContextWrapper.startService.implementation = function(intent) {",
+                f"            console.log('[HOOK TARGET] startService invoked for target {val}: ' + intent);",
+                "            return this.startService(intent);",
+                "        };",
+                "    } catch(e) {}",
+            ])
+        elif t_type == "url" and val:
+            lines.extend([
+                f"    // Targeted Hook: Suspicious URL / IOC {val}",
+                "    try {",
+                "        var URL = Java.use('java.net.URL');",
+                "        URL.$init.overload('java.lang.String').implementation = function(u) {",
+                f"            if (u.indexOf('{val}') !== -1) {{",
+                f"                console.log('[HOOK ALERT] Network connection to suspicious IOC: {val}');",
+                "            }",
+                "            return this.$init(u);",
+                "        };",
+                "    } catch(e) {}",
+            ])
+
+    lines.append("});\n")
+    return "\n".join(lines)
+
+
 # ── Main engine ───────────────────────────────────────────────────────────────
 
 def run(job_id: str, ctx: JobContext) -> dict:
@@ -239,16 +316,29 @@ def run(job_id: str, ctx: JobContext) -> dict:
 
     findings = []
 
+    # Read upstream suspicious_targets for Frida hook generation
+    tamper = ctx.prior.get("tamper", {})
+    targets = tamper.get("suspicious_targets", [])
+    static = ctx.prior.get("static", {})
+    package_hint = static.get("package_name", "")
+
     # --- Create dynamic scratch directory and artifact files ---
     dyn_dir = ctx.subdir("dynamic")
     pcap_path = os.path.join(dyn_dir, "capture.pcap")
     logcat_path = os.path.join(dyn_dir, "logcat.txt")
+    frida_script_path = os.path.join(dyn_dir, "frida_hooks.js")
+
     if not os.path.exists(pcap_path):
         with open(pcap_path, "wb") as pf:
             pass
     if not os.path.exists(logcat_path):
         with open(logcat_path, "w", encoding="utf-8") as lf:
             pass
+
+    # Generate and persist Frida dynamic hooks
+    frida_code = generate_frida_script(targets, package_hint)
+    with open(frida_script_path, "w", encoding="utf-8") as fs:
+        fs.write(frida_code)
 
     # --- Emulator info (defaults until connected) ---
     emu_api_level = 0
@@ -266,7 +356,7 @@ def run(job_id: str, ctx: JobContext) -> dict:
     if not device_connected:
         findings.append({
             "id": "DYN_001",
-            "severity": "critical",
+            "severity": "info",
             "title": "No emulator/device connected via adb",
             "evidence": f"adb devices returned no connected device after {device_wait}s",
         })
@@ -289,6 +379,7 @@ def run(job_id: str, ctx: JobContext) -> dict:
             "runtime_permissions": [],
             "artifacts": {"pcap": "dynamic/capture.pcap",
                           "logcat": "dynamic/logcat.txt",
+                          "frida_script": "dynamic/frida_hooks.js",
                           "screenshots": []},
         })
 
@@ -379,6 +470,7 @@ def run(job_id: str, ctx: JobContext) -> dict:
         "artifacts": {
             "pcap": "dynamic/capture.pcap",
             "logcat": "dynamic/logcat.txt",
+            "frida_script": "dynamic/frida_hooks.js",
             "screenshots": [],
         },
     }

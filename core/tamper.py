@@ -186,8 +186,12 @@ def run(job_id: str, ctx: JobContext) -> dict:
     components_added = sorted(curr_comps - base_comps)
     components_removed = sorted(base_comps - curr_comps)
 
-    # Certificate changed check
-    certificate_changed = bool(base_cert_sha and curr_cert_sha and base_cert_sha != curr_cert_sha)
+    # Certificate changed check (SHA fingerprint diff or META-INF signature modification)
+    sig_files_changed = any("META-INF" in f.get("path", "") for f in changed_files)
+    certificate_changed = bool(
+        (base_cert_sha != curr_cert_sha and (base_cert_sha or curr_cert_sha))
+        or sig_files_changed
+    )
 
     # Build suspicious_targets for Bhavish's Dynamic engine
     suspicious_targets: list[dict[str, str]] = []
