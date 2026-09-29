@@ -11,17 +11,21 @@ htmlcov/
 # Job workspaces and quarantine
 jobs/
 quarantine/
+test_workspace/
+test_phase3/
+apks/
 
 # Local baseline database and persistent stores
-data/
-*.db
-*.sqlite3
+data/*.sqlite3
+data/*.db
 
-# Binaries, archives and test artifacts
+# Binaries, archives and test artifacts (exclude tracked sample)
 *.apk
+!test_sample.apk
 *.dex
 *.jar
 *.so
+test_dummy.apk
 
 # Environment and sensitive secrets
 .env
@@ -34,6 +38,9 @@ secrets/
 
 # Logs
 *.log
+
+# Generated Engine outputs outside workspace
+dynamic.json
 
 # IDE and OS metadata
 .vscode/
