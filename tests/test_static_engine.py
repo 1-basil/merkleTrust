@@ -1,5 +1,6 @@
 """Static engine on real APKs (regression for the binary-manifest crash) and on invalid input."""
 
+from pathlib import Path
 import pytest
 
 from core.contracts import EngineError, JobContext
@@ -43,7 +44,7 @@ def test_unsigned_apk_flagged(fixture_apk, tmp_path):
 
 def test_prepended_data_flagged(fixture_apk, tmp_path):
     p = tmp_path / "janus.apk"
-    p.write_bytes(b"dex\n035\x00" + b"\x00" * 100 + open(fixture_apk("signed_v1v2_ec.apk"), "rb").read())
+    p.write_bytes(b"dex\n035\x00" + b"\x00" * 100 + Path(fixture_apk("signed_v1v2_ec.apk")).read_bytes())
     r = _run(p, tmp_path)
     assert "STATIC_ARCHIVE_PREFIX" in _ids(r)
     assert r["signature"]["status"] == "invalid"

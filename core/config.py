@@ -12,6 +12,18 @@ All settings use the ``MERKLETRUST_`` prefix and may also be placed in a local
                                       signing keys (still accepted for verification)
     MERKLETRUST_DEV_KEY_DIR           where a development key is auto-created when
                                       no key is configured (never in production)
+
+  API / server
+    MERKLETRUST_CORS_ORIGINS          JSON list of allowed browser origins (default: none,
+                                      i.e. same-origin only)
+    MERKLETRUST_MAX_UPLOAD_MB         maximum APK upload size (default 100)
+    MERKLETRUST_SESSION_TTL_MINUTES   login session lifetime (default 480)
+    MERKLETRUST_JOB_WORKERS           concurrent analysis jobs (default 2)
+    MERKLETRUST_MAX_QUEUED_JOBS       queued jobs before uploads get HTTP 503 (default 20)
+    MERKLETRUST_JOB_EXECUTION         "thread" (default) or "inline" (tests: run synchronously)
+    MERKLETRUST_ENABLE_DEMO           tamper/restore demo endpoints (default: on unless production)
+    MERKLETRUST_AUTO_MIGRATE          apply database migrations at startup (default true)
+    MERKLETRUST_LOG_LEVEL / MERKLETRUST_LOG_JSON
 """
 
 from __future__ import annotations
@@ -36,6 +48,19 @@ class Settings(BaseSettings):
     trusted_keys_dir: Path | None = None
     dev_key_dir: Path = Path.home() / ".merkletrust" / "keys"
 
+    cors_origins: list[str] = []
+    max_upload_mb: int = 100
+    session_ttl_minutes: int = 480
+    job_workers: int = 2
+    max_queued_jobs: int = 20
+    job_execution: Literal["thread", "inline"] = "thread"
+    enable_demo: bool | None = None
+    auto_migrate: bool = True
+    log_level: str = "INFO"
+    log_json: bool = True
+    login_rate_per_minute: int = 10
+    upload_rate_per_minute: int = 20
+
     @property
     def resolved_database_url(self) -> str:
         return self.database_url or f"sqlite:///{(self.data_dir / 'merkletrust.db').resolve().as_posix()}"
@@ -43,6 +68,18 @@ class Settings(BaseSettings):
     @property
     def is_production(self) -> bool:
         return self.env == "production"
+
+    @property
+    def demo_enabled(self) -> bool:
+        return (not self.is_production) if self.enable_demo is None else self.enable_demo
+
+    @property
+    def jobs_dir(self) -> Path:
+        return self.data_dir / "jobs"
+
+    @property
+    def quarantine_dir(self) -> Path:
+        return self.data_dir / "quarantine"
 
 
 @lru_cache

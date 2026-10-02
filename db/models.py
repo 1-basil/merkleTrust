@@ -1,11 +1,11 @@
 """db/models.py — SQLAlchemy database models for MerkleTrust.
 
-Owner: Basil.
-Models represent tables for all four engines:
-- Basil: Job, ApkFile, EngineStatus, TrustScore
-- Ajay: AuditBlock (blockchain simulation), ChunkHash
-- Ashwini: TrustedBaseline, StaticReportModel, TamperReportModel
-- Bhavish: DynamicReportModel
+- Users and login sessions: User, AuthSession
+- Analysis: ApkFile, Job, EngineStatus, TrustScore
+- Trusted baselines: TrustedBaseline
+- Audit trail (Blockchain Simulation): AuditBlock, AuditTamperBackup
+
+Schema changes are managed with Alembic (migrations/).
 """
 
 from datetime import datetime, timezone
@@ -20,11 +20,41 @@ from sqlalchemy import (
     DateTime,
     ForeignKey,
     Text,
-    Float,
 )
 from sqlalchemy.orm import relationship
 
 from db.database import Base
+
+
+def _utcnow() -> datetime:
+    return datetime.now(timezone.utc)
+
+
+class User(Base):
+    """An operator account. Roles: admin (manages baselines, demo) and analyst (scans, views)."""
+    __tablename__ = "users"
+    __table_args__ = (CheckConstraint("role IN ('admin','analyst')", name="ck_user_role"),)
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    username = Column(String(64), nullable=False, unique=True)
+    password_hash = Column(String(255), nullable=False)
+    role = Column(String(16), nullable=False)
+    active = Column(Boolean, nullable=False, default=True)
+    created_at = Column(DateTime, nullable=False, default=_utcnow)
+
+
+class AuthSession(Base):
+    """A login session. Only the SHA-256 of the bearer token is stored."""
+    __tablename__ = "auth_sessions"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    token_hash = Column(String(64), nullable=False, unique=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    created_at = Column(DateTime, nullable=False, default=_utcnow)
+    expires_at = Column(DateTime, nullable=False)
+    revoked_at = Column(DateTime, nullable=True)
+
+    user = relationship("User")
 
 
 class ApkFile(Base):
@@ -44,11 +74,18 @@ class Job(Base):
     """Analysis job orchestrator records."""
     __tablename__ = "jobs"
 
+    __table_args__ = (CheckConstraint("status IN ('queued','running','done','failed')", name="ck_job_status"),)
+
     id = Column(String(64), primary_key=True, index=True)
-    apk_sha256 = Column(String(64), ForeignKey("apk_files.sha256"), nullable=False)
-    status = Column(String(32), default="pending", index=True)  # pending, running, done, failed
+    apk_sha256 = Column(String(64), ForeignKey("apk_files.sha256"), nullable=False, index=True)
+    status = Column(String(32), nullable=False, default="queued", index=True)
     workspace = Column(String(512), nullable=False)
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    filename = Column(String(255), nullable=True)        # sanitised display name
+    submitted_by = Column(String(64), nullable=True)
+    package_name = Column(String(255), nullable=True, index=True)
+    error_message = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=_utcnow, index=True)
+    started_at = Column(DateTime, nullable=True)
     completed_at = Column(DateTime, nullable=True)
 
     apk_file = relationship("ApkFile", back_populates="jobs")
@@ -61,7 +98,7 @@ class EngineStatus(Base):
     __tablename__ = "engine_status"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    job_id = Column(String(64), ForeignKey("jobs.id"), nullable=False, index=True)
+    job_id = Column(String(64), ForeignKey("jobs.id", ondelete="CASCADE"), nullable=False, index=True)
     engine_name = Column(String(32), nullable=False)  # integrity, static, tamper, dynamic, score, repository
     status = Column(String(32), default="pending")    # pending, running, ok, partial, failed
     duration_ms = Column(Integer, default=0)
@@ -76,7 +113,7 @@ class TrustScore(Base):
     __tablename__ = "trust_scores"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    job_id = Column(String(64), ForeignKey("jobs.id"), unique=True, nullable=False)
+    job_id = Column(String(64), ForeignKey("jobs.id", ondelete="CASCADE"), unique=True, nullable=False)
     score = Column(Integer, nullable=True)  # risk indicator 0-100 (higher = riskier); NULL if not analysable
     risk_level = Column(String(16), nullable=False, default="UNKNOWN")  # LOW|MEDIUM|HIGH|CRITICAL|UNKNOWN
     integrity_status = Column(String(32), nullable=False, default="UNKNOWN")
@@ -123,18 +160,6 @@ class AuditTamperBackup(Base):
     tampered_at = Column(DateTime, nullable=False, default=lambda: datetime.now(timezone.utc))
 
 
-class ChunkHash(Base):
-    """64KB chunk hashes from Ajay's integrity engine."""
-    __tablename__ = "chunk_hashes"
-
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    job_id = Column(String(64), nullable=False, index=True)
-    chunk_index = Column(Integer, nullable=False)
-    offset = Column(Integer, nullable=False)
-    length = Column(Integer, nullable=False)
-    hash = Column(String(64), nullable=False)
-
-
 class TrustedBaseline(Base):
     """An explicitly enrolled reference build of an application.
 
@@ -178,41 +203,3 @@ class TrustedBaseline(Base):
 
     signature_json = Column(Text, nullable=True)                # {"alg","key_id","signature"}
     signing_key_id = Column(String(32), nullable=True)
-
-
-class StaticReportModel(Base):
-    """Static analysis findings from Ashwini's static engine."""
-    __tablename__ = "static_reports"
-
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    job_id = Column(String(64), nullable=False, unique=True, index=True)
-    package_name = Column(String(255), nullable=True)
-    version_name = Column(String(64), nullable=True)
-    version_code = Column(Integer, nullable=True)
-    min_sdk = Column(Integer, nullable=True)
-    target_sdk = Column(Integer, nullable=True)
-    report_json = Column(Text, nullable=False)
-
-
-class TamperReportModel(Base):
-    """Tamper analysis report from Ashwini's tamper engine."""
-    __tablename__ = "tamper_reports"
-
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    job_id = Column(String(64), nullable=False, unique=True, index=True)
-    role = Column(String(32), nullable=False)  # baseline or comparison
-    baseline_job_id = Column(String(64), nullable=True)
-    certificate_changed = Column(Boolean, default=False)
-    report_json = Column(Text, nullable=False)
-
-
-class DynamicReportModel(Base):
-    """Dynamic analysis report from Bhavish's dynamic engine."""
-    __tablename__ = "dynamic_reports"
-
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    job_id = Column(String(64), nullable=False, unique=True, index=True)
-    installed = Column(Boolean, default=False)
-    launched = Column(Boolean, default=False)
-    duration_s = Column(Integer, default=0)
-    report_json = Column(Text, nullable=False)

@@ -1,6 +1,7 @@
 """APK signature verification tests (v1 JAR, v2, v3) on real apksigner output,
 including the attacks the verifier must catch."""
 
+from pathlib import Path
 import zipfile
 
 import pytest
@@ -120,7 +121,7 @@ def test_v2_content_modification_detected(tmp_path, fixture_apk):
 
 def test_v2_forged_signed_data_detected(tmp_path, fixture_apk):
     src = fixture_apk("suspicious_v2_ec.apk")
-    data = open(src, "rb").read()
+    data = Path(src).read_bytes()
     loc = locate_signing_block(data)
     # Flip a byte early inside the v2 signed-data (inside the digests list).
     out = flip_byte(src, tmp_path / "f.apk", loc["block_offset"] + 8 + 12 + 4 + 4 + 4 + 4 + 4 + 4 + 8)
@@ -130,7 +131,7 @@ def test_v2_forged_signed_data_detected(tmp_path, fixture_apk):
 
 
 def test_truncated_apk_does_not_crash(tmp_path, fixture_apk):
-    data = open(fixture_apk("signed_v1v2_ec.apk"), "rb").read()
+    data = Path(fixture_apk("signed_v1v2_ec.apk")).read_bytes()
     p = tmp_path / "trunc.apk"
     p.write_bytes(data[: len(data) // 2])
     try:

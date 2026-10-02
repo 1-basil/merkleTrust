@@ -14,7 +14,7 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import Iterator
 
-from sqlalchemy import Engine, create_engine, event
+from sqlalchemy import Engine, create_engine, event, inspect
 from sqlalchemy.orm import Session, declarative_base, sessionmaker
 
 from core.config import get_settings
@@ -50,10 +50,29 @@ def get_engine() -> Engine:
     return _engine if _engine is not None else configure_database()
 
 
+_initialised: set[str] = set()
+
+
 def init_db() -> None:
-    """Create all tables that do not exist yet."""
+    """Make sure the schema exists and is current (idempotent, once per process and URL).
+
+    Empty database: create all tables and stamp them at the latest migration.
+    Migrated database: apply pending migrations. Legacy database: refused
+    (see db.migrations.upgrade_database).
+    """
     from db import models  # noqa: F401  (registers models)
-    Base.metadata.create_all(bind=get_engine())
+    from db.migrations import stamp_new_database, upgrade_database
+
+    engine = get_engine()
+    key = str(engine.url)
+    if key in _initialised:
+        return
+    if not inspect(engine).get_table_names():
+        Base.metadata.create_all(bind=engine)
+        stamp_new_database(engine)
+    else:
+        upgrade_database(engine)
+    _initialised.add(key)
 
 
 def get_db() -> Iterator[Session]:

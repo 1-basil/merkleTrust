@@ -1,5 +1,6 @@
 """Security tests for the hardened APK archive reader."""
 
+from pathlib import Path
 import os
 import warnings
 import zipfile
@@ -54,8 +55,8 @@ def test_unsafe_entry_names_rejected(tmp_path, name):
     # zipfile normalises names on write, so write a placeholder and patch the raw bytes.
     placeholder = "Q" * len(name.encode())
     p = _zip(tmp_path / "x.apk", [MANIFEST, (placeholder, b"x")])
-    raw = open(p, "rb").read().replace(placeholder.encode(), name.encode())
-    open(p, "wb").write(raw)
+    raw = Path(p).read_bytes().replace(placeholder.encode(), name.encode())
+    Path(p).write_bytes(raw)
     with pytest.raises(ApkValidationError, match="Unsafe entry name"):
         ApkArchive(p)
 
@@ -104,7 +105,7 @@ def test_read_cap_enforced(fixture_apk):
 
 
 def test_prepended_data_reported(tmp_path, fixture_apk):
-    data = open(fixture_apk("unsigned.apk"), "rb").read()
+    data = Path(fixture_apk("unsigned.apk")).read_bytes()
     p = tmp_path / "janus.apk"
     p.write_bytes(b"dex\n035\x00" + b"\x00" * 120 + data)
     with ApkArchive(str(p)) as apk:
@@ -114,10 +115,10 @@ def test_prepended_data_reported(tmp_path, fixture_apk):
 
 def test_corrupt_entry_detected_on_read(tmp_path):
     p = _zip(tmp_path / "x.apk", [MANIFEST, ("assets/data.txt", b"A" * 200)], compression=zipfile.ZIP_STORED)
-    raw = bytearray(open(p, "rb").read())
+    raw = bytearray(Path(p).read_bytes())
     pos = raw.index(b"A" * 200)
     raw[pos] = ord("B")  # content changed, CRC not updated
-    open(p, "wb").write(bytes(raw))
+    Path(p).write_bytes(bytes(raw))
     with ApkArchive(p) as apk:
         with pytest.raises(ApkValidationError, match="corrupt"):
             apk.read("assets/data.txt")

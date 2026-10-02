@@ -20,6 +20,7 @@ data/*.sqlite3
 data/*.db
 data/keys/
 data/repository_ledger.json
+data/tmp/
 
 # Binaries, archives and test artifacts (exclude tracked sample)
 *.apk

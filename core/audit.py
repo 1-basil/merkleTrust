@@ -29,6 +29,7 @@ from __future__ import annotations
 
 import json
 import logging
+import time
 from datetime import datetime, timezone
 from typing import Any
 
@@ -57,6 +58,9 @@ EVENTS = {
     "REPORT_VERIFIED": "Report verification performed",
     "CHAIN_VERIFIED": "Audit chain verification performed",
     "USER_LOGIN": "User signed in",
+    "LOGIN_FAILED": "Failed sign-in attempt",
+    "AUDIT_TAMPER_DEMO": "Tamper demonstration applied",
+    "AUDIT_RESTORED": "Tamper demonstration reverted",
 }
 
 
@@ -111,6 +115,24 @@ def append_event(db: Session, event_type: str, actor: str, payload: dict[str, An
     db.flush()  # PK / UNIQUE(previous_hash) reject a concurrent append for the same position
     log.info("audit block %s appended: %s (%s)", block.block_index, event_type, subject)
     return block
+
+
+def record_event(event_type: str, actor: str, payload: dict[str, Any], subject: str | None = None,
+                 attempts: int = 5) -> int:
+    """Append an event in its own short transaction (retrying if a concurrent append
+    took the same position). Returns the new block index."""
+    from sqlalchemy.exc import IntegrityError
+
+    from db.database import session_scope
+    for attempt in range(1, attempts + 1):
+        try:
+            with session_scope() as db:
+                return append_event(db, event_type, actor, payload, subject).block_index
+        except IntegrityError:
+            if attempt == attempts:
+                raise
+            time.sleep(0.05 * attempt)
+    raise AssertionError("unreachable")
 
 
 def all_blocks(db: Session) -> list[AuditBlock]:

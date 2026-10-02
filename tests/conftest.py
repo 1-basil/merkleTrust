@@ -14,6 +14,8 @@ os.environ["MERKLETRUST_ENV"] = "test"
 os.environ["MERKLETRUST_DATA_DIR"] = os.path.join(_TEST_ROOT, "data")
 os.environ["MERKLETRUST_DATABASE_URL"] = "sqlite:///" + os.path.join(_TEST_ROOT, "data", "test.db").replace("\\", "/")
 os.environ["MERKLETRUST_DEV_KEY_DIR"] = os.path.join(_TEST_ROOT, "keys")
+os.environ["MERKLETRUST_JOB_EXECUTION"] = "inline"   # analyses run synchronously in tests
+os.environ["MERKLETRUST_LOG_JSON"] = "false"
 for _var in ("MERKLETRUST_SIGNING_KEY_PATH", "MERKLETRUST_SIGNING_KEY_PASSWORD", "MERKLETRUST_TRUSTED_KEYS_DIR"):
     os.environ.pop(_var, None)
 
