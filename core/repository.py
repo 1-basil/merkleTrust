@@ -12,62 +12,22 @@ Cryptographic Merkle Repository and Simulated Blockchain Ledger for MerkleTrust.
 import sys
 import os
 import json
-import base64
 import hashlib
 import tempfile
 from datetime import datetime, timezone
 from typing import Any, Tuple
 
-from cryptography.hazmat.primitives.asymmetric import ec
-from cryptography.hazmat.primitives import hashes, serialization
-from cryptography.exceptions import InvalidSignature
-
 from core.contracts import JobContext, emit
+from core.crypto import KeyRing, canonical_json, get_keyring, get_signer
 from core.merkle import build_tree, root, proof, verify_proof
 
 GENESIS = "0" * 64
-KEYS_DIR = os.path.join("data", "keys")
 LEDGER_PATH = os.path.join("data", "repository_ledger.json")
 
 
-def _get_or_create_keypair() -> tuple[ec.EllipticCurvePrivateKey, ec.EllipticCurvePublicKey]:
-    """Retrieve or generate ECDSA P-256 signing key pair."""
-    os.makedirs(KEYS_DIR, exist_ok=True)
-    priv_path = os.path.join(KEYS_DIR, "repo_signer_key.pem")
-    pub_path = os.path.join(KEYS_DIR, "repo_signer_pub.pem")
-
-    if os.path.exists(priv_path) and os.path.exists(pub_path):
-        with open(priv_path, "rb") as fh:
-            priv_key = serialization.load_pem_private_key(fh.read(), password=None)
-        with open(pub_path, "rb") as fh:
-            pub_key = serialization.load_pem_public_key(fh.read())
-        return priv_key, pub_key
-
-    # Generate new P-256 key pair
-    priv_key = ec.generate_private_key(ec.SECP256R1())
-    pub_key = priv_key.public_key()
-
-    priv_pem = priv_key.private_bytes(
-        encoding=serialization.Encoding.PEM,
-        format=serialization.PrivateFormat.PKCS8,
-        encryption_algorithm=serialization.NoEncryption(),
-    )
-    pub_pem = pub_key.public_bytes(
-        encoding=serialization.Encoding.PEM,
-        format=serialization.PublicFormat.SubjectPublicKeyInfo,
-    )
-
-    with open(priv_path, "wb") as fh:
-        fh.write(priv_pem)
-    with open(pub_path, "wb") as fh:
-        fh.write(pub_pem)
-
-    return priv_key, pub_key
-
-
 def canonicalize_json(data: Any) -> str:
-    """Canonicalize JSON with sorted keys and no unnecessary whitespace."""
-    return json.dumps(data, sort_keys=True, separators=(",", ":"))
+    """Canonical JSON (sorted keys, compact) — delegates to core.crypto."""
+    return canonical_json(data).decode("ascii")
 
 
 def load_ledger(ledger_file: str = LEDGER_PATH) -> list[dict[str, Any]]:
@@ -88,30 +48,16 @@ def save_ledger(ledger: list[dict[str, Any]], ledger_file: str = LEDGER_PATH) ->
         json.dump(ledger, fh, indent=2, sort_keys=True)
 
 
-def verify_entry_signature(entry: dict[str, Any], pubkey_pem: bytes | str | None = None) -> bool:
-    """Verify ECDSA signature on an entry."""
-    entry_hash = entry.get("entry_hash", "")
-    sig_b64 = entry.get("signature", "")
-    if not entry_hash or not sig_b64:
+def verify_entry_signature(entry: dict[str, Any], keyring: KeyRing | None = None) -> bool:
+    """Verify the ECDSA P-256 signature over an entry's entry_hash.
+
+    Uses the configured key ring; never generates keys during verification.
+    """
+    keyring = keyring or get_keyring()
+    entry_hash = entry.get("entry_hash")
+    if not isinstance(entry_hash, str) or not entry_hash:
         return False
-
-    try:
-        if pubkey_pem is None:
-            pub_path = os.path.join(KEYS_DIR, "repo_signer_pub.pem")
-            if not os.path.exists(pub_path):
-                _get_or_create_keypair()
-            with open(pub_path, "rb") as fh:
-                pubkey_pem = fh.read()
-
-        if isinstance(pubkey_pem, str):
-            pubkey_pem = pubkey_pem.encode("utf-8")
-
-        pub_key = serialization.load_pem_public_key(pubkey_pem)
-        sig_bytes = base64.b64decode(sig_b64)
-        pub_key.verify(sig_bytes, entry_hash.encode("utf-8"), ec.ECDSA(hashes.SHA256()))
-        return True
-    except (InvalidSignature, Exception):
-        return False
+    return keyring.verify_bytes(entry_hash.encode("utf-8"), entry.get("signature"), entry.get("pubkey_id")).valid
 
 
 def verify_chain(ledger: list[dict[str, Any]]) -> Tuple[bool, int, str]:
@@ -171,9 +117,8 @@ def run(job_id: str, ctx: JobContext) -> dict:
     ).hexdigest()
 
     # 4. Sign entry_hash with ECDSA P-256
-    priv_key, _ = _get_or_create_keypair()
-    sig_bytes = priv_key.sign(entry_hash.encode("utf-8"), ec.ECDSA(hashes.SHA256()))
-    sig_b64 = base64.b64encode(sig_bytes).decode("ascii")
+    signer = get_signer()
+    sig_b64 = signer.sign_bytes(entry_hash.encode("utf-8"))
 
     # 5. Build repository-wide Merkle tree and inclusion proof
     all_hashes = [e["entry_hash"] for e in ledger] + [entry_hash]
@@ -203,7 +148,7 @@ def run(job_id: str, ctx: JobContext) -> dict:
                 "id": "REPO_SEALED",
                 "severity": "info",
                 "title": "Analysis report cryptographically committed to Merkle repository",
-                "evidence": f"Entry index {entry_index}, signed with mt-signer-1, simulated block height {block_height}",
+                "evidence": f"Entry index {entry_index}, signed with {signer.key_id}, simulated block height {block_height}",
             }
         ],
         "entry_index": entry_index,
@@ -211,7 +156,7 @@ def run(job_id: str, ctx: JobContext) -> dict:
         "prev_entry_hash": prev_entry_hash,
         "entry_hash": entry_hash,
         "signature": sig_b64,
-        "pubkey_id": "mt-signer-1",
+        "pubkey_id": signer.key_id,
         "repo_merkle_root": repo_merkle_root,
         "inclusion_proof": inclusion_proof,
         "timestamp": timestamp,

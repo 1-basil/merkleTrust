@@ -33,6 +33,7 @@ test_dummy.apk
 # Environment and sensitive secrets
 .env
 .env.*
+!.env.example
 *.pem
 *.key
 *.pfx
