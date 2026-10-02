@@ -6,6 +6,8 @@ import pytest
 from core.contracts import EngineError, JobContext
 from core.static import classify_permission, run as run_static
 
+pytestmark = pytest.mark.unit
+
 
 def _run(path, tmp_path):
     ctx = JobContext(apk_path=str(path), workspace=str(tmp_path), prior={}, config={})

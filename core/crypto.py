@@ -30,8 +30,8 @@ import json
 import logging
 import math
 import os
+import threading
 from dataclasses import dataclass
-from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
@@ -229,10 +229,28 @@ def load_signer(settings: Settings | None = None) -> Signer:
     if settings.is_production:
         raise KeyConfigurationError("MERKLETRUST_SIGNING_KEY_PATH must be set in production")
     dev_path = Path(settings.dev_key_dir) / DEV_KEY_FILENAME
-    if not dev_path.exists():
-        write_private_key(ec.generate_private_key(ec.SECP256R1()), dev_path)
+    if not dev_path.exists() and _create_dev_key(dev_path):
         log.warning("created DEVELOPMENT signing key at %s — do not use in production", dev_path)
     return Signer(load_private_key(dev_path))
+
+
+def _create_dev_key(path: Path) -> bool:
+    """Create the development key exactly once, even with concurrent callers or processes.
+
+    The key is written completely to a private temporary file and then hard-linked
+    into place: linking fails if the target exists, so a concurrent creator can never
+    be overwritten and nobody can read a half-written key. Returns False if another
+    caller won the race (its key is then used).
+    """
+    tmp = path.with_name(f".{path.name}.{os.getpid()}.{threading.get_ident()}.tmp")
+    write_private_key(ec.generate_private_key(ec.SECP256R1()), tmp)
+    try:
+        os.link(tmp, path)
+        return True
+    except FileExistsError:
+        return False
+    finally:
+        tmp.unlink(missing_ok=True)
 
 
 def load_keyring(signer: Signer, settings: Settings | None = None) -> KeyRing:
@@ -248,18 +266,34 @@ def load_keyring(signer: Signer, settings: Settings | None = None) -> KeyRing:
     return ring
 
 
-@lru_cache
+_KEY_LOCK = threading.Lock()
+_signer: Signer | None = None
+_keyring: KeyRing | None = None
+
+
 def get_signer() -> Signer:
-    return load_signer()
+    """The process-wide signer (loaded once; safe under concurrent first use)."""
+    global _signer
+    if _signer is None:
+        with _KEY_LOCK:
+            if _signer is None:
+                _signer = load_signer()
+    return _signer
 
 
-@lru_cache
 def get_keyring() -> KeyRing:
-    return load_keyring(get_signer())
+    global _keyring
+    if _keyring is None:
+        signer = get_signer()
+        with _KEY_LOCK:
+            if _keyring is None:
+                _keyring = load_keyring(signer)
+    return _keyring
 
 
 def reset_key_cache() -> None:
     """For tests / key rotation: forget cached settings and keys."""
-    get_settings.cache_clear()
-    get_signer.cache_clear()
-    get_keyring.cache_clear()
+    global _signer, _keyring
+    with _KEY_LOCK:
+        get_settings.cache_clear()
+        _signer = _keyring = None

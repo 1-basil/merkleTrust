@@ -17,6 +17,8 @@ from core.orchestrator import run_job
 from core.repository import report_hash, verify_job_report
 from db.models import AuditBlock
 
+pytestmark = [pytest.mark.integration, pytest.mark.security]
+
 
 def _chain(db, n=4):
     for i in range(n):

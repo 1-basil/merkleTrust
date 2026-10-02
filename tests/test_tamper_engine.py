@@ -10,6 +10,8 @@ from core.baselines import BaselineService
 from core.contracts import JobContext
 from scripts.apk_mutations import rewrite_zip
 
+pytestmark = [pytest.mark.integration, pytest.mark.security]
+
 PKG = "com.merkletrust.demo"
 
 

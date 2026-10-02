@@ -7,6 +7,8 @@ import pytest
 
 from core.axml import AxmlError, parse_manifest, parse_manifest_xml
 
+pytestmark = pytest.mark.unit
+
 
 def _manifest(path):
     return zipfile.ZipFile(path).read("AndroidManifest.xml")

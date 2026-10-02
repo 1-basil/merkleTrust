@@ -18,6 +18,8 @@ from api.security import create_user
 from core.config import Settings, get_settings
 from db.models import AuthSession, Job, User
 
+pytestmark = pytest.mark.api
+
 PASSWORD = "correct-horse-battery"
 
 
@@ -425,3 +427,31 @@ def test_frontend_never_injects_html():
         code = "\n".join(line for line in f.read_text(encoding="utf-8").splitlines() if not line.strip().startswith("//"))
         for sink in ("innerHTML", "outerHTML", "insertAdjacentHTML", "document.write", "eval(", "new Function"):
             assert sink not in code, f"{f.name} uses {sink}"
+
+
+def test_baseline_routes(client, users, fixture_apk):
+    admin, analyst = auth(client, "alice"), auth(client, "bob")
+    first = upload(client, admin, fixture_apk("signed_v1v2_ec.apk"), url="/api/v1/baselines").json()["baseline"]
+    dup = upload(client, admin, fixture_apk("signed_v1v2_ec.apk"), url="/api/v1/baselines")
+    assert dup.status_code == 422 and "already baseline" in dup.json()["error"]["message"]
+
+    assert [b["id"] for b in client.get("/api/v1/baselines", headers=analyst, params={"status": "pending"}).json()["items"]] == [first["id"]]
+    assert client.get("/api/v1/baselines", headers=analyst, params={"status": "bogus"}).status_code == 422
+    assert client.get("/api/v1/baselines", headers=analyst, params={"package": "nope"}).json()["items"] == []
+
+    detail = client.get(f"/api/v1/baselines/{first['id']}", headers=analyst, params={"include_files": True}).json()
+    assert any(f["path"] == "classes.dex" for f in detail["files"]) and "profile" in detail
+    assert client.get("/api/v1/baselines/999", headers=analyst).status_code == 404
+    assert client.get("/api/v1/baselines/999/verify", headers=analyst).status_code == 404
+
+    proof = client.get(f"/api/v1/baselines/{first['id']}/files/proof", headers=analyst, params={"path": "classes.dex"}).json()
+    assert proof["verified"] is True and proof["root"] == first["merkle_root"]
+    assert client.get(f"/api/v1/baselines/{first['id']}/files/proof", headers=analyst,
+                      params={"path": "nope.dex"}).status_code == 404
+
+    short = client.post(f"/api/v1/baselines/{first['id']}/reject", headers=admin, json={"reason": "x"})
+    assert short.status_code == 422                                    # reason too short
+    rejected = client.post(f"/api/v1/baselines/{first['id']}/reject", headers=admin, json={"reason": "wrong build"})
+    assert rejected.json()["status"] == "rejected"
+    assert client.post(f"/api/v1/baselines/{first['id']}/revoke", headers=admin,
+                       json={"reason": "cannot revoke a rejected one"}).status_code == 409

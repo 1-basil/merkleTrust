@@ -7,6 +7,8 @@ import pytest
 
 from core.dex import DexError, analyze_dex_files, extract_iocs, parse_dex
 
+pytestmark = pytest.mark.unit
+
 
 def _dex(path):
     return zipfile.ZipFile(path).read("classes.dex")

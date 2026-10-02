@@ -7,6 +7,8 @@ import pytest
 from core.merkle import (EMPTY_ROOT, build_tree, compare_trees, leaf_hash, node_hash, proof, root,
                          verify_proof, verify_proof_from_hash)
 
+pytestmark = pytest.mark.unit
+
 
 def _leaves(n, tag="leaf"):
     return [f"{tag}-{i}".encode() for i in range(n)]

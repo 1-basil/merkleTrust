@@ -16,6 +16,8 @@ from core.orchestrator import run_job
 from core.scoring import decide_verdict, risk_level, score_findings
 from scripts.apk_mutations import rewrite_zip
 
+pytestmark = pytest.mark.integration
+
 ROOT = Path(__file__).resolve().parent.parent
 
 

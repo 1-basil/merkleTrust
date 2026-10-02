@@ -2,8 +2,12 @@
 
 import hashlib
 
+import pytest
+
 from core.comparison import build_profile, compare_with_baseline
 from core.file_manifest import categorize
+
+pytestmark = pytest.mark.unit
 
 
 def _f(path, content):

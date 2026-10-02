@@ -29,6 +29,7 @@ from __future__ import annotations
 
 import json
 import logging
+import threading
 import time
 from datetime import datetime, timezone
 from typing import Any
@@ -86,25 +87,26 @@ def head(db: Session) -> AuditBlock | None:
     return db.scalars(select(AuditBlock).order_by(AuditBlock.block_index.desc()).limit(1)).first()
 
 
-def append_event(db: Session, event_type: str, actor: str, payload: dict[str, Any],
-                 subject: str | None = None, signer: Signer | None = None) -> AuditBlock:
-    """Append a signed, hash-linked block (creating the genesis block if needed)."""
-    if event_type not in EVENTS:
-        raise AuditError(f"unknown audit event type {event_type!r}")
-    signer = signer or get_signer()
-    last = head(db)
-    if last is None and event_type != "GENESIS":
-        last = append_event(db, "GENESIS", "system", {"chain": CHAIN_ID, "note": "Blockchain simulation started"},
-                            signer=signer)
+# Serialises "read head -> append -> commit" for writers in this process (API
+# requests, background analysis jobs). Without it, concurrent writers repeatedly
+# collide on the same block position. Across processes, the PRIMARY KEY and
+# UNIQUE(previous_hash) constraints still guarantee the chain cannot fork; the
+# losing writer retries.
+APPEND_LOCK = threading.RLock()
+APPEND_ATTEMPTS = 10
+
+
+def _new_block(db: Session, index: int, previous_hash: str, event_type: str, actor: str,
+               payload: dict[str, Any], subject: str | None, signer: Signer) -> AuditBlock:
     block = AuditBlock(
-        block_index=0 if last is None else last.block_index + 1,
+        block_index=index,
         timestamp=_now(),
         event_type=event_type,
         actor=actor,
         subject=None if subject is None else str(subject),
         payload_json=canonical_json(payload).decode("ascii"),
         payload_hash=hash_payload(payload),
-        previous_hash=GENESIS_PREVIOUS if last is None else last.block_hash,
+        previous_hash=previous_hash,
     )
     header = block_header(block)
     block.block_hash = compute_block_hash(header)
@@ -117,22 +119,51 @@ def append_event(db: Session, event_type: str, actor: str, payload: dict[str, An
     return block
 
 
-def record_event(event_type: str, actor: str, payload: dict[str, Any], subject: str | None = None,
-                 attempts: int = 5) -> int:
-    """Append an event in its own short transaction (retrying if a concurrent append
-    took the same position). Returns the new block index."""
-    from sqlalchemy.exc import IntegrityError
+def append_event(db: Session, event_type: str, actor: str, payload: dict[str, Any],
+                 subject: str | None = None, signer: Signer | None = None) -> AuditBlock:
+    """Append a signed, hash-linked block in the caller's transaction.
 
-    from db.database import session_scope
+    The head is read exactly once; if the chain is empty, the genesis block is
+    created at index 0 first. (Re-reading the head for the genesis block would let
+    a concurrent writer slip in between and produce a second genesis block.)
+    """
+    if event_type not in EVENTS:
+        raise AuditError(f"unknown audit event type {event_type!r}")
+    signer = signer or get_signer()
+    last = head(db)
+    if last is None:
+        if event_type == "GENESIS":
+            return _new_block(db, 0, GENESIS_PREVIOUS, event_type, actor, payload, subject, signer)
+        last = _new_block(db, 0, GENESIS_PREVIOUS, "GENESIS", "system",
+                          {"chain": CHAIN_ID, "note": "Blockchain simulation started"}, None, signer)
+    return _new_block(db, last.block_index + 1, last.block_hash, event_type, actor, payload, subject, signer)
+
+
+def with_append_retry(fn, attempts: int = APPEND_ATTEMPTS):
+    """Run `fn()` (which opens, appends and commits its own transaction) under the
+    process-wide append lock, retrying if another process took the same position."""
+    from sqlalchemy.exc import IntegrityError, OperationalError
+
     for attempt in range(1, attempts + 1):
         try:
-            with session_scope() as db:
-                return append_event(db, event_type, actor, payload, subject).block_index
-        except IntegrityError:
+            with APPEND_LOCK:
+                return fn()
+        except (IntegrityError, OperationalError) as exc:
             if attempt == attempts:
+                log.error("audit append failed after %d attempts: %s", attempts, type(exc).__name__)
                 raise
-            time.sleep(0.05 * attempt)
+            time.sleep(min(0.5, 0.02 * 2 ** attempt))
     raise AssertionError("unreachable")
+
+
+def record_event(event_type: str, actor: str, payload: dict[str, Any], subject: str | None = None) -> int:
+    """Append an event in its own short, committed transaction. Returns the new block index."""
+    from db.database import session_scope
+
+    def write() -> int:
+        with session_scope() as db:
+            return append_event(db, event_type, actor, payload, subject).block_index
+    return with_append_retry(write)
 
 
 def all_blocks(db: Session) -> list[AuditBlock]:

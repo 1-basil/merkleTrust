@@ -230,13 +230,28 @@ def _launch_app(package, activity=None, timeout_s=15):
     return False, "failed", detail
 
 
+def _js(value: object) -> str:
+    """A JavaScript string literal for untrusted text.
+
+    Values here come from the uploaded APK (class names, URLs, component names),
+    so they are emitted with JSON escaping — never pasted inside quotes — to
+    prevent code injection into the generated instrumentation script.
+    """
+    return json.dumps(str(value))  # a JSON string is a valid JavaScript string literal
+
+
+def _comment(value: object) -> str:
+    """Single-line comment text: no line breaks or comment terminators can escape it."""
+    return "".join(ch if ch.isprintable() else " " for ch in str(value)).replace("*/", "* /")[:200]
+
+
 def generate_frida_script(targets: list[dict], package: str) -> str:
-    """Generate a dynamic Frida instrumentation script driven by suspicious_targets."""
+    """Generate a Frida instrumentation script driven by suspicious_targets (APK-derived, untrusted)."""
     lines = [
         "// MerkleTrust Dynamic Frida Instrumentation Script",
-        f"// Target Package: {package}",
+        f"// Target Package: {_comment(package)}",
         "Java.perform(function() {",
-        "    console.log('[MerkleTrust] Hooking engine initialized for " + "package: " + package + "');",
+        f"    console.log('[MerkleTrust] Hooking engine initialized for package: ' + {_js(package)});",
         "",
         "    // Default security API monitoring",
         "    try {",
@@ -270,33 +285,33 @@ def generate_frida_script(targets: list[dict], package: str) -> str:
         t_type = t.get("type")
         val = t.get("value", "")
         if t_type == "class" and val:
-            clean_class = val.strip("L;").replace("/", ".")
+            clean_class = str(val).strip("L;").replace("/", ".")
             lines.extend([
-                f"    // Targeted Hook: Suspicious Class {clean_class}",
+                f"    // Targeted Hook: Suspicious Class {_comment(clean_class)}",
                 "    try {",
-                f"        var TargetCls = Java.use('{clean_class}');",
-                "        console.log('[HOOK TARGET] Attached to class: " + clean_class + "');",
+                f"        var TargetCls = Java.use({_js(clean_class)});",
+                f"        console.log('[HOOK TARGET] Attached to class: ' + {_js(clean_class)});",
                 "    } catch(e) {}",
             ])
         elif t_type == "service" and val:
             lines.extend([
-                f"    // Targeted Hook: Suspicious Service {val}",
+                f"    // Targeted Hook: Suspicious Service {_comment(val)}",
                 "    try {",
                 "        var ContextWrapper = Java.use('android.content.ContextWrapper');",
                 "        ContextWrapper.startService.implementation = function(intent) {",
-                f"            console.log('[HOOK TARGET] startService invoked for target {val}: ' + intent);",
+                f"            console.log('[HOOK TARGET] startService invoked for target ' + {_js(val)} + ': ' + intent);",
                 "            return this.startService(intent);",
                 "        };",
                 "    } catch(e) {}",
             ])
         elif t_type == "url" and val:
             lines.extend([
-                f"    // Targeted Hook: Suspicious URL / IOC {val}",
+                f"    // Targeted Hook: Suspicious URL / IOC {_comment(val)}",
                 "    try {",
                 "        var URL = Java.use('java.net.URL');",
                 "        URL.$init.overload('java.lang.String').implementation = function(u) {",
-                f"            if (u.indexOf('{val}') !== -1) {{",
-                f"                console.log('[HOOK ALERT] Network connection to suspicious IOC: {val}');",
+                f"            if (u.indexOf({_js(val)}) !== -1) {{",
+                f"                console.log('[HOOK ALERT] Network connection to suspicious IOC: ' + {_js(val)});",
                 "            }",
                 "            return this.$init(u);",
                 "        };",

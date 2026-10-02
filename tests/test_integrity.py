@@ -9,6 +9,8 @@ from core.integrity import compute_chunks, extract_file_map, run
 from core.contracts import JobContext
 from core.merkle import build_tree, root
 
+pytestmark = pytest.mark.unit
+
 
 def test_compute_chunks():
     # 130KB data with 64KB chunk size -> 3 chunks
@@ -32,10 +34,8 @@ def test_compute_chunks():
     assert chunks[2]["hash"] == hashlib.sha256(b"C" * 1000).hexdigest()
 
 
-def test_extract_file_map():
-    sample_path = "test_sample.apk"
-    if not os.path.exists(sample_path):
-        pytest.skip("test_sample.apk not found")
+def test_extract_file_map(fixture_apk):
+    sample_path = fixture_apk("signed_v1v2_ec.apk")
 
     file_map = extract_file_map(sample_path)
     assert len(file_map) > 0
@@ -52,10 +52,8 @@ def test_extract_file_map():
         assert len(f["sha256"]) == 64
 
 
-def test_integrity_run():
-    sample_path = "test_sample.apk"
-    if not os.path.exists(sample_path):
-        pytest.skip("test_sample.apk not found")
+def test_integrity_run(fixture_apk):
+    sample_path = fixture_apk("signed_v1v2_ec.apk")
 
     workspace = tempfile.mkdtemp(prefix="mt_test_integ_")
     ctx = JobContext(apk_path=sample_path, workspace=workspace, prior={}, config={"chunk_size": 65536})
