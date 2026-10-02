@@ -13,7 +13,7 @@ jobs/
 quarantine/
 test_workspace/
 test_phase3/
-apks/
+/apks/
 
 # Local baseline database and persistent stores
 data/*.sqlite3
@@ -24,6 +24,7 @@ data/repository_ledger.json
 # Binaries, archives and test artifacts (exclude tracked sample)
 *.apk
 !test_sample.apk
+!tests/fixtures/apks/*.apk
 *.dex
 *.jar
 *.so

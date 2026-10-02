@@ -11,9 +11,12 @@ from scripts.create_test_apks import (
 )
 
 
+FIXTURE = os.path.join(os.path.dirname(__file__), "fixtures", "apks", "signed_v1v2_ec.apk")
+
+
 def test_baseline_and_tampered_differential_pipeline():
-    clean_apk = create_clean_baseline()
-    tampered_apk = create_tampered_repackaged()
+    clean_apk = create_clean_baseline(FIXTURE)
+    tampered_apk = create_tampered_repackaged(FIXTURE)
 
     workspace_root = tempfile.mkdtemp(prefix="mt_diff_test_")
     baseline_store = tempfile.mktemp(suffix="_baselines.json")

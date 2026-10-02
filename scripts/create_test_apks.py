@@ -16,23 +16,23 @@ os.makedirs(APKS_DIR, exist_ok=True)
 SAMPLE_SRC = os.path.join(os.getcwd(), "test_sample.apk")
 
 
-def create_clean_baseline():
+def create_clean_baseline(src: str = SAMPLE_SRC):
     """Create clean baseline APK."""
     target = os.path.join(APKS_DIR, "clean_baseline.apk")
-    if os.path.exists(SAMPLE_SRC):
-        shutil.copyfile(SAMPLE_SRC, target)
+    if os.path.exists(src):
+        shutil.copyfile(src, target)
         print(f"[+] Created clean baseline: {target}")
     return target
 
 
-def create_tampered_repackaged():
+def create_tampered_repackaged(src: str = SAMPLE_SRC):
     """Create repackaged/tampered APK with modified classes.dex and altered signature."""
     target = os.path.join(APKS_DIR, "tampered_repackaged.apk")
-    if not os.path.exists(SAMPLE_SRC):
-        print("[-] Base test_sample.apk not found.")
+    if not os.path.exists(src):
+        print(f"[-] Base APK {src} not found.")
         return target
 
-    with zipfile.ZipFile(SAMPLE_SRC, "r") as src_zip:
+    with zipfile.ZipFile(src, "r") as src_zip:
         with zipfile.ZipFile(target, "w", compression=zipfile.ZIP_DEFLATED) as dst_zip:
             for item in src_zip.infolist():
                 content = src_zip.read(item.filename)

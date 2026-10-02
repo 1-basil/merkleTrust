@@ -1,252 +1,332 @@
-"""core/axml.py — Pure Python Android Binary XML (AXML) parser.
+"""core/axml.py — Pure-Python Android Binary XML (AXML) manifest parser.
 
-Extracts package name, version, SDK constraints, permissions, and components
-from AndroidManifest.xml without external dependencies.
+Parses the compiled ``AndroidManifest.xml`` found in every real APK.
+
+Format (frameworks/base/libs/androidfw/include/androidfw/ResourceTypes.h):
+every chunk starts with ResChunk_header {u16 type, u16 headerSize, u32 size}.
+A start-element chunk is followed by ResXMLTree_attrExt and an array of
+ResXMLTree_attribute {u32 ns, u32 name, u32 rawValue, Res_value typedValue},
+where Res_value is {u16 size, u8 res0, u8 dataType, u32 data}.
+
+Attribute names are resolved through the resource-ID map when available (so
+obfuscators that blank the name strings do not defeat the parser), falling back
+to the string pool name.
+
+A plain-text XML fallback is kept for synthetic test archives only; such
+manifests are reported with ``format == "text"`` because Android itself would
+refuse to install them.
 """
 
+from __future__ import annotations
+
 import struct
+import xml.etree.ElementTree as ET
 from typing import Any
 
-CHUNK_STRING_POOL = 0x001C0001
-CHUNK_RESOURCE_IDS = 0x00080180
-CHUNK_START_NAMESPACE = 0x00100100
-CHUNK_END_NAMESPACE = 0x00100101
-CHUNK_START_TAG = 0x00100102
-CHUNK_END_TAG = 0x00100103
-CHUNK_TEXT = 0x00100104
+RES_XML_TYPE = 0x0003
+RES_STRING_POOL_TYPE = 0x0001
+RES_XML_RESOURCE_MAP_TYPE = 0x0180
+RES_XML_START_ELEMENT_TYPE = 0x0102
+RES_XML_END_ELEMENT_TYPE = 0x0103
+
+TYPE_REFERENCE = 0x01
+TYPE_STRING = 0x03
+TYPE_INT_DEC = 0x10
+TYPE_INT_HEX = 0x11
+TYPE_INT_BOOLEAN = 0x12
+
+UTF8_FLAG = 1 << 8
+NO_INDEX = 0xFFFFFFFF
+MAX_STRINGS = 200_000
+ANDROID_NS = "http://schemas.android.com/apk/res/android"
+
+# android.R.attr resource IDs for the attributes we care about.
+ANDROID_ATTR_IDS = {
+    0x01010003: "name",
+    0x01010006: "permission",
+    0x01010009: "protectionLevel",
+    0x0101000F: "debuggable",
+    0x01010010: "exported",
+    0x0101020C: "minSdkVersion",
+    0x0101021B: "versionCode",
+    0x0101021C: "versionName",
+    0x01010270: "targetSdkVersion",
+    0x01010272: "testOnly",
+    0x01010280: "allowBackup",
+    0x010104EC: "usesCleartextTraffic",
+    0x01010527: "networkSecurityConfig",
+    0x01010018: "authorities",
+    0x0101001B: "grantUriPermissions",
+}
+
+COMPONENT_TAGS = {"activity": "activities", "activity-alias": "activities", "service": "services",
+                  "receiver": "receivers", "provider": "providers"}
 
 
-class StringPool:
-    def __init__(self, data: bytes, offset: int):
-        self.strings: list[str] = []
-        if offset + 28 > len(data):
-            return
-
-        chunk_type, header_size, size, string_count, style_count, flags, strings_start, styles_start = struct.unpack(
-            "<IIIIIIII", data[offset:offset + 32]
-        )
-
-        is_utf8 = bool(flags & (1 << 8))
-        offsets_start = offset + 28  # offset table starts after header
-        string_data_start = offset + strings_start
-
-        offsets = []
-        for i in range(string_count):
-            off_pos = offsets_start + i * 4
-            if off_pos + 4 <= len(data):
-                offsets.append(struct.unpack("<I", data[off_pos:off_pos + 4])[0])
-
-        for off in offsets:
-            str_pos = string_data_start + off
-            if str_pos >= len(data):
-                self.strings.append("")
-                continue
-
-            try:
-                if is_utf8:
-                    # UTF-8: length prefix followed by utf-8 bytes
-                    # First 1 or 2 bytes: character count, next 1 or 2 bytes: byte count
-                    u8len, char_skip = self._read_length8(data, str_pos)
-                    byte_len, byte_skip = self._read_length8(data, str_pos + char_skip)
-                    start = str_pos + char_skip + byte_skip
-                    end = start + byte_len
-                    self.strings.append(data[start:end].decode("utf-8", errors="replace"))
-                else:
-                    # UTF-16
-                    u16len, skip = self._read_length16(data, str_pos)
-                    start = str_pos + skip
-                    end = start + u16len * 2
-                    self.strings.append(data[start:end].decode("utf-16-le", errors="replace"))
-            except Exception:
-                self.strings.append("")
-
-    def _read_length8(self, data: bytes, pos: int) -> tuple[int, int]:
-        if pos >= len(data):
-            return 0, 0
-        val = data[pos]
-        if val & 0x80:
-            if pos + 1 < len(data):
-                val = ((val & 0x7F) << 8) | data[pos + 1]
-                return val, 2
-            return val & 0x7F, 1
-        return val, 1
-
-    def _read_length16(self, data: bytes, pos: int) -> tuple[int, int]:
-        if pos + 2 > len(data):
-            return 0, 0
-        val = struct.unpack("<H", data[pos:pos + 2])[0]
-        if val & 0x8000:
-            if pos + 4 <= len(data):
-                high = val & 0x7FFF
-                low = struct.unpack("<H", data[pos + 2:pos + 4])[0]
-                return (high << 16) | low, 4
-            return val & 0x7FFF, 2
-        return val, 2
-
-    def get(self, idx: int) -> str:
-        if 0 <= idx < len(self.strings):
-            return self.strings[idx]
-        return ""
+class AxmlError(ValueError):
+    """Raised when a binary manifest is structurally invalid."""
 
 
-def parse_manifest_xml(axml_bytes: bytes) -> dict[str, Any]:
-    """Parse binary AndroidManifest.xml and extract structured information."""
-    result: dict[str, Any] = {
+def _decode_string_pool(data: bytes, offset: int) -> list[str]:
+    try:
+        (_t, header_size, size, count, _styles, flags, strings_start, _styles_start) = struct.unpack_from(
+            "<HHIIIIII", data, offset)
+    except struct.error:
+        raise AxmlError("truncated string pool header") from None
+    if count > MAX_STRINGS or offset + size > len(data):
+        raise AxmlError("string pool size out of range")
+    is_utf8 = bool(flags & UTF8_FLAG)
+    offsets_base = offset + header_size
+    data_base = offset + strings_start
+    strings: list[str] = []
+    for i in range(count):
+        (rel,) = struct.unpack_from("<I", data, offsets_base + i * 4)
+        pos = data_base + rel
+        try:
+            if is_utf8:
+                _, pos = _read_len8(data, pos)        # length in UTF-16 units (unused)
+                n, pos = _read_len8(data, pos)        # length in bytes
+                strings.append(data[pos:pos + n].decode("utf-8", errors="replace"))
+            else:
+                n, pos = _read_len16(data, pos)
+                strings.append(data[pos:pos + n * 2].decode("utf-16-le", errors="replace"))
+        except (IndexError, struct.error):
+            strings.append("")
+    return strings
+
+
+def _read_len8(data: bytes, pos: int) -> tuple[int, int]:
+    n = data[pos]
+    if n & 0x80:
+        return ((n & 0x7F) << 8) | data[pos + 1], pos + 2
+    return n, pos + 1
+
+
+def _read_len16(data: bytes, pos: int) -> tuple[int, int]:
+    (n,) = struct.unpack_from("<H", data, pos)
+    if n & 0x8000:
+        (lo,) = struct.unpack_from("<H", data, pos + 2)
+        return ((n & 0x7FFF) << 16) | lo, pos + 4
+    return n, pos + 2
+
+
+def iter_elements(data: bytes):
+    """Yield (event, tag, attrs) for each start/end element of a binary XML document.
+
+    attrs maps attribute name -> python value (str, int, bool, or '@0x7f...' for references).
+    """
+    if len(data) < 8:
+        raise AxmlError("file too small")
+    xml_type, _hdr, total = struct.unpack_from("<HHI", data, 0)
+    if xml_type != RES_XML_TYPE:
+        raise AxmlError("not a binary XML document")
+    end = min(total, len(data))
+
+    strings: list[str] = []
+    res_ids: list[int] = []
+    offset = 8
+    while offset + 8 <= end:
+        ctype, header_size, csize = struct.unpack_from("<HHI", data, offset)
+        if csize < 8 or offset + csize > end:
+            raise AxmlError(f"invalid chunk size at offset {offset}")
+
+        if ctype == RES_STRING_POOL_TYPE:
+            strings = _decode_string_pool(data, offset)
+        elif ctype == RES_XML_RESOURCE_MAP_TYPE:
+            n = (csize - header_size) // 4
+            res_ids = list(struct.unpack_from(f"<{n}I", data, offset + header_size))
+        elif ctype == RES_XML_START_ELEMENT_TYPE:
+            ext = offset + header_size
+            _ns, name_idx, attr_start, attr_size, attr_count = struct.unpack_from("<IIHHH", data, ext)
+            tag = _string(strings, name_idx)
+            attrs: dict[str, Any] = {}
+            for i in range(attr_count):
+                a = ext + attr_start + i * attr_size
+                if a + 20 > offset + csize:
+                    raise AxmlError("attribute outside element chunk")
+                _ans, aname, raw, _vsize, _res0, vtype, vdata = struct.unpack_from("<IIIHBBI", data, a)
+                name = ANDROID_ATTR_IDS.get(res_ids[aname]) if aname < len(res_ids) else None
+                name = name or _string(strings, aname)
+                attrs[name] = _typed_value(strings, raw, vtype, vdata)
+            yield "start", tag, attrs
+        elif ctype == RES_XML_END_ELEMENT_TYPE:
+            _ns, name_idx = struct.unpack_from("<II", data, offset + header_size)
+            yield "end", _string(strings, name_idx), {}
+        offset += csize
+
+
+def _string(strings: list[str], idx: int) -> str:
+    return strings[idx] if 0 <= idx < len(strings) else ""
+
+
+def _typed_value(strings: list[str], raw: int, vtype: int, vdata: int) -> Any:
+    if vtype == TYPE_STRING:
+        return _string(strings, raw if raw != NO_INDEX else vdata)
+    if vtype == TYPE_INT_BOOLEAN:
+        return vdata != 0
+    if vtype in (TYPE_INT_DEC, TYPE_INT_HEX):
+        return vdata
+    if vtype == TYPE_REFERENCE:
+        return f"@0x{vdata:08x}"
+    if raw != NO_INDEX:
+        return _string(strings, raw)
+    return vdata
+
+
+def _empty_result(fmt: str) -> dict[str, Any]:
+    return {
+        "format": fmt,
         "package_name": "",
         "version_name": "",
-        "version_code": 0,
-        "min_sdk": 1,
-        "target_sdk": 1,
+        "version_code": None,
+        "min_sdk": None,
+        "target_sdk": None,
         "permissions": [],
-        "components": {
-            "activities": [],
-            "services": [],
-            "receivers": [],
-            "providers": [],
-        },
+        "declared_permissions": [],
+        "application": {},
+        "components": {"activities": [], "services": [], "receivers": [], "providers": []},
+        "component_details": [],
     }
 
-    if len(axml_bytes) < 8:
-        return result
 
-    magic, file_size = struct.unpack("<II", axml_bytes[:8])
-    if magic != 0x00080003:
-        # Fallback: maybe it's plain text XML
-        try:
-            text = axml_bytes.decode("utf-8")
-            if "<manifest" in text:
-                import xml.etree.ElementTree as ET
-                root = ET.fromstring(text)
-                pkg = root.attrib.get("package", "")
-                result["package_name"] = pkg
-                result["version_name"] = root.attrib.get("android:versionName", "")
-                result["version_code"] = int(root.attrib.get("android:versionCode", 0) or 0)
-                for child in root:
-                    tag_c = child.tag.split("}")[-1]
-                    if tag_c == "uses-permission":
-                        name = child.attrib.get("{http://schemas.android.com/apk/res/android}name") or child.attrib.get("android:name", "")
-                        if name and name not in result["permissions"]:
-                            result["permissions"].append(name)
-                    elif tag_c == "uses-sdk":
-                        min_s = child.attrib.get("{http://schemas.android.com/apk/res/android}minSdkVersion") or child.attrib.get("android:minSdkVersion")
-                        if min_s:
-                            result["min_sdk"] = int(min_s)
-                        tgt_s = child.attrib.get("{http://schemas.android.com/apk/res/android}targetSdkVersion") or child.attrib.get("android:targetSdkVersion")
-                        if tgt_s:
-                            result["target_sdk"] = int(tgt_s)
-                    elif tag_c == "application":
-                        for comp in child:
-                            tag_clean = comp.tag.split("}")[-1]
-                            c_name = comp.attrib.get("{http://schemas.android.com/apk/res/android}name") or comp.attrib.get("android:name", "")
-                            if c_name:
-                                if c_name.startswith("."):
-                                    c_name = f"{pkg}{c_name}"
-                                elif "." not in c_name and pkg:
-                                    c_name = f"{pkg}.{c_name}"
+def _qualify(name: str, package: str) -> str:
+    if name.startswith("."):
+        return package + name
+    if "." not in name and package:
+        return f"{package}.{name}"
+    return name
 
-                                if tag_clean == "activity":
-                                    result["components"]["activities"].append(c_name)
-                                elif tag_clean == "service":
-                                    result["components"]["services"].append(c_name)
-                                elif tag_clean == "receiver":
-                                    result["components"]["receivers"].append(c_name)
-                                elif tag_clean == "provider":
-                                    result["components"]["providers"].append(c_name)
-                return result
-        except Exception:
-            pass
-        return result
 
-    offset = 8
-    string_pool: StringPool | None = None
-    tag_stack: list[str] = []
+def _as_bool(v: Any) -> bool | None:
+    if isinstance(v, bool):
+        return v
+    if isinstance(v, str) and v.lower() in ("true", "false"):
+        return v.lower() == "true"
+    return None
 
-    while offset < len(axml_bytes):
-        if offset + 8 > len(axml_bytes):
-            break
-        chunk_type, chunk_size = struct.unpack("<II", axml_bytes[offset:offset + 8])
-        if chunk_size < 8 or offset + chunk_size > len(axml_bytes):
-            break
 
-        if chunk_type == CHUNK_STRING_POOL:
-            string_pool = StringPool(axml_bytes, offset)
-        elif chunk_type == CHUNK_START_TAG:
-            if string_pool:
-                # header(8) + line_number(4) + comment(4) + ns_idx(4) + name_idx(4) + flags(4) + attr_count(2) + id_idx(2) + class_idx(2) + style_idx(2)
-                tag_meta = axml_bytes[offset + 8:offset + 36]
-                if len(tag_meta) >= 28:
-                    line_num, comment, ns_idx, name_idx, flags, attr_count, id_idx, class_idx, style_idx = struct.unpack(
-                        "<IIIIHHHHH", tag_meta[:26] + b"\x00\x00"
-                    )
-                    tag_name = string_pool.get(name_idx)
-                    tag_stack.append(tag_name)
+def _as_int(v: Any) -> int | None:
+    if isinstance(v, bool):
+        return None
+    if isinstance(v, int):
+        return v
+    try:
+        return int(str(v))
+    except (TypeError, ValueError):
+        return None
 
-                    attrs_start = offset + 36
-                    attrs = {}
-                    for i in range(attr_count):
-                        attr_pos = attrs_start + i * 20
-                        if attr_pos + 20 <= offset + chunk_size:
-                            ans_idx, aname_idx, val_str_idx, val_type, val_data = struct.unpack(
-                                "<IIIIH", axml_bytes[attr_pos:attr_pos + 18]
-                            )
-                            # Actually unpack: ns(4), name(4), raw_value(4), size(2)+res(1)+type(1), data(4)
-                            ans, aname, raw_val, type_info, data_val = struct.unpack(
-                                "<IIIBB I", axml_bytes[attr_pos:attr_pos + 20]
-                            )[:5]
-                            attr_name = string_pool.get(aname)
-                            # String value or int value
-                            if type_info == 0x03:  # TYPE_STRING
-                                attr_val = string_pool.get(raw_val)
-                            elif type_info == 0x10 or type_info == 0x11:  # TYPE_INT_DEC / TYPE_INT_HEX
-                                attr_val = data_val
-                            elif type_info == 0x12:  # TYPE_INT_BOOLEAN
-                                attr_val = bool(data_val != 0)
-                            else:
-                                attr_val = string_pool.get(raw_val) if raw_val != 0xFFFFFFFF else data_val
-                            attrs[attr_name] = attr_val
 
-                    # Process tag
-                    if tag_name == "manifest":
-                        result["package_name"] = str(attrs.get("package", ""))
-                        if "versionName" in attrs:
-                            result["version_name"] = str(attrs.get("versionName", ""))
-                        if "versionCode" in attrs:
-                            try:
-                                result["version_code"] = int(attrs.get("versionCode", 0))
-                            except Exception:
-                                pass
-                    elif tag_name == "uses-sdk":
-                        if "minSdkVersion" in attrs:
-                            try:
-                                result["min_sdk"] = int(attrs.get("minSdkVersion", 1))
-                            except Exception:
-                                pass
-                        if "targetSdkVersion" in attrs:
-                            try:
-                                result["target_sdk"] = int(attrs.get("targetSdkVersion", 1))
-                            except Exception:
-                                pass
-                    elif tag_name == "uses-permission":
-                        perm_name = str(attrs.get("name", ""))
-                        if perm_name and perm_name not in result["permissions"]:
-                            result["permissions"].append(perm_name)
-                    elif tag_name in ("activity", "service", "receiver", "provider"):
-                        comp_name = str(attrs.get("name", ""))
-                        if comp_name:
-                            # Normalize relative component name
-                            if comp_name.startswith("."):
-                                comp_name = result["package_name"] + comp_name
-                            elif "." not in comp_name and result["package_name"]:
-                                comp_name = f"{result['package_name']}.{comp_name}"
+def _build(events, fmt: str) -> dict[str, Any]:
+    """Turn a stream of (event, tag, attrs) into the structured manifest model."""
+    result = _empty_result(fmt)
+    stack: list[str] = []
+    current_component: dict[str, Any] | None = None
+    for event, tag, attrs in events:
+        if event == "end":
+            if stack:
+                stack.pop()
+            if tag in COMPONENT_TAGS and current_component is not None:
+                current_component = None
+            continue
+        parent = stack[-1] if stack else None
+        stack.append(tag)
 
-                            target_list = result["components"].get(tag_name + "s")
-                            if target_list is not None and comp_name not in target_list:
-                                target_list.append(comp_name)
+        if tag == "manifest":
+            result["package_name"] = str(attrs.get("package", ""))
+            result["version_name"] = str(attrs.get("versionName", "") or "")
+            result["version_code"] = _as_int(attrs.get("versionCode"))
+        elif tag == "uses-sdk":
+            result["min_sdk"] = _as_int(attrs.get("minSdkVersion"))
+            result["target_sdk"] = _as_int(attrs.get("targetSdkVersion"))
+        elif tag in ("uses-permission", "uses-permission-sdk-23"):
+            p = str(attrs.get("name", ""))
+            if p and p not in result["permissions"]:
+                result["permissions"].append(p)
+        elif tag == "permission":
+            level = attrs.get("protectionLevel", 0)
+            result["declared_permissions"].append({"name": str(attrs.get("name", "")), "protection_level": level})
+        elif tag == "application" and parent == "manifest":
+            app = result["application"]
+            for key in ("debuggable", "allowBackup", "usesCleartextTraffic", "testOnly"):
+                if key in attrs:
+                    app[key] = _as_bool(attrs[key])
+            if "networkSecurityConfig" in attrs:
+                app["networkSecurityConfig"] = str(attrs["networkSecurityConfig"])
+            if "name" in attrs:
+                app["name"] = _qualify(str(attrs["name"]), result["package_name"])
+        elif tag in COMPONENT_TAGS and parent == "application":
+            name = _qualify(str(attrs.get("name", "")), result["package_name"])
+            if not name:
+                continue
+            current_component = {
+                "type": tag if tag != "activity-alias" else "activity",
+                "name": name,
+                "exported": _as_bool(attrs.get("exported")),
+                "permission": str(attrs["permission"]) if "permission" in attrs else None,
+                "has_intent_filter": False,
+            }
+            if tag == "provider":
+                current_component["authorities"] = str(attrs.get("authorities", ""))
+                current_component["grantUriPermissions"] = _as_bool(attrs.get("grantUriPermissions"))
+            result["component_details"].append(current_component)
+            bucket = result["components"][COMPONENT_TAGS[tag]]
+            if name not in bucket:
+                bucket.append(name)
+        elif tag == "intent-filter" and current_component is not None:
+            current_component["has_intent_filter"] = True
 
-        elif chunk_type == CHUNK_END_TAG:
-            if tag_stack:
-                tag_stack.pop()
-
-        offset += chunk_size
-
+    # Effective export state: explicit flag wins; otherwise (pre-Android 12
+    # semantics) a component with an intent filter is exported.
+    for comp in result["component_details"]:
+        explicit = comp["exported"]
+        comp["exported_effective"] = explicit if explicit is not None else comp["has_intent_filter"]
     return result
+
+
+def _iter_text_xml(text: str):
+    root = ET.fromstring(text)
+
+    def strip(attrs: dict) -> dict:
+        out = {}
+        for k, v in attrs.items():
+            key = k.split("}")[-1].split(":")[-1]
+            out[key] = v
+        return out
+
+    def walk(el):
+        tag = el.tag.split("}")[-1]
+        yield "start", tag, strip(el.attrib)
+        for child in el:
+            yield from walk(child)
+        yield "end", tag, {}
+
+    yield from walk(root)
+
+
+def parse_manifest(data: bytes) -> dict[str, Any]:
+    """Parse AndroidManifest.xml bytes. Raises AxmlError if unparseable."""
+    if len(data) >= 8 and struct.unpack_from("<H", data, 0)[0] == RES_XML_TYPE:
+        try:
+            return _build(iter_elements(data), "binary")
+        except struct.error as exc:
+            raise AxmlError(f"truncated binary XML ({exc})") from None
+    try:
+        text = data.decode("utf-8")
+    except UnicodeDecodeError:
+        raise AxmlError("manifest is neither binary AXML nor UTF-8 text") from None
+    if "<manifest" not in text:
+        raise AxmlError("manifest root element not found")
+    try:
+        return _build(_iter_text_xml(text), "text")
+    except ET.ParseError as exc:
+        raise AxmlError(f"invalid text manifest ({exc})") from None
+
+
+def parse_manifest_xml(data: bytes) -> dict[str, Any]:
+    """Backward-compatible wrapper: never raises, returns an empty model on failure."""
+    try:
+        return parse_manifest(data)
+    except AxmlError as exc:
+        result = _empty_result("invalid")
+        result["error"] = str(exc)
+        return result

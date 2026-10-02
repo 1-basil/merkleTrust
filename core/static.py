@@ -1,24 +1,35 @@
 """core/static.py — ASHWINI.
 
 Static Analysis Engine for Android APKs.
-Extracts package metadata, permissions, components, certificates, native libraries,
-DEX classes, dangerous APIs, IOCs, and generates security findings.
-Outputs: static.json and scratch files in <workspace>/static/
+
+Extracts, from a validated archive (core.apk_archive):
+  * manifest model — package, versions, SDK levels, permissions, application
+    flags (debuggable, allowBackup, cleartext), components and export state
+    (core.axml, binary AXML);
+  * signing certificate and signature verification for v1/v2/v3
+    (core.apk_signature);
+  * DEX consistency, sensitive API references, sensitive base classes and
+    network indicators (core.dex);
+  * native libraries with SHA-256.
+
+Outputs static.json. Risk interpretation of these facts lives in the scoring
+engine; findings here describe what was observed.
 """
 
-import os
-import sys
-import json
-import zipfile
 import hashlib
-import tempfile
-import subprocess
+import json
+import os
 import shutil
+import subprocess
+import sys
+import tempfile
 from typing import Any
 
-from core.contracts import JobContext, emit, EngineError
-from core.axml import parse_manifest_xml
-from core.dex_cert_scanner import scan_dex_content, parse_apk_certificates
+from core.apk_archive import ApkArchive, ApkValidationError
+from core.apk_signature import verify_apk
+from core.axml import AxmlError, parse_manifest
+from core.contracts import EngineError, JobContext, emit
+from core.dex import analyze_dex_files
 
 # Known Android dangerous permissions (Android runtime permissions)
 DANGEROUS_PERMISSIONS = {
@@ -80,226 +91,174 @@ def classify_permission(name: str) -> dict[str, Any]:
     return {"name": name, "protection_level": "normal", "is_dangerous": False}
 
 
-def _run_apktool(apk_path: str, out_dir: str, apktool_cmd: str) -> bool:
-    """Run apktool if installed to decompile resources and smali."""
-    if not apktool_cmd or not shutil.which(apktool_cmd) and not os.path.isfile(apktool_cmd):
+
+def _run_decompiler(cmd: list[str], timeout_s: int) -> bool:
+    """Run an optional external decompiler (apktool / jadx). Opt-in via config."""
+    if not shutil.which(cmd[0]) and not os.path.isfile(cmd[0]):
         return False
     try:
-        cmd = [apktool_cmd, "d", "-f", "-o", out_dir, apk_path]
-        res = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
-        return res.returncode == 0
-    except Exception:
+        return subprocess.run(cmd, capture_output=True, timeout=timeout_s).returncode == 0
+    except (OSError, subprocess.SubprocessError):
         return False
 
 
-def _run_jadx(apk_path: str, out_dir: str, jadx_cmd: str) -> bool:
-    """Run jadx if installed to decompile Java sources."""
-    if not jadx_cmd or not shutil.which(jadx_cmd) and not os.path.isfile(jadx_cmd):
-        return False
-    try:
-        cmd = [jadx_cmd, "-d", out_dir, apk_path]
-        res = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
-        return res.returncode == 0
-    except Exception:
-        return False
+def _finding(fid: str, severity: str, title: str, evidence: str) -> dict[str, str]:
+    return {"id": fid, "severity": severity, "title": title, "evidence": evidence}
+
+
+def _signature_summary(sig: dict[str, Any]) -> dict[str, Any]:
+    """Compact, JSON-friendly view of the verification result."""
+    schemes = {}
+    for name, s in sig["schemes"].items():
+        schemes[name] = {
+            "present": s.get("present", False),
+            "verified": s.get("verified", False),
+            "algorithms": s.get("algorithms", []),
+            "errors": s.get("errors", []),
+        }
+        for key in ("mismatched_entries", "missing_entries", "unsigned_entries", "apk_signed_claims"):
+            if s.get(key):
+                schemes[name][key] = s[key]
+    return {"status": sig["status"], "schemes_present": sig["schemes_present"],
+            "certificate_verified": sig["certificate_verified"], "schemes": schemes, "errors": sig["errors"]}
+
+
+def analyze_apk(apk_path: str, limits: dict | None = None) -> dict[str, Any]:
+    """Pure analysis function (no workspace, no job). Raises ApkValidationError."""
+    findings: list[dict[str, str]] = []
+    with ApkArchive(apk_path, limits=limits) as apk:
+        for warning in apk.report.warnings:
+            findings.append(_finding("STATIC_ARCHIVE_PREFIX", "high",
+                                     "Unexpected data before the APK contents", warning))
+
+        try:
+            manifest = parse_manifest(apk.read("AndroidManifest.xml", max_bytes=8 * 1024 * 1024))
+        except AxmlError as exc:
+            raise ApkValidationError(f"AndroidManifest.xml could not be parsed: {exc}") from None
+        if manifest["format"] != "binary":
+            findings.append(_finding("STATIC_TEXT_MANIFEST", "medium",
+                                     "Manifest is not compiled binary XML",
+                                     "Android only installs APKs with a compiled manifest; this archive "
+                                     "was not produced by the Android build tools."))
+
+        signature = verify_apk(apk, target_sdk=manifest["target_sdk"])
+        dex_files = [(n, apk.read(n)) for n in apk.names()
+                     if n.endswith(".dex") and "/" not in n]
+        dex = analyze_dex_files(dex_files)
+
+        native_libs = []
+        for entry in apk.files():
+            if entry.name.startswith("lib/") and entry.name.endswith(".so"):
+                parts = entry.name.split("/")
+                native_libs.append({"path": entry.name, "arch": parts[1] if len(parts) > 2 else "unknown",
+                                    "sha256": hashlib.sha256(apk.read(entry.name)).hexdigest()})
+
+    classified = [classify_permission(p) for p in manifest["permissions"]]
+    dangerous = [p["name"] for p in classified if p["is_dangerous"]]
+    if dangerous:
+        findings.append(_finding("STATIC_DANGEROUS_PERM", "high" if len(dangerous) > 3 else "medium",
+                                 f"App requests {len(dangerous)} dangerous permission(s)",
+                                 f"Permissions: {', '.join(dangerous)}"))
+    min_sdk = manifest["min_sdk"]
+    if min_sdk is not None and min_sdk < 24:
+        findings.append(_finding("STATIC_LOW_MIN_SDK", "low", "Low minSdkVersion allows outdated Android runtime",
+                                 f"minSdkVersion: {min_sdk} (recommended >= 24)"))
+
+    status = signature["status"]
+    if status == "invalid":
+        findings.append(_finding("STATIC_SIGNATURE_INVALID", "critical", "APK signature verification failed",
+                                 "; ".join(signature["errors"][:5])))
+    elif status == "unsigned":
+        findings.append(_finding("STATIC_UNSIGNED", "high", "APK is not signed",
+                                 "No v1, v2 or v3 signature found; Android will refuse to install it."))
+    elif status == "unverifiable":
+        findings.append(_finding("STATIC_SIGNATURE_UNVERIFIABLE", "low",
+                                 "APK signature uses an algorithm this tool cannot verify",
+                                 "; ".join(signature["errors"][:3])))
+
+    cert = signature["certificate"]
+    if cert.get("self_signed"):
+        findings.append(_finding("STATIC_SELF_SIGNED_CERT", "medium", "Application certificate is self-signed",
+                                 f"Issuer: {cert.get('issuer', '')}"))
+
+    for f in dex["dex_files"]:
+        if f.get("parsed") and not (f["checksum_valid"] and f["signature_valid"]):
+            findings.append(_finding("STATIC_DEX_HEADER_MISMATCH", "high",
+                                     "DEX header checksum does not match its contents",
+                                     f"{f['path']}: adler32 valid={f['checksum_valid']}, "
+                                     f"sha1 valid={f['signature_valid']} (bytes changed after compilation)"))
+
+    for api in dex["dangerous_apis"]:
+        api_name = api["api"]
+        if api_name in ("DexClassLoader", "PathClassLoader", "InMemoryDexClassLoader"):
+            findings.append(_finding("STATIC_DCL", "high", "Dynamic Code Loading (DCL) capability",
+                                     f"API: {api_name} in {api['source']}"))
+        elif api_name in ("RuntimeExec", "ProcessBuilder"):
+            findings.append(_finding("STATIC_CMD_EXEC", "high", "Arbitrary command execution capability",
+                                     f"API: {api['class']}->{api['method']}"))
+        elif api_name == "SmsManager_sendTextMessage":
+            findings.append(_finding("STATIC_SMS_SEND", "high", "Programmatic SMS transmission API detected",
+                                     f"API: {api['class']}->{api['method']}"))
+        elif api_name == "TelephonyManager_getDeviceId":
+            findings.append(_finding("STATIC_DEVICE_HARVEST", "medium",
+                                     "Hardware/Subscriber identifier access detected",
+                                     f"API: {api['class']}->{api['method']}"))
+    if dex["iocs"]["ips"]:
+        findings.append(_finding("STATIC_HARDCODED_IP", "medium",
+                                 f"Hardcoded external IP address(es) detected ({len(dex['iocs']['ips'])})",
+                                 f"IPs: {', '.join(dex['iocs']['ips'][:5])}"))
+
+    return {
+        "findings": findings,
+        "manifest_format": manifest["format"],
+        "package_name": manifest["package_name"] or "unknown.package",
+        "version_name": manifest["version_name"],
+        "version_code": manifest["version_code"],
+        "min_sdk": manifest["min_sdk"],
+        "target_sdk": manifest["target_sdk"],
+        "permissions": classified,
+        "declared_permissions": manifest["declared_permissions"],
+        "application": manifest["application"],
+        "components": manifest["components"],
+        "component_details": manifest["component_details"],
+        "certificate": cert,
+        "signature": _signature_summary(signature),
+        "native_libs": native_libs,
+        "dex": {"files": dex["dex_files"], "class_count": dex["class_count"],
+                "sensitive_classes": dex["sensitive_classes"]},
+        "iocs": dex["iocs"],
+        "dangerous_apis": dex["dangerous_apis"],
+    }
 
 
 def run(job_id: str, ctx: JobContext) -> dict:
     """Execute static analysis on the target APK."""
-    if not ctx.apk_path or not os.path.exists(ctx.apk_path):
-        raise EngineError(f"APK file not found at: {ctx.apk_path}")
+    if not ctx.apk_path or not os.path.isfile(ctx.apk_path):
+        raise EngineError("APK file not found")
+    try:
+        result = analyze_apk(ctx.apk_path, ctx.config.get("apk_limits"))
+    except ApkValidationError as exc:
+        raise EngineError(f"Invalid APK: {exc}") from None
 
     static_dir = ctx.subdir("static")
-    apktool_dir = os.path.join(static_dir, "apktool")
-    jadx_dir = os.path.join(static_dir, "jadx")
-    os.makedirs(apktool_dir, exist_ok=True)
-    os.makedirs(jadx_dir, exist_ok=True)
+    artifacts = {}
+    if ctx.config.get("run_decompilers"):
+        timeout_s = int(ctx.config.get("decompiler_timeout_s", 120))
+        out = os.path.join(static_dir, "apktool")
+        if _run_decompiler([ctx.config.get("apktool", "apktool"), "d", "-f", "-o", out, ctx.apk_path], timeout_s):
+            artifacts["apktool_dir"] = "static/apktool"
+        out = os.path.join(static_dir, "jadx")
+        if _run_decompiler([ctx.config.get("jadx", "jadx"), "-d", out, ctx.apk_path], timeout_s):
+            artifacts["jadx_dir"] = "static/jadx"
 
-    findings: list[dict[str, Any]] = []
-
-    # 1. Open APK as ZIP
-    try:
-        apk_zip = zipfile.ZipFile(ctx.apk_path, "r")
-    except zipfile.BadZipFile as e:
-        raise EngineError(f"Invalid APK (not a valid ZIP archive): {e}")
-
-    try:
-        namelist = apk_zip.namelist()
-
-        # 2. Parse AndroidManifest.xml
-        manifest_data = {}
-        if "AndroidManifest.xml" in namelist:
-            axml_bytes = apk_zip.read("AndroidManifest.xml")
-            manifest_data = parse_manifest_xml(axml_bytes)
-        else:
-            findings.append({
-                "id": "STATIC_NO_MANIFEST",
-                "severity": "critical",
-                "title": "Missing AndroidManifest.xml",
-                "evidence": "APK archive contains no AndroidManifest.xml",
-            })
-
-        package_name = manifest_data.get("package_name") or "unknown.package"
-        version_name = manifest_data.get("version_name") or "1.0"
-        version_code = int(manifest_data.get("version_code") or 1)
-        min_sdk = int(manifest_data.get("min_sdk") or 1)
-        target_sdk = int(manifest_data.get("target_sdk") or 1)
-
-        # 3. Classify Permissions
-        raw_perms = manifest_data.get("permissions", [])
-        classified_perms = [classify_permission(p) for p in raw_perms]
-        dangerous_perm_names = [p["name"] for p in classified_perms if p["is_dangerous"]]
-
-        if dangerous_perm_names:
-            findings.append({
-                "id": "STATIC_DANGEROUS_PERM",
-                "severity": "high" if len(dangerous_perm_names) > 3 else "medium",
-                "title": f"App requests {len(dangerous_perm_names)} dangerous permission(s)",
-                "evidence": f"Permissions: {', '.join(dangerous_perm_names)}",
-            })
-
-        # Check SDK levels
-        if min_sdk < 24:
-            findings.append({
-                "id": "STATIC_LOW_MIN_SDK",
-                "severity": "low",
-                "title": "Low minSdkVersion allows outdated Android runtime",
-                "evidence": f"minSdkVersion: {min_sdk} (recommended >= 24)",
-            })
-
-        # 4. Extract Components
-        components = manifest_data.get("components", {
-            "activities": [],
-            "services": [],
-            "receivers": [],
-            "providers": [],
-        })
-
-        # 5. Extract Native Libraries
-        native_libs: list[dict[str, str]] = []
-        for name in namelist:
-            if name.startswith("lib/") and name.endswith(".so"):
-                parts = name.split("/")
-                arch = parts[1] if len(parts) > 2 else "unknown"
-                so_data = apk_zip.read(name)
-                so_sha = hashlib.sha256(so_data).hexdigest()
-                native_libs.append({
-                    "path": name,
-                    "arch": arch,
-                    "sha256": so_sha,
-                })
-
-        # 6. Extract Certificate
-        cert_info = parse_apk_certificates(apk_zip, ctx.apk_path)
-        if cert_info.get("self_signed"):
-            findings.append({
-                "id": "STATIC_SELF_SIGNED_CERT",
-                "severity": "medium",
-                "title": "Application certificate is self-signed",
-                "evidence": f"Issuer: {cert_info.get('issuer', '')}",
-            })
-
-        # 7. Scan DEX files for dangerous APIs, IOCs, and class definitions
-        dex_files: list[tuple[str, bytes]] = []
-        for name in namelist:
-            if name.endswith(".dex"):
-                dex_files.append((name, apk_zip.read(name)))
-
-        dex_scan = scan_dex_content(dex_files)
-        dangerous_apis = dex_scan["dangerous_apis"]
-        iocs = dex_scan["iocs"]
-
-        for api in dangerous_apis:
-            api_name = api.get("api", "")
-            if api_name in ("DexClassLoader", "PathClassLoader"):
-                findings.append({
-                    "id": "STATIC_DCL",
-                    "severity": "high",
-                    "title": "Dynamic Code Loading (DCL) capability",
-                    "evidence": f"API: {api_name} in {api.get('source', '')}",
-                })
-            elif api_name in ("RuntimeExec", "ProcessBuilder"):
-                findings.append({
-                    "id": "STATIC_CMD_EXEC",
-                    "severity": "high",
-                    "title": "Arbitrary command execution capability",
-                    "evidence": f"API: {api.get('class', '')}->{api.get('method', '')}",
-                })
-            elif api_name == "SmsManager_sendTextMessage":
-                findings.append({
-                    "id": "STATIC_SMS_SEND",
-                    "severity": "high",
-                    "title": "Programmatic SMS transmission API detected",
-                    "evidence": f"API: {api.get('class', '')}->{api.get('method', '')}",
-                })
-            elif api_name == "TelephonyManager_getDeviceId":
-                findings.append({
-                    "id": "STATIC_DEVICE_HARVEST",
-                    "severity": "medium",
-                    "title": "Hardware/Subscriber identifier access detected",
-                    "evidence": f"API: {api.get('class', '')}->{api.get('method', '')}",
-                })
-
-        if iocs.get("ips"):
-            findings.append({
-                "id": "STATIC_HARDCODED_IP",
-                "severity": "medium",
-                "title": f"Hardcoded external IP address(es) detected ({len(iocs['ips'])})",
-                "evidence": f"IPs: {', '.join(iocs['ips'][:5])}",
-            })
-
-        # 8. Attempt optional decompilation tools if configured
-        apktool_cmd = ctx.config.get("apktool", "apktool")
-        jadx_cmd = ctx.config.get("jadx", "jadx")
-        _run_apktool(ctx.apk_path, apktool_dir, apktool_cmd)
-        _run_jadx(ctx.apk_path, jadx_dir, jadx_cmd)
-
-    finally:
-        apk_zip.close()
-
-    # 9. Build final report conforming strictly to schemas/static.json
-    status = "ok" if findings else "ok"
-
-    report = {
-        "job_id": job_id,
-        "engine": "static",
-        "status": status,
-        "findings": findings,
-        "package_name": package_name,
-        "version_name": version_name,
-        "version_code": version_code,
-        "min_sdk": min_sdk,
-        "target_sdk": target_sdk,
-        "permissions": classified_perms,
-        "components": components,
-        "certificate": cert_info,
-        "native_libs": native_libs,
-        "iocs": {
-            "urls": iocs.get("urls", []),
-            "ips": iocs.get("ips", []),
-            "domains": iocs.get("domains", []),
-            "emails": iocs.get("emails", []),
-        },
-        "dangerous_apis": dangerous_apis,
-        "artifacts": {
-            "apktool_dir": "static/apktool",
-            "jadx_dir": "static/jadx",
-        },
-    }
-
+    report = {"job_id": job_id, "engine": "static", "status": "ok", **result, "artifacts": artifacts}
     return emit(ctx, "static.json", report)
 
 
 if __name__ == "__main__":
     if len(sys.argv) < 2:
-        print("Usage: python -m core.static <path_to_apk> [prior.json]")
+        print("Usage: python -m core.static <path_to_apk>")
         sys.exit(1)
-
     apk = sys.argv[1]
-    prior = json.load(open(sys.argv[2], encoding="utf-8")) if len(sys.argv) > 2 else {}
-    ws = tempfile.mkdtemp(prefix="mt_static_")
-    ctx = JobContext(apk_path=apk, workspace=ws, prior=prior, config={})
-    job_id = hashlib.sha1(apk.encode()).hexdigest()[:12]
-    res = run(job_id, ctx)
-    print(json.dumps(res, indent=2))
-    print(f"\nwrote: {ctx.out('static.json')}")
+    ctx = JobContext(apk_path=apk, workspace=tempfile.mkdtemp(prefix="mt_static_"), prior={}, config={})
+    print(json.dumps(run(hashlib.sha1(apk.encode()).hexdigest()[:12], ctx), indent=2))

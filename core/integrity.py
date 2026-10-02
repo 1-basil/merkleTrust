@@ -11,11 +11,11 @@ import sys
 import os
 import json
 import hashlib
-import zipfile
 import tempfile
 from typing import Any
 
 from core.contracts import JobContext, emit, EngineError
+from core.apk_archive import ApkArchive, ApkValidationError
 from core.merkle import build_tree, root
 
 
@@ -45,41 +45,31 @@ def compute_chunks(data: bytes, chunk_size: int = 65536) -> list[dict[str, Any]]
 
 
 def extract_file_map(apk_path: str) -> list[dict[str, Any]]:
-    """Parse APK ZIP central directory and local headers to record byte spans and hashes."""
+    """Record each ZIP entry's byte span (local header + data) and SHA-256 of its content.
+
+    Uses the hardened archive reader, so oversized, malformed or zip-bomb archives
+    yield an empty map instead of exhausting memory.
+    """
     file_map = []
-    if not os.path.exists(apk_path):
-        return file_map
-
     try:
-        with open(apk_path, "rb") as fh:
-            with zipfile.ZipFile(fh, "r") as zf:
-                for zinfo in zf.infolist():
-                    header_offset = zinfo.header_offset
-                    fh.seek(header_offset)
-                    hdr = fh.read(30)
-                    if len(hdr) == 30 and hdr.startswith(b"PK\x03\x04"):
-                        fn_len = int.from_bytes(hdr[26:28], "little")
-                        extra_len = int.from_bytes(hdr[28:30], "little")
-                        total_entry_len = 30 + fn_len + extra_len + zinfo.compress_size
-                    else:
-                        total_entry_len = zinfo.compress_size
-
-                    # Calculate sha256 of uncompressed payload
-                    try:
-                        content = zf.read(zinfo.filename)
-                        c_sha = hashlib.sha256(content).hexdigest()
-                    except Exception:
-                        c_sha = ""
-
-                    file_map.append({
-                        "path": zinfo.filename,
-                        "offset": header_offset,
-                        "length": total_entry_len,
-                        "sha256": c_sha,
-                    })
-    except (zipfile.BadZipFile, OSError):
-        pass
-
+        with ApkArchive(apk_path, require_manifest=False) as apk, open(apk_path, "rb") as fh:
+            for entry in apk.files():
+                fh.seek(entry.header_offset)
+                hdr = fh.read(30)
+                if len(hdr) == 30 and hdr.startswith(b"PK"):
+                    fn_len = int.from_bytes(hdr[26:28], "little")
+                    extra_len = int.from_bytes(hdr[28:30], "little")
+                    span = 30 + fn_len + extra_len + entry.compressed_size
+                else:
+                    span = entry.compressed_size
+                try:
+                    digest = hashlib.sha256(apk.read(entry.name)).hexdigest()
+                except ApkValidationError:
+                    digest = ""
+                file_map.append({"path": entry.name, "offset": entry.header_offset,
+                                 "length": span, "sha256": digest})
+    except (ApkValidationError, OSError):
+        return []
     return file_map
 
 
