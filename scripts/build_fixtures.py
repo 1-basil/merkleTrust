@@ -44,6 +44,23 @@ public class SyncService extends Service {
     )
 
 
+def update_spec() -> AppSpec:
+    """Next release of the benign app: new version, one more permission and component."""
+    spec = benign_spec()
+    spec.version_code, spec.version_name = 4, "1.3.0"
+    spec.permissions = spec.permissions + ["android.permission.CAMERA"]
+    spec.components_xml += '\n        <service android:name=".UploadService" android:exported="false"/>'
+    spec.java_sources = {**spec.java_sources, "com/merkletrust/demo/UploadService.java": """package com.merkletrust.demo;
+import android.app.Service;
+import android.content.Intent;
+import android.os.IBinder;
+public class UploadService extends Service {
+    @Override public IBinder onBind(Intent intent) { return null; }
+}
+"""}
+    return spec
+
+
 def suspicious_spec() -> AppSpec:
     return AppSpec(
         package="com.merkletrust.suspicious",
@@ -91,6 +108,7 @@ def main() -> None:
             "signed_v1v2_ec.apk": (benign_spec(), key_a, ("v1", "v2")),
             "signed_v1only_ec.apk": (benign_spec(), key_a, ("v1",)),
             "signed_v2v3_rsa.apk": (benign_spec(), key_b, ("v2", "v3")),
+            "update_v1v2_ec.apk": (update_spec(), key_a, ("v1", "v2")),
             "suspicious_v2_ec.apk": (suspicious_spec(), key_a, ("v2",)),
         }
         for name, (spec, key, schemes) in outputs.items():

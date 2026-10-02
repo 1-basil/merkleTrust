@@ -154,20 +154,20 @@ def run_static(job_id: str, ctx: JobContext) -> dict:
 def run_tamper(job_id: str, ctx: JobContext) -> dict:
     """ASHWINI — core/tamper.py
 
-    IN : ctx.prior["integrity"]  -> chunks[], file_map[], merkle_root
-         ctx.prior["static"]     -> package_name, certificate, permissions,
-                                    components
-         ctx.db                  -> baselines table (yours)
+    IN : ctx.prior["integrity"]  -> files[] (per-file SHA-256), merkle_root, chunks[]
+         ctx.prior["static"]     -> package_name, certificate, signature, permissions,
+                                    component_details
+         ctx.db                  -> trusted_baselines table (core.baselines)
     OUT: tamper.json
 
     Logic:
-      look up baseline by (package_name, certificate.sha256)
-      if none  -> insert this job as baseline,
-                  return {"role": "baseline", "baseline_found": false,
-                          changed_* all empty, "suspicious_targets": []}
-      if found -> diff merkle roots, list changed chunks,
-                  map chunks to files via file_map,
-                  diff manifest/permissions/cert against baseline's static.json
+      look up the package's active APPROVED baseline (never auto-created;
+      baselines are enrolled and approved by an administrator)
+      if none   -> integrity.status "NO_BASELINE"
+      re-verify the baseline row (signature, Merkle root, profile hash);
+      if invalid -> integrity.status "BASELINE_INVALID"
+      else      -> per-file diff, certificate/version/profile diff, Merkle proofs;
+                   integrity.status CLEAN | MODIFIED | CERTIFICATE_CHANGED
 
     Key output for Bhavish:
       "suspicious_targets": [{"type": "class"|"service"|"url",

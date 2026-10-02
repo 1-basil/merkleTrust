@@ -25,6 +25,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy.orm import Session
 
+from core.config import get_settings
 from db.database import get_db, init_db, SessionLocal
 from db.models import Job, ApkFile, EngineStatus, TrustScore, RepositoryEntry
 from core.orchestrator import run_job
@@ -39,9 +40,11 @@ from core.repository import (
 from core.merkle import root, proof, build_tree
 
 # Ensure required directories exist
-QUARANTINE_DIR = os.path.join(os.getcwd(), "quarantine")
-JOBS_DIR = os.path.join(os.getcwd(), "jobs")
-FRONTEND_DIR = os.path.join(os.getcwd(), "frontend")
+_DATA_DIR = os.path.abspath(get_settings().data_dir)
+QUARANTINE_DIR = os.path.join(_DATA_DIR, "quarantine")
+JOBS_DIR = os.path.join(_DATA_DIR, "jobs")
+REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+FRONTEND_DIR = os.path.join(REPO_ROOT, "frontend")
 os.makedirs(QUARANTINE_DIR, exist_ok=True)
 os.makedirs(JOBS_DIR, exist_ok=True)
 os.makedirs(FRONTEND_DIR, exist_ok=True)
@@ -142,7 +145,7 @@ async def upload_sample_endpoint(
     db: Session = Depends(get_db),
 ):
     """Trigger analysis directly using the repository's test_sample.apk."""
-    sample_path = os.path.join(os.getcwd(), "test_sample.apk")
+    sample_path = os.path.join(REPO_ROOT, "test_sample.apk")
     if not os.path.exists(sample_path):
         raise HTTPException(status_code=404, detail="test_sample.apk not found in repository root")
 

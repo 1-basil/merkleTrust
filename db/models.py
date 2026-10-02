@@ -4,13 +4,16 @@ Owner: Basil.
 Models represent tables for all four engines:
 - Basil: Job, ApkFile, EngineStatus, TrustScore
 - Ajay: RepositoryEntry, ChunkHash
-- Ashwini: BaselineModel, StaticReportModel, TamperReportModel
+- Ashwini: TrustedBaseline, StaticReportModel, TamperReportModel
 - Bhavish: DynamicReportModel
 """
 
 from datetime import datetime, timezone
 from sqlalchemy import (
+    CheckConstraint,
     Column,
+    Index,
+    UniqueConstraint,
     String,
     Integer,
     Boolean,
@@ -115,17 +118,49 @@ class ChunkHash(Base):
     hash = Column(String(64), nullable=False)
 
 
-class BaselineModel(Base):
-    """Trusted baselines registered by Ashwini's tamper engine."""
-    __tablename__ = "baselines"
+class TrustedBaseline(Base):
+    """An explicitly enrolled reference build of an application.
+
+    Lifecycle: pending -> approved (signed) | rejected; approved -> revoked.
+    Only approved baselines are used for comparison. Approval signs a canonical
+    payload committing to the file-manifest Merkle root and the app profile hash,
+    so later edits to this row are detectable (see core.baselines.verify_baseline).
+    """
+    __tablename__ = "trusted_baselines"
+    __table_args__ = (
+        UniqueConstraint("package_name", "baseline_version", name="uq_baseline_package_version"),
+        CheckConstraint("status IN ('pending','approved','rejected','revoked')", name="ck_baseline_status"),
+        Index("ix_baseline_package_status", "package_name", "status"),
+    )
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    package_name = Column(String(255), nullable=False, index=True)
-    cert_sha256 = Column(String(64), nullable=False, index=True)
-    job_id = Column(String(64), nullable=False)
+    package_name = Column(String(255), nullable=False)
+    baseline_version = Column(Integer, nullable=False)          # 1, 2, 3... per package
+    status = Column(String(16), nullable=False, default="pending")
+
+    app_version_name = Column(String(128), nullable=True)
+    app_version_code = Column(Integer, nullable=True)
+    apk_sha256 = Column(String(64), nullable=False)
+    apk_size = Column(Integer, nullable=False)
+    certificate_sha256 = Column(String(64), nullable=False, index=True)
+
+    file_count = Column(Integer, nullable=False)
     merkle_root = Column(String(64), nullable=False)
-    data_json = Column(Text, nullable=False)
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    files_json = Column(Text, nullable=False)                   # [{path, sha256, size, category}]
+    profile_json = Column(Text, nullable=False)                 # permissions, components, certificate...
+    profile_sha256 = Column(String(64), nullable=False)
+    chunk_size = Column(Integer, nullable=False)
+    chunk_hashes_json = Column(Text, nullable=False)            # supplementary forensics
+
+    created_by = Column(String(128), nullable=False)
+    created_at = Column(DateTime, nullable=False, default=lambda: datetime.now(timezone.utc))
+    approved_by = Column(String(128), nullable=True)
+    approved_at = Column(DateTime, nullable=True)
+    approval_note = Column(Text, nullable=True)
+    status_reason = Column(Text, nullable=True)                 # why rejected / revoked
+
+    signature_json = Column(Text, nullable=True)                # {"alg","key_id","signature"}
+    signing_key_id = Column(String(32), nullable=True)
 
 
 class StaticReportModel(Base):

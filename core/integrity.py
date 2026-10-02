@@ -1,51 +1,47 @@
 """core/integrity.py — AJAY.
 
 Cryptographic Integrity Engine for MerkleTrust.
-- Reads APK in fixed-size blocks (chunk_size, default 64KB) and computes SHA-256 for each.
-- Builds Merkle tree using core.merkle over chunk hashes to produce merkle_root and tree_depth.
-- Reads APK as ZIP central directory to extract byte offset, length, and sha256 of each entry into file_map.
-- Emits integrity.json and returns the report dict.
+
+Authoritative mechanism — per-file SHA-256:
+  every file inside the APK is hashed; the sorted (path, sha256) manifest is
+  committed to a Merkle root (core.file_manifest). Comparing manifests tells
+  exactly which files were modified, added or deleted.
+
+Supplementary forensics — fixed-size chunks:
+  the raw APK bytes are split into 64 KB chunks, each hashed, and committed to a
+  second Merkle tree. Chunk diffs show *where in the file* bytes changed, but one
+  inserted byte shifts every later chunk, so they are never used as the verdict.
+
+Also records each ZIP entry's byte span (file_map) for chunk-to-file localisation.
 """
 
-import sys
-import os
-import json
+from __future__ import annotations
+
 import hashlib
+import json
+import sys
 import tempfile
 from typing import Any
 
-from core.contracts import JobContext, emit, EngineError
 from core.apk_archive import ApkArchive, ApkValidationError
+from core.contracts import EngineError, JobContext, emit
+from core.file_manifest import build_file_manifest, manifest_root
 from core.merkle import build_tree, root
 
+DEFAULT_CHUNK_SIZE = 65536
 
-def compute_chunks(data: bytes, chunk_size: int = 65536) -> list[dict[str, Any]]:
-    """Slice binary data into chunks of chunk_size and compute SHA-256 hashes."""
-    chunks = []
-    total_len = len(data)
-    if total_len == 0:
-        empty_hash = hashlib.sha256(b"").hexdigest()
-        return [{"index": 0, "offset": 0, "length": 0, "hash": empty_hash}]
 
-    offset = 0
-    idx = 0
-    while offset < total_len:
-        end = min(offset + chunk_size, total_len)
-        chunk_data = data[offset:end]
-        h = hashlib.sha256(chunk_data).hexdigest()
-        chunks.append({
-            "index": idx,
-            "offset": offset,
-            "length": len(chunk_data),
-            "hash": h,
-        })
-        offset = end
-        idx += 1
-    return chunks
+def compute_chunks(data: bytes, chunk_size: int = DEFAULT_CHUNK_SIZE) -> list[dict[str, Any]]:
+    """Slice binary data into chunk_size blocks and SHA-256 each one."""
+    if not data:
+        return [{"index": 0, "offset": 0, "length": 0, "hash": hashlib.sha256(b"").hexdigest()}]
+    return [{"index": i, "offset": off, "length": len(data[off:off + chunk_size]),
+             "hash": hashlib.sha256(data[off:off + chunk_size]).hexdigest()}
+            for i, off in enumerate(range(0, len(data), chunk_size))]
 
 
 def extract_file_map(apk_path: str) -> list[dict[str, Any]]:
-    """Record each ZIP entry's byte span (local header + data) and SHA-256 of its content.
+    """Each ZIP entry's byte span (local header + data) and the SHA-256 of its content.
 
     Uses the hardened archive reader, so oversized, malformed or zip-bomb archives
     yield an empty map instead of exhausting memory.
@@ -56,7 +52,7 @@ def extract_file_map(apk_path: str) -> list[dict[str, Any]]:
             for entry in apk.files():
                 fh.seek(entry.header_offset)
                 hdr = fh.read(30)
-                if len(hdr) == 30 and hdr.startswith(b"PK"):
+                if len(hdr) == 30 and hdr.startswith(b"PK\x03\x04"):
                     fn_len = int.from_bytes(hdr[26:28], "little")
                     extra_len = int.from_bytes(hdr[28:30], "little")
                     span = 30 + fn_len + extra_len + entry.compressed_size
@@ -73,64 +69,47 @@ def extract_file_map(apk_path: str) -> list[dict[str, Any]]:
     return file_map
 
 
-def run(job_id: str, ctx: JobContext) -> dict:
-    chunk_size = ctx.config.get("chunk_size", 65536)
-    findings = []
-
-    if not os.path.isfile(ctx.apk_path):
-        raise EngineError(f"APK file not found: {ctx.apk_path}")
-
-    with open(ctx.apk_path, "rb") as fh:
+def compute_integrity(apk_path: str, chunk_size: int = DEFAULT_CHUNK_SIZE,
+                      limits: dict | None = None) -> dict[str, Any]:
+    """Pure integrity computation. Raises ApkValidationError for invalid APKs."""
+    with ApkArchive(apk_path, limits=limits) as apk:
+        files = build_file_manifest(apk)
+    with open(apk_path, "rb") as fh:
         data = fh.read()
-    file_sha = hashlib.sha256(data).hexdigest()
-
-    # 1. Chunking
-    chunks = compute_chunks(data, chunk_size=chunk_size)
-    chunk_hashes = [c["hash"] for c in chunks]
-
-    # 2. Merkle Tree
-    tree_layers = build_tree(chunk_hashes)
-    merkle_root = root(tree_layers)
-    tree_depth = len(tree_layers)
-
-    # 3. File Map
-    file_map = extract_file_map(ctx.apk_path)
-    if not file_map:
-        findings.append({
-            "id": "INTEGRITY_ZIP_WARNING",
-            "severity": "medium",
-            "title": "Could not parse APK ZIP central directory",
-            "evidence": "File may not be a standard ZIP/APK or has corrupted headers.",
-        })
-    else:
-        findings.append({
-            "id": "INTEGRITY_VERIFIED",
-            "severity": "info",
-            "title": "APK chunking and Merkle root computed successfully",
-            "evidence": f"Total {len(chunks)} chunks, root: {merkle_root[:16]}..., mapped {len(file_map)} files",
-        })
-
-    report = {
-        "job_id": job_id,
-        "engine": "integrity",
-        "status": "ok",
-        "findings": findings,
-        "sha256": file_sha,
+    chunks = compute_chunks(data, chunk_size)
+    chunk_tree = build_tree([c["hash"] for c in chunks])
+    return {
+        "sha256": hashlib.sha256(data).hexdigest(),
         "file_size": len(data),
+        "file_count": len(files),
+        "files": files,
+        "merkle_root": manifest_root(files),
         "chunk_size": chunk_size,
         "chunk_count": len(chunks),
         "chunks": chunks,
-        "merkle_root": merkle_root,
-        "tree_depth": tree_depth,
-        "file_map": file_map,
+        "chunk_merkle_root": root(chunk_tree),
+        "tree_depth": len(chunk_tree),
+        "file_map": extract_file_map(apk_path),
     }
+
+
+def run(job_id: str, ctx: JobContext) -> dict:
+    chunk_size = int(ctx.config.get("chunk_size", DEFAULT_CHUNK_SIZE))
+    try:
+        result = compute_integrity(ctx.apk_path, chunk_size, ctx.config.get("apk_limits"))
+    except ApkValidationError as exc:
+        raise EngineError(f"Invalid APK: {exc}") from None
+    findings = [{
+        "id": "INTEGRITY_COMPUTED",
+        "severity": "info",
+        "title": "File manifest and Merkle commitment computed",
+        "evidence": f"{result['file_count']} files hashed with SHA-256; manifest root {result['merkle_root'][:16]}...",
+    }]
+    report = {"job_id": job_id, "engine": "integrity", "status": "ok", "findings": findings, **result}
     return emit(ctx, "integrity.json", report)
 
 
 if __name__ == "__main__":
-    apk = sys.argv[1]
-    prior = json.load(open(sys.argv[2], encoding="utf-8")) if len(sys.argv) > 2 else {}
-    ctx = JobContext(apk_path=apk, workspace=tempfile.mkdtemp(prefix="mt_"),
-                     prior=prior, config={"chunk_size": 65536})
+    ctx = JobContext(apk_path=sys.argv[1], workspace=tempfile.mkdtemp(prefix="mt_"), prior={},
+                     config={"chunk_size": DEFAULT_CHUNK_SIZE})
     print(json.dumps(run("local-test", ctx), indent=2))
-    print("\nwrote:", ctx.out("integrity.json"))

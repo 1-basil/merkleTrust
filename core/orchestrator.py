@@ -24,6 +24,7 @@ from typing import Any
 
 from core.contracts import JobContext, EngineError
 from core import integrity, static, tamper, dynamic, scoring, repository
+from db.database import init_db
 
 CONFIG = {
     "chunk_size": 65536,
@@ -46,6 +47,7 @@ STAGES = [
 def run_job(apk_path: str, job_id: str | None = None, root: str = "jobs", db_session: Any = None) -> dict:
     """Execute complete analysis pipeline on an APK."""
     job_id = job_id or str(uuid.uuid4())
+    init_db()
     workspace = os.path.join(root, job_id)
     os.makedirs(workspace, exist_ok=True)
 
@@ -53,16 +55,16 @@ def run_job(apk_path: str, job_id: str | None = None, root: str = "jobs", db_ses
         sha = hashlib.sha256(fh.read()).hexdigest()
     print(f"job {job_id}\nsha256 {sha}\nworkspace {workspace}\n")
 
-    # Update DB job status if DB session is active
-    if db_session:
-        try:
-            from db.models import Job, EngineStatus
-            job_record = db_session.query(Job).filter_by(id=job_id).first()
-            if job_record:
-                job_record.status = "running"
-                db_session.commit()
-        except Exception as e:
-            print(f"[Orchestrator DB warning]: {e}")
+    # Job/engine status rows are tracked only for jobs created through the API
+    # (a Job row must exist; engine_status has a foreign key to it).
+    track_db = False
+    if db_session is not None:
+        from db.models import Job
+        job_record = db_session.query(Job).filter_by(id=job_id).first()
+        if job_record:
+            job_record.status = "running"
+            db_session.commit()
+            track_db = True
 
     prior: dict = {}
     status: dict = {}
@@ -71,7 +73,7 @@ def run_job(apk_path: str, job_id: str | None = None, root: str = "jobs", db_ses
         start_t = time.time()
         ctx = JobContext(apk_path=apk_path, workspace=workspace, prior=dict(prior), db=db_session, config=CONFIG)
 
-        if db_session:
+        if track_db:
             try:
                 from db.models import EngineStatus
                 es = db_session.query(EngineStatus).filter_by(job_id=job_id, engine_name=name).first()
@@ -82,7 +84,7 @@ def run_job(apk_path: str, job_id: str | None = None, root: str = "jobs", db_ses
                     es.status = "running"
                 db_session.commit()
             except Exception:
-                pass
+                db_session.rollback()
 
         try:
             report = fn(job_id, ctx)
@@ -91,7 +93,7 @@ def run_job(apk_path: str, job_id: str | None = None, root: str = "jobs", db_ses
             duration_ms = int((time.time() - start_t) * 1000)
             print(f"  {name:<11} {status[name]} ({duration_ms}ms)")
 
-            if db_session:
+            if track_db:
                 try:
                     from db.models import EngineStatus, TrustScore, RepositoryEntry
                     es = db_session.query(EngineStatus).filter_by(job_id=job_id, engine_name=name).first()
@@ -137,13 +139,14 @@ def run_job(apk_path: str, job_id: str | None = None, root: str = "jobs", db_ses
                             db_session.add(re)
                         db_session.commit()
                 except Exception as e:
+                    db_session.rollback()
                     print(f"[Orchestrator DB record error for {name}]: {e}")
 
         except EngineError as exc:
             status[name] = "failed"
             duration_ms = int((time.time() - start_t) * 1000)
             print(f"  {name:<11} failed: {exc}")
-            if db_session:
+            if track_db:
                 try:
                     from db.models import EngineStatus
                     es = db_session.query(EngineStatus).filter_by(job_id=job_id, engine_name=name).first()
@@ -153,13 +156,13 @@ def run_job(apk_path: str, job_id: str | None = None, root: str = "jobs", db_ses
                         es.error_message = str(exc)
                         db_session.commit()
                 except Exception:
-                    pass
+                    db_session.rollback()
         except Exception as exc:
             status[name] = "failed"
             duration_ms = int((time.time() - start_t) * 1000)
             print(f"  {name:<11} crashed")
             traceback.print_exc()
-            if db_session:
+            if track_db:
                 try:
                     from db.models import EngineStatus
                     es = db_session.query(EngineStatus).filter_by(job_id=job_id, engine_name=name).first()
@@ -169,13 +172,13 @@ def run_job(apk_path: str, job_id: str | None = None, root: str = "jobs", db_ses
                         es.error_message = str(exc)
                         db_session.commit()
                 except Exception:
-                    pass
+                    db_session.rollback()
 
     with open(os.path.join(workspace, "merged.json"), "w", encoding="utf-8") as fh:
         json.dump({"job_id": job_id, "sha256": sha, "status": status, "reports": prior},
                   fh, indent=2, sort_keys=True)
 
-    if db_session:
+    if track_db:
         try:
             from db.models import Job
             job_record = db_session.query(Job).filter_by(id=job_id).first()
@@ -184,6 +187,7 @@ def run_job(apk_path: str, job_id: str | None = None, root: str = "jobs", db_ses
                 job_record.completed_at = datetime.now(timezone.utc)
                 db_session.commit()
         except Exception as e:
+            db_session.rollback()
             print(f"[Orchestrator DB completion warning]: {e}")
 
     score = prior.get("score", {})

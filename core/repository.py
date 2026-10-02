@@ -17,12 +17,19 @@ import tempfile
 from datetime import datetime, timezone
 from typing import Any, Tuple
 
+from core.config import get_settings
 from core.contracts import JobContext, emit
 from core.crypto import KeyRing, canonical_json, get_keyring, get_signer
 from core.merkle import build_tree, root, proof, verify_proof
 
 GENESIS = "0" * 64
-LEDGER_PATH = os.path.join("data", "repository_ledger.json")
+
+
+def default_ledger_path() -> str:
+    return str(get_settings().data_dir / "repository_ledger.json")
+
+
+LEDGER_PATH = None  # resolved at call time from configuration (see default_ledger_path)
 
 
 def canonicalize_json(data: Any) -> str:
@@ -30,8 +37,9 @@ def canonicalize_json(data: Any) -> str:
     return canonical_json(data).decode("ascii")
 
 
-def load_ledger(ledger_file: str = LEDGER_PATH) -> list[dict[str, Any]]:
+def load_ledger(ledger_file: str | None = None) -> list[dict[str, Any]]:
     """Load existing repository ledger entries."""
+    ledger_file = ledger_file or default_ledger_path()
     if not os.path.exists(ledger_file):
         return []
     try:
@@ -41,8 +49,9 @@ def load_ledger(ledger_file: str = LEDGER_PATH) -> list[dict[str, Any]]:
         return []
 
 
-def save_ledger(ledger: list[dict[str, Any]], ledger_file: str = LEDGER_PATH) -> None:
-    """Save ledger entries atomically."""
+def save_ledger(ledger: list[dict[str, Any]], ledger_file: str | None = None) -> None:
+    """Save ledger entries."""
+    ledger_file = ledger_file or default_ledger_path()
     os.makedirs(os.path.dirname(ledger_file) or ".", exist_ok=True)
     with open(ledger_file, "w", encoding="utf-8") as fh:
         json.dump(ledger, fh, indent=2, sort_keys=True)
@@ -104,7 +113,7 @@ def run(job_id: str, ctx: JobContext) -> dict:
     report_sha = hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
     # 2. Load existing ledger
-    ledger_path = ctx.config.get("repository_ledger_path", LEDGER_PATH)
+    ledger_path = ctx.config.get("repository_ledger_path") or default_ledger_path()
     ledger = load_ledger(ledger_path)
 
     entry_index = len(ledger)

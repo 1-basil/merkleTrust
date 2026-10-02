@@ -1,322 +1,206 @@
 """core/tamper.py — ASHWINI.
 
-Tamper Detection Engine for MerkleTrust.
-Runs after integrity + static.
-Compares Merkle trees, chunk hashes, and static profiles against baseline.
-Localizes changed byte chunks to specific files and outputs suspicious_targets
-for Bhavish's dynamic analysis engine.
+Tamper Detection Engine: compares the analysed APK with the package's active,
+*explicitly approved* trusted baseline.
+
+  1. Look up the active approved baseline for the package (never auto-create one).
+  2. Re-verify the baseline record (ECDSA approval signature, Merkle root
+     recomputed from the stored file list, profile hash) — a tampered baseline
+     is reported, not used.
+  3. Compare per-file SHA-256 manifests, signing certificate, version and the
+     manifest profile (core.comparison).
+  4. For changed files, attach Merkle proofs: the baseline hash proves into the
+     signed baseline root; the current hash does not.
+  5. Emit suspicious_targets for the dynamic engine.
+
+Integrity status: NO_BASELINE | BASELINE_INVALID | CLEAN | MODIFIED | CERTIFICATE_CHANGED
 """
 
-import sys
+from __future__ import annotations
+
 import json
+import sys
 import tempfile
+from contextlib import nullcontext
 from typing import Any
 
+from core.baselines import (BaselineService, baseline_snapshot, snapshot_from_reports, to_dict,
+                            verify_baseline)
+from core.comparison import compare_with_baseline
 from core.contracts import JobContext, emit
-from core.merkle import compare_trees
-from core.baselines import BaselineStore
+from core.file_manifest import file_proof, verify_file_proof
+from db.database import session_scope
+
+MAX_PROOFS = 25
 
 
-def _extract_all_components(components_dict: dict[str, list[str]]) -> set[str]:
-    """Flatten all activities, services, receivers, and providers into a set."""
-    comps = set()
-    for cat in ("activities", "services", "receivers", "providers"):
-        for item in components_dict.get(cat, []):
-            if isinstance(item, str):
-                comps.add(item)
-            elif isinstance(item, dict) and "name" in item:
-                comps.add(item["name"])
-    return comps
+def _finding(fid: str, severity: str, title: str, evidence: str) -> dict[str, str]:
+    return {"id": fid, "severity": severity, "title": title, "evidence": evidence}
+
+
+def _empty_report(job_id: str, findings: list, status: str, role: str, **extra) -> dict[str, Any]:
+    return {
+        "job_id": job_id, "engine": "tamper", "status": "ok", "findings": findings,
+        "role": role, "baseline_found": False, "baseline_id": None, "baseline": None,
+        "baseline_verification": None,
+        "integrity": {"status": status, "reasons": extra.pop("reasons", [])},
+        "changed_files": [], "changed_chunks": [],
+        "manifest_diff": {"permissions_added": [], "permissions_removed": [],
+                          "components_added": [], "components_removed": []},
+        "certificate_changed": False, "proofs": [], "suspicious_targets": [], **extra,
+    }
+
+
+def _proofs(baseline_files: list[dict], comparison: dict[str, Any], root: str) -> list[dict[str, Any]]:
+    out = []
+    for change in comparison["files"]["modified"] + comparison["files"]["deleted"]:
+        if len(out) >= MAX_PROOFS:
+            break
+        p = file_proof(baseline_files, change["path"])
+        entry = {"path": change["path"], "baseline_sha256": p["sha256"], "leaf_index": p["leaf_index"],
+                 "proof": p["proof"], "root": root,
+                 "baseline_hash_valid": verify_file_proof(change["path"], p["sha256"], p["proof"], root)}
+        if change.get("current_sha256"):
+            entry["current_sha256"] = change["current_sha256"]
+            entry["current_hash_valid"] = verify_file_proof(change["path"], change["current_sha256"],
+                                                            p["proof"], root)
+        out.append(entry)
+    return out
+
+
+def _findings(cmp: dict[str, Any], baseline: dict[str, Any]) -> list[dict[str, str]]:
+    f: list[dict[str, str]] = []
+    files = cmp["files"]
+    changed = files["modified"] + files["added"] + files["deleted"]
+    by_cat = {}
+    for c in changed:
+        by_cat.setdefault(c["category"], []).append(c)
+
+    if cmp["certificate"]["changed"]:
+        f.append(_finding("TAMPER_CERT_CHANGED", "critical", "Signing certificate differs from trusted baseline",
+                          f"Baseline {cmp['certificate']['baseline_sha256'][:16]}… "
+                          f"({cmp['certificate']['baseline_subject']}), current "
+                          f"{(cmp['certificate']['current_sha256'] or 'none')[:16]}… "
+                          f"({cmp['certificate']['current_subject']})"))
+    if "code" in by_cat:
+        f.append(_finding("TAMPER_DEX_MODIFIED", "critical", "Application code (DEX) differs from trusted baseline",
+                          ", ".join(f"{c['path']} ({c['change_type']})" for c in by_cat["code"])))
+    if "native" in by_cat:
+        f.append(_finding("TAMPER_NATIVE_MODIFIED", "high", "Native libraries differ from trusted baseline",
+                          ", ".join(f"{c['path']} ({c['change_type']})" for c in by_cat["native"])))
+    if "manifest" in by_cat:
+        f.append(_finding("TAMPER_MANIFEST_MODIFIED", "high", "AndroidManifest.xml differs from trusted baseline",
+                          "The app's declared configuration changed"))
+    other = [c for cat, items in by_cat.items() if cat not in ("code", "native", "manifest") for c in items]
+    if other:
+        f.append(_finding("TAMPER_FILES_CHANGED", "medium", f"{len(other)} other file(s) differ from baseline",
+                          ", ".join(f"{c['path']} ({c['change_type']})" for c in other[:10])))
+
+    md = cmp["manifest_diff"]
+    if md["permissions_added"]:
+        f.append(_finding("TAMPER_PERMISSIONS_ADDED", "high", f"{len(md['permissions_added'])} permission(s) added",
+                          ", ".join(md["permissions_added"])))
+    if md["components_added"]:
+        f.append(_finding("TAMPER_COMPONENTS_ADDED", "medium",
+                          f"{len(md['components_added'])} app component(s) added", ", ".join(md["components_added"])))
+    if md["newly_exported_components"]:
+        f.append(_finding("TAMPER_NEWLY_EXPORTED", "medium", "Components newly exposed to other apps",
+                          ", ".join(md["newly_exported_components"])))
+    for flag in md["flags_changed"]:
+        if flag["flag"] == "debuggable" and flag["current"]:
+            f.append(_finding("TAMPER_DEBUGGABLE_ENABLED", "high", "Debugging enabled compared to baseline",
+                              "android:debuggable is now true"))
+    if md["dangerous_apis_added"]:
+        f.append(_finding("TAMPER_DANGEROUS_API_ADDED", "high", "Sensitive APIs not present in the baseline",
+                          ", ".join(md["dangerous_apis_added"])))
+    if cmp["version"]["downgrade"]:
+        f.append(_finding("TAMPER_VERSION_DOWNGRADE", "high", "Version is older than the trusted baseline",
+                          f"{cmp['version']['baseline']['code']} → {cmp['version']['current']['code']}"))
+    if cmp["status"] == "CLEAN":
+        f.append(_finding("TAMPER_INTEGRITY_VERIFIED", "info", "Application matches its trusted baseline",
+                          f"Baseline #{baseline['id']} v{baseline['baseline_version']} "
+                          f"({cmp['counts']['unchanged']} files identical)"))
+    return f
+
+
+def _suspicious_targets(cmp: dict[str, Any], static: dict[str, Any]) -> list[dict[str, str]]:
+    targets, seen = [], set()
+
+    def add(kind: str, value: str, reason: str) -> None:
+        if value and value not in seen:
+            seen.add(value)
+            targets.append({"type": kind, "value": value, "reason": reason})
+
+    code_changed = any(c["category"] == "code" for c in cmp["files"]["modified"] + cmp["files"]["added"])
+    if code_changed:
+        for api in static.get("dangerous_apis", []):
+            add("class", api.get("class", ""), f"Sensitive API {api.get('api')} in modified code")
+    for comp in cmp["manifest_diff"]["components_added"]:
+        add("service" if "service" in comp.lower() else "class", comp, "Component added vs baseline")
+    for url in cmp["manifest_diff"]["network_urls_added"]:
+        add("url", url, "Network endpoint not present in baseline")
+    return targets
+
+
+def compare_reports(job_id: str, integrity: dict[str, Any], static: dict[str, Any], db) -> dict[str, Any]:
+    package = static.get("package_name") or "unknown.package"
+    service = BaselineService(db)
+    row = service.get_active(package)
+    if row is None:
+        return _empty_report(job_id, [_finding(
+            "TAMPER_NO_BASELINE", "info", "No trusted baseline enrolled for this app",
+            f"Package {package} has no approved baseline, so changes cannot be determined. "
+            f"An administrator can enrol a trusted build.")], "NO_BASELINE", "no_baseline",
+            reasons=["No approved baseline exists for this package."])
+
+    baseline = to_dict(row)
+    verification = verify_baseline(row, service.keyring)
+    if not verification["valid"]:
+        return _empty_report(job_id, [_finding(
+            "TAMPER_BASELINE_INVALID", "critical", "Trusted baseline record failed verification",
+            "; ".join(verification["reasons"]))], "BASELINE_INVALID", "comparison",
+            baseline_found=True, baseline_id=row.id, baseline=baseline, baseline_verification=verification,
+            reasons=["The stored baseline could not be verified, so it was not used."])
+
+    base_snap = baseline_snapshot(row)
+    cmp = compare_with_baseline(base_snap, snapshot_from_reports(integrity, static))
+    files = cmp["files"]
+    changed_files = files["modified"] + files["added"] + files["deleted"] + files["signature_files_changed"]
+    return {
+        "job_id": job_id, "engine": "tamper", "status": "ok",
+        "findings": _findings(cmp, baseline),
+        "role": "comparison",
+        "baseline_found": True,
+        "baseline_id": row.id,
+        "baseline": baseline,
+        "baseline_verification": verification,
+        "integrity": cmp,
+        "changed_files": changed_files,
+        "changed_chunks": cmp["chunks"].get("changed_indices", []),
+        "manifest_diff": cmp["manifest_diff"],
+        "certificate_changed": cmp["certificate"]["changed"],
+        "proofs": _proofs(base_snap["files"], cmp, row.merkle_root),
+        "suspicious_targets": _suspicious_targets(cmp, static),
+    }
 
 
 def run(job_id: str, ctx: JobContext) -> dict:
-    """Execute tamper analysis and baseline comparison."""
-    integrity = ctx.prior.get("integrity", {})
-    static = ctx.prior.get("static", {})
-
-    findings: list[dict[str, Any]] = []
-
+    """Execute tamper analysis against the active trusted baseline."""
+    integrity, static = ctx.prior.get("integrity"), ctx.prior.get("static")
     if not integrity or not static:
-        findings.append({
-            "id": "TAMPER_MISSING_INPUT",
-            "severity": "medium",
-            "title": "Ran with incomplete prior engine reports",
-            "evidence": f"Prior keys available: {sorted(ctx.prior.keys())}",
-        })
-
-    package_name = static.get("package_name") or "unknown.package"
-    curr_cert_info = static.get("certificate", {})
-    curr_cert_sha = curr_cert_info.get("sha256", "")
-    merkle_root = integrity.get("merkle_root", "")
-    chunks = integrity.get("chunks", [])
-    file_map = integrity.get("file_map", [])
-
-    # Initialize baseline store
-    baseline_path = ctx.config.get("baseline_storage_path", "data/baselines.json")
-    baseline_store = BaselineStore(db_session=ctx.db, storage_path=baseline_path)
-    baseline = baseline_store.get_baseline(package_name, curr_cert_sha)
-
-    # 1. No baseline found -> Register as baseline
-    if not baseline:
-        baseline_store.save_baseline(
-            job_id=job_id,
-            package_name=package_name,
-            cert_sha256=curr_cert_sha,
-            merkle_root=merkle_root,
-            chunks=chunks,
-            file_map=file_map,
-            static_report=static,
-        )
-
-        findings.append({
-            "id": "TAMPER_BASELINE_SAVED",
-            "severity": "info",
-            "title": "Initial build established as trusted baseline",
-            "evidence": f"Package {package_name} recorded with Merkle root {merkle_root[:16]}...",
-        })
-
-        report = {
-            "job_id": job_id,
-            "engine": "tamper",
-            "status": "ok",
-            "findings": findings,
-            "role": "baseline",
-            "baseline_found": False,
-            "baseline_job_id": None,
-            "changed_chunks": [],
-            "changed_files": [],
-            "manifest_diff": {
-                "permissions_added": [],
-                "permissions_removed": [],
-                "components_added": [],
-                "components_removed": [],
-            },
-            "certificate_changed": False,
-            "suspicious_targets": [],
-        }
+        report = _empty_report(job_id, [_finding(
+            "TAMPER_MISSING_INPUT", "medium", "Comparison skipped: earlier analysis stages failed",
+            f"Available reports: {sorted(ctx.prior)}")], "UNKNOWN", "skipped")
+        report["status"] = "partial"
         return emit(ctx, "tamper.json", report)
 
-    # 2. Baseline found -> Perform comparison
-    baseline_job_id = baseline.get("job_id")
-    base_chunks = baseline.get("chunks", [])
-    base_file_map = baseline.get("file_map", [])
-    base_static = baseline.get("static_data", {})
-    base_cert_sha = baseline.get("cert_sha256") or base_static.get("certificate", {}).get("sha256", "")
-
-    # Compare chunk hashes
-    curr_chunk_hashes = [c.get("hash", "") for c in chunks]
-    base_chunk_hashes = [c.get("hash", "") for c in base_chunks]
-
-    changed_chunk_indices = compare_trees(base_chunk_hashes, curr_chunk_hashes)
-    changed_chunks: list[dict[str, Any]] = []
-
-    for idx in changed_chunk_indices:
-        old_h = base_chunk_hashes[idx] if idx < len(base_chunk_hashes) else "none"
-        new_h = curr_chunk_hashes[idx] if idx < len(curr_chunk_hashes) else "none"
-        changed_chunks.append({
-            "index": idx,
-            "old_hash": old_h,
-            "new_hash": new_h,
-        })
-
-    # Map changed chunks to files using integrity.file_map
-    changed_files_map: dict[str, dict[str, Any]] = {}
-
-    # Check modified files via byte-range intersection
-    for c_info in changed_chunks:
-        idx = c_info["index"]
-        if idx < len(chunks):
-            chunk = chunks[idx]
-            c_start = chunk.get("offset", 0)
-            c_end = c_start + chunk.get("length", 0)
-
-            for f_entry in file_map:
-                f_path = f_entry.get("path", "")
-                f_start = f_entry.get("offset", 0)
-                f_end = f_start + f_entry.get("length", 0)
-
-                # Overlap test: max(start1, start2) < min(end1, end2)
-                if max(c_start, f_start) < min(c_end, f_end):
-                    if f_path not in changed_files_map:
-                        changed_files_map[f_path] = {
-                            "path": f_path,
-                            "change_type": "modified",
-                            "chunks": [],
-                        }
-                    if idx not in changed_files_map[f_path]["chunks"]:
-                        changed_files_map[f_path]["chunks"].append(idx)
-
-    # Check added and removed files
-    curr_paths = {f.get("path") for f in file_map if f.get("path")}
-    base_paths = {f.get("path") for f in base_file_map if f.get("path")}
-
-    for added_p in (curr_paths - base_paths):
-        if added_p not in changed_files_map:
-            changed_files_map[added_p] = {
-                "path": added_p,
-                "change_type": "added",
-                "chunks": [],
-            }
-
-    for rem_p in (base_paths - curr_paths):
-        if rem_p not in changed_files_map:
-            changed_files_map[rem_p] = {
-                "path": rem_p,
-                "change_type": "removed",
-                "chunks": [],
-            }
-
-    changed_files = list(changed_files_map.values())
-
-    # Diff permissions
-    curr_perms = {
-        p["name"] if isinstance(p, dict) else p
-        for p in static.get("permissions", [])
-    }
-    base_perms = {
-        p["name"] if isinstance(p, dict) else p
-        for p in base_static.get("permissions", [])
-    }
-    permissions_added = sorted(curr_perms - base_perms)
-    permissions_removed = sorted(base_perms - curr_perms)
-
-    # Diff components
-    curr_comps = _extract_all_components(static.get("components", {}))
-    base_comps = _extract_all_components(base_static.get("components", {}))
-    components_added = sorted(curr_comps - base_comps)
-    components_removed = sorted(base_comps - curr_comps)
-
-    # Certificate changed check (SHA fingerprint diff or META-INF signature modification)
-    sig_files_changed = any("META-INF" in f.get("path", "") for f in changed_files)
-    certificate_changed = bool(
-        (base_cert_sha != curr_cert_sha and (base_cert_sha or curr_cert_sha))
-        or sig_files_changed
-    )
-
-    # Build suspicious_targets for Bhavish's Dynamic engine
-    suspicious_targets: list[dict[str, str]] = []
-    seen_targets = set()
-
-    # 1. New or modified classes/APIs in changed DEX files
-    dex_changed = any(f["path"].endswith(".dex") for f in changed_files)
-    if dex_changed:
-        for api in static.get("dangerous_apis", []):
-            cls_name = api.get("class", "")
-            if cls_name and cls_name not in seen_targets:
-                seen_targets.add(cls_name)
-                suspicious_targets.append({
-                    "type": "class",
-                    "value": cls_name,
-                    "reason": f"Dangerous API {api.get('api')} in modified DEX",
-                })
-
-    # 2. Components added (services, receivers, activities)
-    for comp in components_added:
-        c_type = "service" if "Service" in comp or "service" in comp.lower() else "class"
-        if comp not in seen_targets:
-            seen_targets.add(comp)
-            suspicious_targets.append({
-                "type": c_type,
-                "value": comp,
-                "reason": "Component added vs baseline",
-            })
-
-    # 3. New URLs / IOCs not present in baseline
-    curr_urls = set(static.get("iocs", {}).get("urls", []))
-    base_urls = set(base_static.get("iocs", {}).get("urls", []))
-    for url in sorted(curr_urls - base_urls):
-        if url not in seen_targets:
-            seen_targets.add(url)
-            suspicious_targets.append({
-                "type": "url",
-                "value": url,
-                "reason": "New network IOC detected vs baseline",
-            })
-
-    # Generate security findings
-    if certificate_changed:
-        findings.append({
-            "id": "TAMPER_CERT_CHANGED",
-            "severity": "critical",
-            "title": "Signing certificate differs from trusted baseline",
-            "evidence": f"Baseline cert: {base_cert_sha[:16]}..., Current cert: {curr_cert_sha[:16]}...",
-        })
-
-    if dex_changed:
-        dex_paths = [f["path"] for f in changed_files if f["path"].endswith(".dex")]
-        findings.append({
-            "id": "TAMPER_DEX_MODIFIED",
-            "severity": "critical",
-            "title": "Executable Dalvik bytecode modified vs baseline",
-            "evidence": f"Modified DEX: {', '.join(dex_paths)} ({len(changed_chunks)} chunks changed)",
-        })
-
-    so_changed = [f["path"] for f in changed_files if f["path"].endswith(".so")]
-    if so_changed:
-        findings.append({
-            "id": "TAMPER_NATIVE_MODIFIED",
-            "severity": "high",
-            "title": "Native shared libraries modified vs baseline",
-            "evidence": f"Modified native libs: {', '.join(so_changed)}",
-        })
-
-    if permissions_added:
-        findings.append({
-            "id": "TAMPER_PERMISSIONS_ADDED",
-            "severity": "high",
-            "title": f"Privilege escalation: {len(permissions_added)} new permission(s) added",
-            "evidence": f"Added permissions: {', '.join(permissions_added)}",
-        })
-
-    if components_added:
-        findings.append({
-            "id": "TAMPER_COMPONENTS_ADDED",
-            "severity": "medium",
-            "title": f"New application components added ({len(components_added)})",
-            "evidence": f"Added components: {', '.join(components_added)}",
-        })
-
-    if not changed_chunks and not certificate_changed and not permissions_added and not components_added:
-        findings.append({
-            "id": "TAMPER_INTEGRITY_VERIFIED",
-            "severity": "info",
-            "title": "Application strictly matches trusted baseline",
-            "evidence": f"Matches baseline job {baseline_job_id}",
-        })
-
-    report = {
-        "job_id": job_id,
-        "engine": "tamper",
-        "status": "ok",
-        "findings": findings,
-        "role": "comparison",
-        "baseline_found": True,
-        "baseline_job_id": baseline_job_id,
-        "changed_chunks": changed_chunks,
-        "changed_files": changed_files,
-        "manifest_diff": {
-            "permissions_added": permissions_added,
-            "permissions_removed": permissions_removed,
-            "components_added": components_added,
-            "components_removed": components_removed,
-        },
-        "certificate_changed": certificate_changed,
-        "suspicious_targets": suspicious_targets,
-    }
-
+    scope = nullcontext(ctx.db) if ctx.db is not None else session_scope()
+    with scope as db:
+        report = compare_reports(job_id, integrity, static, db)
     return emit(ctx, "tamper.json", report)
 
 
 if __name__ == "__main__":
-    if len(sys.argv) < 2:
-        print("Usage: python -m core.tamper <path_to_apk> [prior.json]")
-        sys.exit(1)
-
-    apk = sys.argv[1]
-    prior = json.load(open(sys.argv[2], encoding="utf-8")) if len(sys.argv) > 2 else {}
-    ws = tempfile.mkdtemp(prefix="mt_tamper_")
-    ctx = JobContext(apk_path=apk, workspace=ws, prior=prior, config={})
-    job_id = "local-tamper-test"
-    res = run(job_id, ctx)
-    print(json.dumps(res, indent=2))
-    print(f"\nwrote: {ctx.out('tamper.json')}")
+    prior = json.load(open(sys.argv[1], encoding="utf-8")) if len(sys.argv) > 1 else {}
+    ctx = JobContext(apk_path="", workspace=tempfile.mkdtemp(prefix="mt_tamper_"), prior=prior, config={})
+    print(json.dumps(run("local-tamper-test", ctx), indent=2))

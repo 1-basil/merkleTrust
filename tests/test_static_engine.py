@@ -3,7 +3,7 @@
 import pytest
 
 from core.contracts import EngineError, JobContext
-from core.static import run as run_static
+from core.static import classify_permission, run as run_static
 
 
 def _run(path, tmp_path):
@@ -55,3 +55,9 @@ def test_invalid_file_raises_engine_error(tmp_path, content):
     p.write_bytes(content)
     with pytest.raises(EngineError, match="Invalid APK"):
         _run(p, tmp_path)
+
+
+def test_permission_classification():
+    assert classify_permission("android.permission.SEND_SMS")["is_dangerous"] is True
+    assert classify_permission("android.permission.INTERNET") == {
+        "name": "android.permission.INTERNET", "protection_level": "normal", "is_dangerous": False}
