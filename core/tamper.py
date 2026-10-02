@@ -146,7 +146,7 @@ def compare_reports(job_id: str, integrity: dict[str, Any], static: dict[str, An
             reasons=["No approved baseline exists for this package."])
 
     baseline = to_dict(row)
-    verification = verify_baseline(row, service.keyring)
+    verification = verify_baseline(row, service.keyring, db)
     if not verification["valid"]:
         return _empty_report(job_id, [finding("TAMPER_BASELINE_INVALID", "; ".join(verification["reasons"]))], "BASELINE_INVALID", "comparison",
             baseline_found=True, baseline_id=row.id, baseline=baseline, baseline_verification=verification,

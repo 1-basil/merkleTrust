@@ -95,7 +95,7 @@ def run_job(apk_path: str, job_id: str | None = None, root: str = "jobs", db_ses
 
             if track_db:
                 try:
-                    from db.models import EngineStatus, TrustScore, RepositoryEntry
+                    from db.models import EngineStatus, TrustScore
                     es = db_session.query(EngineStatus).filter_by(job_id=job_id, engine_name=name).first()
                     if es:
                         es.status = status[name]
@@ -115,24 +115,6 @@ def run_job(apk_path: str, job_id: str | None = None, root: str = "jobs", db_ses
                         ts.inputs_json = json.dumps(report.get("inputs", {}))
                         db_session.commit()
 
-                    elif name == "repository":
-                        re = db_session.query(RepositoryEntry).filter_by(job_id=job_id).first()
-                        if not re:
-                            re = RepositoryEntry(
-                                entry_index=report.get("entry_index", 0),
-                                job_id=job_id,
-                                canonical_report_sha256=report.get("canonical_report_sha256", ""),
-                                prev_entry_hash=report.get("prev_entry_hash", ""),
-                                entry_hash=report.get("entry_hash", ""),
-                                signature=report.get("signature", ""),
-                                pubkey_id=report.get("pubkey_id", "mt-signer-1"),
-                                repo_merkle_root=report.get("repo_merkle_root", ""),
-                                inclusion_proof_json=json.dumps(report.get("inclusion_proof", [])),
-                                timestamp=report.get("timestamp", ""),
-                                sim_block_json=json.dumps(report.get("sim_block", {})),
-                            )
-                            db_session.add(re)
-                        db_session.commit()
                 except Exception as e:
                     db_session.rollback()
                     print(f"[Orchestrator DB record error for {name}]: {e}")

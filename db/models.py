@@ -3,7 +3,7 @@
 Owner: Basil.
 Models represent tables for all four engines:
 - Basil: Job, ApkFile, EngineStatus, TrustScore
-- Ajay: RepositoryEntry, ChunkHash
+- Ajay: AuditBlock (blockchain simulation), ChunkHash
 - Ashwini: TrustedBaseline, StaticReportModel, TamperReportModel
 - Bhavish: DynamicReportModel
 """
@@ -54,7 +54,6 @@ class Job(Base):
     apk_file = relationship("ApkFile", back_populates="jobs")
     engine_statuses = relationship("EngineStatus", back_populates="job", cascade="all, delete-orphan")
     trust_score = relationship("TrustScore", back_populates="job", uselist=False, cascade="all, delete-orphan")
-    repository_entry = relationship("RepositoryEntry", back_populates="job", uselist=False)
 
 
 class EngineStatus(Base):
@@ -89,23 +88,39 @@ class TrustScore(Base):
     job = relationship("Job", back_populates="trust_score")
 
 
-class RepositoryEntry(Base):
-    """Cryptographic ledger entries in Ajay's Merkle repository."""
-    __tablename__ = "repository_entries"
+class AuditBlock(Base):
+    """One block of the Cryptographically Linked Blockchain Simulation (audit trail).
 
-    entry_index = Column(Integer, primary_key=True, index=True)
-    job_id = Column(String(64), ForeignKey("jobs.id"), unique=True, nullable=False)
-    canonical_report_sha256 = Column(String(64), nullable=False)
-    prev_entry_hash = Column(String(64), nullable=False)
-    entry_hash = Column(String(64), unique=True, nullable=False, index=True)
-    signature = Column(Text, nullable=False)
-    pubkey_id = Column(String(64), default="mt-signer-1")
-    repo_merkle_root = Column(String(64), nullable=False)
-    inclusion_proof_json = Column(Text, nullable=False, default="[]")
-    timestamp = Column(String(64), nullable=False)
-    sim_block_json = Column(Text, nullable=False, default="{}")
+    block_hash = SHA-256(canonical header), where the header contains the
+    previous block's hash, so changing any block breaks every later link.
+    The header is also ECDSA-signed. previous_hash is UNIQUE: two blocks can
+    never claim the same predecessor (no forks). This is a single-node,
+    append-only simulation — there is no network, consensus or mining.
+    """
+    __tablename__ = "audit_blocks"
+    __table_args__ = (CheckConstraint("block_index >= 0", name="ck_block_index"),)
 
-    job = relationship("Job", back_populates="repository_entry")
+    block_index = Column(Integer, primary_key=True, autoincrement=False)
+    timestamp = Column(String(40), nullable=False)            # exact ISO-8601 string that was hashed
+    event_type = Column(String(48), nullable=False, index=True)
+    actor = Column(String(128), nullable=False)
+    subject = Column(String(128), nullable=True, index=True)  # job id, baseline id...
+    payload_json = Column(Text, nullable=False)
+    payload_hash = Column(String(64), nullable=False)
+    previous_hash = Column(String(64), nullable=False, unique=True)
+    block_hash = Column(String(64), nullable=False, unique=True)
+    signature_json = Column(Text, nullable=False)
+    key_id = Column(String(32), nullable=False)
+
+
+class AuditTamperBackup(Base):
+    """Demo support only: original copy of a block deliberately altered by the
+    tamper demonstration, so the valid chain can be restored afterwards."""
+    __tablename__ = "audit_tamper_backups"
+
+    block_index = Column(Integer, primary_key=True, autoincrement=False)
+    original_json = Column(Text, nullable=False)
+    tampered_at = Column(DateTime, nullable=False, default=lambda: datetime.now(timezone.utc))
 
 
 class ChunkHash(Base):

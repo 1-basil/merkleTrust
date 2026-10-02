@@ -39,7 +39,8 @@ def test_approve_signs_and_activates(svc, db, fixture_apk):
     assert active.signing_key_id.startswith("mt-")
     result = svc.verify(b.id)
     assert result["valid"], result
-    assert result["checks"] == {"approved": True, "merkle_root": True, "profile": True, "signature": True}
+    assert result["checks"] == {"status_matches_audit": True, "approved": True, "merkle_root": True,
+                                "profile": True, "signature": True}
 
 
 def test_invalid_apks_cannot_be_enrolled(svc, fixture_apk, tmp_path):

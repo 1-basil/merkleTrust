@@ -283,10 +283,11 @@ function renderResults(data) {
   // 2. Cryptographic Provenance
   document.getElementById('meta-apk-sha').textContent = data.sha256 || integRep.sha256 || '--';
   document.getElementById('meta-merkle-root').textContent = integRep.merkle_root || '--';
-  document.getElementById('meta-pubkey-id').textContent = repoRep.pubkey_id || 'mt-signer-1';
-  document.getElementById('meta-entry-hash').textContent = repoRep.entry_hash || '--';
-  document.getElementById('meta-block-info').textContent = repoRep.sim_block ? `Block #${repoRep.sim_block.height} (${repoRep.sim_block.tx_id.substring(0, 10)}...)` : 'Block #0';
-  document.getElementById('meta-proof-steps').textContent = `${(repoRep.inclusion_proof || []).length} Audit Steps`;
+  document.getElementById('meta-pubkey-id').textContent = repoRep.key_id || '--';
+  document.getElementById('meta-entry-hash').textContent = repoRep.block_hash || '--';
+  document.getElementById('meta-block-info').textContent =
+    repoRep.block_index !== undefined ? `Block #${repoRep.block_index} (simulation)` : '--';
+  document.getElementById('meta-proof-steps').textContent = repoRep.report_sha256 ? 'Report sealed' : '--';
 
   // 3. Merkle Chunk Grid
   renderChunkGrid(integRep.chunks || [], tamperRep.changed_chunks || []);
@@ -419,34 +420,44 @@ async function refreshLedger() {
   try {
     const res = await fetch('/api/repository?limit=15');
     if (!res.ok) return;
-
     const data = await res.json();
-    const entries = data.entries || [];
+    const blocks = data.blocks || [];
+    document.getElementById('chain-ledger-count').textContent = `${data.total_blocks} Blocks`;
+    document.getElementById('chain-block-height').textContent =
+      data.chain && data.chain.head ? `Blockchain Simulation: Block #${data.chain.head.index}` : 'Blockchain Simulation';
 
-    document.getElementById('chain-ledger-count').textContent = `${data.total_entries} Ledger Entries`;
-    if (entries.length > 0 && entries[entries.length - 1].sim_block) {
-      document.getElementById('chain-block-height').textContent = `Simulated Chain: Block #${entries[entries.length - 1].sim_block.height}`;
-    }
-
-    ledgerTbody.innerHTML = '';
-    if (entries.length === 0) {
-      ledgerTbody.innerHTML = '<tr><td colspan="7" class="empty-cell">Ledger is currently empty. Run an APK analysis to add entries.</td></tr>';
+    ledgerTbody.replaceChildren();
+    if (blocks.length === 0) {
+      const tr = document.createElement('tr');
+      const td = document.createElement('td');
+      td.colSpan = 7;
+      td.className = 'empty-cell';
+      td.textContent = 'The audit chain is empty. Run an analysis to add blocks.';
+      tr.appendChild(td);
+      ledgerTbody.appendChild(tr);
       return;
     }
-
-    entries.slice().reverse().forEach(e => {
+    blocks.forEach(b => {
       const tr = document.createElement('tr');
-      tr.innerHTML = `
-        <td><strong>#${e.entry_index}</strong></td>
-        <td>${new Date(e.timestamp).toLocaleTimeString()}</td>
-        <td><code title="${e.entry_hash}">${e.entry_hash.substring(0, 14)}...</code></td>
-        <td><code title="${e.prev_entry_hash}">${e.prev_entry_hash.substring(0, 10)}...</code></td>
-        <td><code title="${e.canonical_report_sha256}">${e.canonical_report_sha256.substring(0, 14)}...</code></td>
-        <td><span class="code-tag">#${e.sim_block ? e.sim_block.height : 0}</span></td>
-        <td>
-          <button class="btn-outline" style="padding: 0.2rem 0.5rem; font-size: 0.75rem;" onclick="inspectProof(${e.entry_index})">Verify Proof</button>
-        </td>
-      `;
+      const cell = (text, title) => {
+        const td = document.createElement('td');
+        td.textContent = text;
+        if (title) td.title = title;
+        tr.appendChild(td);
+      };
+      cell(`#${b.index}`);
+      cell(new Date(b.timestamp).toLocaleTimeString());
+      cell(`${b.block_hash.substring(0, 14)}...`, b.block_hash);
+      cell(`${b.previous_hash.substring(0, 10)}...`, b.previous_hash);
+      cell(b.event_label, b.event_type);
+      cell(b.verification && b.verification.valid ? 'valid' : 'INVALID');
+      const td = document.createElement('td');
+      const btn = document.createElement('button');
+      btn.className = 'btn-outline';
+      btn.textContent = 'Verify Proof';
+      btn.addEventListener('click', () => inspectProof(b.index));
+      td.appendChild(btn);
+      tr.appendChild(td);
       ledgerTbody.appendChild(tr);
     });
   } catch (e) {
@@ -458,7 +469,7 @@ window.inspectProof = async function(index) {
   try {
     const res = await fetch(`/api/repository/${index}/proof`);
     const data = await res.json();
-    alert(`Inclusion Proof for Entry #${index}:\nRoot: ${data.repo_merkle_root}\nSteps: ${data.inclusion_proof.length}\nProof Status: ${data.verified ? 'VALID' : 'INVALID'}`);
+    alert(`Merkle proof for block #${index}:\nRoot: ${data.merkle_root}\nSteps: ${data.proof.length}\nStatus: ${data.verified ? 'VALID' : 'INVALID'}`);
   } catch (err) {
     alert(`Proof check failed: ${err.message}`);
   }
@@ -482,27 +493,33 @@ async function runTamperDemo(corrupt) {
   titleElem.textContent = corrupt ? 'Simulating Byte Flip Attack...' : 'Verifying Ledger State...';
 
   try {
-    const res = await fetch(`/api/tamper-demo?corrupt_byte=${corrupt}`, { method: 'POST' });
-    const data = await res.json();
+    let data;
+    if (corrupt) {
+      data = await (await fetch('/api/tamper-demo', { method: 'POST' })).json();
+    } else {
+      const chain = (await (await fetch('/api/repository?limit=1')).json()).chain || {};
+      data = { chain_intact: chain.valid, target_block_index: chain.head ? chain.head.index : 0,
+               break_detected_at_index: chain.first_invalid_index, summary: chain.summary };
+    }
 
     if (data.chain_intact) {
       tamperResultBox.className = 'tamper-result-box intact';
       titleElem.textContent = 'Cryptographic Ledger Intact';
       badgeElem.className = 'badge badge-success';
       badgeElem.textContent = 'PASSED';
-      descElem.textContent = 'All mathematical hash chains, Merkle inclusion proofs, and ECDSA digital signatures validated without discrepancy.';
-      targetElem.textContent = `Entry #${data.target_entry_index}`;
+      descElem.textContent = 'Every block hash, link and ECDSA signature verified.';
+      targetElem.textContent = `Block #${data.target_block_index}`;
       breakElem.textContent = 'None (0 breaks detected)';
-      reasonElem.textContent = data.reason;
+      reasonElem.textContent = data.summary;
     } else {
       tamperResultBox.className = 'tamper-result-box broken';
       titleElem.textContent = 'Tamper Detected by Cryptographic Chain!';
       badgeElem.className = 'badge badge-danger';
       badgeElem.textContent = 'TAMPER DETECTED';
-      descElem.textContent = data.explanation;
-      targetElem.textContent = `Entry #${data.target_entry_index}`;
-      breakElem.textContent = `Entry #${data.break_detected_at_index} (Chain Severed)`;
-      reasonElem.textContent = data.reason;
+      descElem.textContent = 'Changing one block breaks its hash, signature or the link from the next block.';
+      targetElem.textContent = `Block #${data.target_block_index}`;
+      breakElem.textContent = `Block #${data.break_detected_at_index}`;
+      reasonElem.textContent = data.summary;
     }
   } catch (err) {
     titleElem.textContent = 'Tamper Test Error';

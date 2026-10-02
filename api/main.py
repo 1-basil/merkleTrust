@@ -27,17 +27,11 @@ from sqlalchemy.orm import Session
 
 from core.config import get_settings
 from db.database import get_db, init_db, SessionLocal
-from db.models import Job, ApkFile, EngineStatus, TrustScore, RepositoryEntry
+from db.models import Job, ApkFile, EngineStatus, TrustScore
 from core.orchestrator import run_job
-from core.repository import (
-    load_ledger,
-    verify_entry_signature,
-    verify_proof,
-    verify_chain,
-    canonicalize_json,
-    LEDGER_PATH,
-)
-from core.merkle import root, proof, build_tree
+from core import audit
+from core.repository import verify_job_report
+from core.merkle import verify_proof
 
 # Ensure required directories exist
 _DATA_DIR = os.path.abspath(get_settings().data_dir)
@@ -249,139 +243,66 @@ def get_job_report(job_id: str, db: Session = Depends(get_db)):
 
 @app.get("/api/jobs/{job_id}/verify")
 def verify_job_integrity(job_id: str, db: Session = Depends(get_db)):
-    """Perform ECDSA signature verification and Merkle inclusion proof check."""
-    rep_path = os.path.join(JOBS_DIR, job_id, "repo_entry.json")
-    if not os.path.exists(rep_path):
-        raise HTTPException(status_code=404, detail="Repository entry not found for this job")
-
-    with open(rep_path, "r", encoding="utf-8") as fh:
-        repo_entry = json.load(fh)
-
-    # 1. Verify ECDSA signature
-    sig_valid = verify_entry_signature(repo_entry)
-
-    # 2. Verify inclusion proof against current repo root
-    entry_hash = repo_entry.get("entry_hash", "")
-    proof_steps = repo_entry.get("inclusion_proof", [])
-    current_root = repo_entry.get("repo_merkle_root", "")
-    proof_valid = verify_proof(entry_hash, proof_steps, current_root) if proof_steps else True
-
-    # 3. Verify canonical report hash match
+    """Prove the stored report is exactly what was sealed in the (intact) audit chain."""
     merged_path = os.path.join(JOBS_DIR, job_id, "merged.json")
-    report_hash_match = False
-    if os.path.exists(merged_path):
-        with open(merged_path, "r", encoding="utf-8") as fh:
-            merged_data = json.load(fh)
-        prior_reports = merged_data.get("reports", {})
-        canonical = canonicalize_json(prior_reports)
-        computed_report_sha = hashlib.sha256(canonical.encode("utf-8")).hexdigest()
-        report_hash_match = (computed_report_sha == repo_entry.get("canonical_report_sha256"))
-
-    is_valid = sig_valid and proof_valid and report_hash_match
-
-    return {
-        "job_id": job_id,
-        "is_valid": is_valid,
-        "checks": {
-            "signature_verified": sig_valid,
-            "inclusion_proof_verified": proof_valid,
-            "canonical_report_hash_matched": report_hash_match,
-        },
-        "pubkey_id": repo_entry.get("pubkey_id"),
-        "repo_merkle_root": current_root,
-        "entry_hash": entry_hash,
-        "sim_block": repo_entry.get("sim_block"),
-        "timestamp": repo_entry.get("timestamp"),
-    }
+    if not os.path.exists(merged_path):
+        raise HTTPException(status_code=404, detail="No completed report for this job")
+    with open(merged_path, "r", encoding="utf-8") as fh:
+        reports = json.load(fh).get("reports", {})
+    return {"job_id": job_id, **verify_job_report(db, job_id, reports)}
 
 
 @app.get("/api/repository")
 def get_repository(
     page: int = Query(1, ge=1),
     limit: int = Query(20, ge=1, le=100),
+    db: Session = Depends(get_db),
 ):
-    """Return paginated repository ledger entries."""
-    ledger = load_ledger(LEDGER_PATH)
-    total_entries = len(ledger)
-    start_idx = (page - 1) * limit
-    end_idx = start_idx + limit
-    entries = ledger[start_idx:end_idx]
-
-    all_hashes = [e["entry_hash"] for e in ledger]
-    latest_root = root(all_hashes) if all_hashes else ""
-
+    """Audit chain blocks (Cryptographically Linked Blockchain Simulation), newest first."""
+    blocks = audit.all_blocks(db)
+    verification = audit.verify_chain(blocks)
+    by_index = {r["index"]: r for r in verification["blocks"]}
+    newest_first = list(reversed(blocks))[(page - 1) * limit: page * limit]
     return {
         "page": page,
         "limit": limit,
-        "total_entries": total_entries,
-        "latest_repo_merkle_root": latest_root,
-        "entries": entries,
+        "total_blocks": len(blocks),
+        "chain": {k: verification[k] for k in ("valid", "length", "first_invalid_index", "head",
+                                                "merkle_root", "summary")},
+        "blocks": [audit.block_to_dict(b, by_index[b.block_index]) for b in newest_first],
     }
 
 
-@app.get("/api/repository/{entry_index}/proof")
-def get_entry_proof(entry_index: int):
-    """Return Merkle inclusion proof for a specific repository entry index."""
-    ledger = load_ledger(LEDGER_PATH)
-    if entry_index < 0 or entry_index >= len(ledger):
-        raise HTTPException(status_code=404, detail=f"Entry index {entry_index} not found in ledger")
-
-    all_hashes = [e["entry_hash"] for e in ledger]
-    tree = build_tree(all_hashes)
-    current_root = root(tree)
-    inclusion_proof = proof(tree, entry_index)
-
-    return {
-        "entry_index": entry_index,
-        "entry_hash": all_hashes[entry_index],
-        "repo_merkle_root": current_root,
-        "inclusion_proof": inclusion_proof,
-        "verified": verify_proof(all_hashes[entry_index], inclusion_proof, current_root),
-    }
+@app.get("/api/repository/{block_index}/proof")
+def get_block_proof(block_index: int, db: Session = Depends(get_db)):
+    """Merkle inclusion proof that a block belongs to the current chain."""
+    try:
+        p = audit.block_inclusion_proof(db, block_index)
+    except IndexError:
+        raise HTTPException(status_code=404, detail=f"Block {block_index} not found") from None
+    return {**p, "verified": verify_proof(p["block_hash"], p["proof"], p["merkle_root"])}
 
 
 @app.post("/api/tamper-demo")
-def tamper_demo(
-    job_id: Optional[str] = Query(None),
-    corrupt_byte: bool = Query(True),
-):
-    """Tamper demonstration: Simulate flipping a byte in a report and show the chain breakage."""
-    ledger = load_ledger(LEDGER_PATH)
-    if not ledger:
-        raise HTTPException(status_code=400, detail="Repository ledger is currently empty. Run an analysis first.")
-
-    target_idx = 0
-    if job_id:
-        found = False
-        for idx, entry in enumerate(ledger):
-            if entry.get("job_id") == job_id:
-                target_idx = idx
-                found = True
-                break
-        if not found:
-            raise HTTPException(status_code=404, detail="Target job_id not found in ledger")
-
-    # Create a corrupted clone of the ledger
-    corrupted_ledger = [dict(e) for e in ledger]
-    target_entry = dict(corrupted_ledger[target_idx])
-
-    if corrupt_byte:
-        # Flip characters in canonical_report_sha256 or signature
-        old_hash = target_entry["canonical_report_sha256"]
-        flipped_char = "a" if old_hash[-1] != "a" else "b"
-        target_entry["canonical_report_sha256"] = old_hash[:-1] + flipped_char
-        corrupted_ledger[target_idx] = target_entry
-
-    is_valid, broken_idx, reason = verify_chain(corrupted_ledger)
-
+def tamper_demo(block_index: Optional[int] = Query(None), db: Session = Depends(get_db)):
+    """Non-destructive demonstration: alter a *copy* of one block and verify the copied chain."""
+    blocks = audit.all_blocks(db)
+    if not blocks:
+        raise HTTPException(status_code=400, detail="The audit chain is empty. Run an analysis first.")
+    target = len(blocks) // 2 if block_index is None else block_index
+    if not 0 <= target < len(blocks):
+        raise HTTPException(status_code=404, detail=f"Block {target} not found")
+    copies = audit.detached_copies(blocks)
+    payload = json.loads(copies[target].payload_json)
+    payload["tampered"] = True
+    copies[target].payload_json = json.dumps(payload, sort_keys=True, separators=(",", ":"))
+    result = audit.verify_chain(copies)
     return {
-        "demonstration": "Cryptographic Hash Chain Tamper Verification",
-        "target_entry_index": target_idx,
-        "tamper_applied": corrupt_byte,
-        "chain_intact": is_valid,
-        "break_detected_at_index": broken_idx,
-        "reason": reason,
-        "explanation": "Because entry hashes cryptographically bind prev_entry_hash and canonical_report_sha256, any single-bit modification causes an immediate, mathematically undeniable break at the tampered entry and invalidates all subsequent proofs.",
+        "demonstration": "Blockchain Simulation tamper check (performed on a copy; stored chain unchanged)",
+        "target_block_index": target,
+        "chain_intact": result["valid"],
+        "break_detected_at_index": result["first_invalid_index"],
+        "summary": result["summary"],
     }
 
 

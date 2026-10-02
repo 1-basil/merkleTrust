@@ -224,16 +224,16 @@ def run_repository(job_id: str, ctx: JobContext) -> dict:
     IN : the merged report (all of ctx.prior)
     OUT: repo_entry.json
 
-    Steps: canonicalise the merged report (sorted keys, no whitespace)
-           -> sha256 -> entry_hash = H(prev_entry_hash || report_sha256)
-           -> ECDSA sign -> append to repo merkle tree -> inclusion proof
-           -> append simulated block
+    Steps: report_sha256 = SHA-256(canonical JSON of the engine reports)
+           -> append an ANALYSIS_COMPLETED block to the audit chain (core.audit,
+              "Cryptographically Linked Blockchain Simulation"): the block hash
+              covers the previous block's hash and the payload hash, and the
+              block header is ECDSA-signed
+           -> if integrity failed, also append an INTEGRITY_ALERT block
 
     {"job_id", "engine": "repository", "status", "findings": [],
-     "entry_index": int, "canonical_report_sha256", "prev_entry_hash",
-     "entry_hash", "signature", "pubkey_id", "repo_merkle_root",
-     "inclusion_proof": [{"sibling", "position"}], "timestamp",
-     "sim_block": {"height", "block_hash", "tx_id", "simulated": true}}
+     "report_sha256", "block_index", "block_hash", "previous_hash",
+     "payload_hash", "key_id", "signature", "timestamp", "alert_block_index"}
     """
     raise NotImplementedError
 

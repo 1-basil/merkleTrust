@@ -1,181 +1,136 @@
 """core/repository.py — AJAY.
 
-Cryptographic Merkle Repository and Simulated Blockchain Ledger for MerkleTrust.
-- Turns the merged analysis report into a canonicalized, chained, signed, and provable entry.
-- Maintains an append-only cryptographic ledger of job reports.
-- Signs entry hashes with ECDSA P-256 (SECP256R1) keys.
-- Computes repository-wide Merkle root and audit inclusion proofs.
-- Simulates blockchain block commitments with height, block hash, and transaction IDs.
-- Provides verify_chain() and tamper verification routines for security audits.
+Report sealing stage. After scoring, the complete set of engine reports is
+canonicalised and hashed (report_sha256) and recorded in the audit chain
+(core.audit — Cryptographically Linked Blockchain Simulation) as an
+ANALYSIS_COMPLETED block. If integrity failed, an INTEGRITY_ALERT block is
+recorded as well.
+
+Later, anyone can prove the stored report is the one that was sealed:
+recompute the hash of the stored reports (excluding this stage's own output)
+and compare it with the payload of the signed, chain-linked block — see
+`verify_job_report`.
 """
 
-import sys
-import os
+from __future__ import annotations
+
 import json
-import hashlib
+import sys
 import tempfile
-from datetime import datetime, timezone
-from typing import Any, Tuple
+from contextlib import nullcontext
+from typing import Any
 
-from core.config import get_settings
+from sqlalchemy.orm import Session
+
+from core import audit
 from core.contracts import JobContext, emit
-from core.crypto import KeyRing, canonical_json, get_keyring, get_signer
-from core.merkle import build_tree, root, proof, verify_proof
+from core.crypto import get_keyring, hash_payload
+from db.database import session_scope
 
-GENESIS = "0" * 64
-
-
-def default_ledger_path() -> str:
-    return str(get_settings().data_dir / "repository_ledger.json")
+SEALED_ENGINES = ("integrity", "static", "tamper", "dynamic", "score")
+ALERT_STATUSES = {"MODIFIED", "CERTIFICATE_CHANGED", "BASELINE_INVALID"}
 
 
-LEDGER_PATH = None  # resolved at call time from configuration (see default_ledger_path)
+def report_hash(reports: dict[str, Any]) -> str:
+    """Canonical SHA-256 of the sealed engine reports (the repository stage itself excluded)."""
+    return hash_payload({k: v for k, v in reports.items() if k in SEALED_ENGINES})
 
 
-def canonicalize_json(data: Any) -> str:
-    """Canonical JSON (sorted keys, compact) — delegates to core.crypto."""
-    return canonical_json(data).decode("ascii")
+def seal(db: Session, job_id: str, reports: dict[str, Any], actor: str = "pipeline") -> dict[str, Any]:
+    static = reports.get("static") or {}
+    integrity = reports.get("integrity") or {}
+    score = reports.get("score") or {}
+    tamper = reports.get("tamper") or {}
+    integrity_status = (score.get("integrity") or {}).get("status", "UNKNOWN")
+    payload = {
+        "job_id": job_id,
+        "apk_sha256": integrity.get("sha256"),
+        "package_name": static.get("package_name"),
+        "version_name": static.get("version_name"),
+        "certificate_sha256": (static.get("certificate") or {}).get("sha256"),
+        "files_merkle_root": integrity.get("merkle_root"),
+        "baseline_id": tamper.get("baseline_id"),
+        "integrity_status": integrity_status,
+        "risk_level": (score.get("risk") or {}).get("level"),
+        "risk_score": (score.get("risk") or {}).get("score"),
+        "verdict": (score.get("verdict") or {}).get("code"),
+        "engines": sorted(k for k in reports if k in SEALED_ENGINES),
+        "report_sha256": report_hash(reports),
+    }
+    block = audit.append_event(db, "ANALYSIS_COMPLETED", actor, payload, subject=job_id)
+    alert = None
+    if integrity_status in ALERT_STATUSES:
+        alert = audit.append_event(db, "INTEGRITY_ALERT", actor, {
+            "job_id": job_id, "package_name": payload["package_name"], "integrity_status": integrity_status,
+            "baseline_id": payload["baseline_id"], "reasons": (score.get("integrity") or {}).get("reasons", []),
+            "analysis_block": block.block_index}, subject=job_id)
+    return {"block": block, "alert": alert, "payload": payload}
 
 
-def load_ledger(ledger_file: str | None = None) -> list[dict[str, Any]]:
-    """Load existing repository ledger entries."""
-    ledger_file = ledger_file or default_ledger_path()
-    if not os.path.exists(ledger_file):
-        return []
-    try:
-        with open(ledger_file, "r", encoding="utf-8") as fh:
-            return json.load(fh)
-    except Exception:
-        return []
-
-
-def save_ledger(ledger: list[dict[str, Any]], ledger_file: str | None = None) -> None:
-    """Save ledger entries."""
-    ledger_file = ledger_file or default_ledger_path()
-    os.makedirs(os.path.dirname(ledger_file) or ".", exist_ok=True)
-    with open(ledger_file, "w", encoding="utf-8") as fh:
-        json.dump(ledger, fh, indent=2, sort_keys=True)
-
-
-def verify_entry_signature(entry: dict[str, Any], keyring: KeyRing | None = None) -> bool:
-    """Verify the ECDSA P-256 signature over an entry's entry_hash.
-
-    Uses the configured key ring; never generates keys during verification.
-    """
-    keyring = keyring or get_keyring()
-    entry_hash = entry.get("entry_hash")
-    if not isinstance(entry_hash, str) or not entry_hash:
-        return False
-    return keyring.verify_bytes(entry_hash.encode("utf-8"), entry.get("signature"), entry.get("pubkey_id")).valid
-
-
-def verify_chain(ledger: list[dict[str, Any]]) -> Tuple[bool, int, str]:
-    """Verify integrity of the entire repository ledger.
-
-    Returns (is_valid, broken_index, reason).
-    """
-    if not ledger:
-        return True, -1, "Ledger is empty"
-
-    all_entry_hashes = [e["entry_hash"] for e in ledger]
-    expected_tree = build_tree(all_entry_hashes)
-    expected_root = root(expected_tree)
-
-    for i, entry in enumerate(ledger):
-        # 1. Verify prev_entry_hash chaining
-        expected_prev = GENESIS if i == 0 else ledger[i - 1]["entry_hash"]
-        if entry.get("prev_entry_hash") != expected_prev:
-            return False, i, f"Hash chain break at entry {i}: prev_entry_hash does not match previous entry_hash"
-
-        # 2. Verify entry_hash derivation
-        expected_hash = hashlib.sha256(
-            (entry["prev_entry_hash"] + entry["canonical_report_sha256"] + entry["timestamp"]).encode("utf-8")
-        ).hexdigest()
-        if entry.get("entry_hash") != expected_hash:
-            return False, i, f"Entry {i} hash mismatch: computed {expected_hash}, recorded {entry.get('entry_hash')}"
-
-        # 3. Verify signature
-        if not verify_entry_signature(entry):
-            return False, i, f"Entry {i} has invalid cryptographic ECDSA signature"
-
-        # 4. Verify inclusion proof against current repo root
-        proof_path = entry.get("inclusion_proof", [])
-        if not verify_proof(entry["entry_hash"], proof_path, entry.get("repo_merkle_root", expected_root)):
-            return False, i, f"Entry {i} inclusion proof failed verification against repository root"
-
-    return True, -1, "All ledger entries and cryptographic proofs verified successfully"
+def verify_job_report(db: Session, job_id: str, reports: dict[str, Any]) -> dict[str, Any]:
+    """Prove that `reports` is exactly what was sealed for `job_id` in an intact chain."""
+    blocks = audit.events_for_subject(db, job_id, ("ANALYSIS_COMPLETED",))
+    if not blocks:
+        return {"valid": False, "checks": {"sealed": False}, "reasons": ["No sealed record exists for this job."]}
+    block = blocks[-1]
+    chain = audit.verify_chain(audit.all_blocks(db), get_keyring())
+    block_check = next(r for r in chain["blocks"] if r["index"] == block.block_index)
+    sealed = json.loads(block.payload_json)
+    computed = report_hash(reports)
+    checks = {
+        "sealed": True,
+        "report_hash_matches": computed == sealed.get("report_sha256"),
+        "block_valid": block_check["valid"],
+        "chain_valid": chain["valid"],
+    }
+    reasons = []
+    if not checks["report_hash_matches"]:
+        reasons.append("The stored report was changed after it was sealed (its hash no longer matches).")
+    reasons += block_check["reasons"]
+    if checks["block_valid"] and not checks["chain_valid"]:
+        reasons.append(f"The audit chain is broken elsewhere: {chain['summary']}")
+    return {
+        "valid": all(checks.values()),
+        "checks": checks,
+        "reasons": reasons,
+        "block_index": block.block_index,
+        "block_hash": block.block_hash,
+        "key_id": block.key_id,
+        "sealed_report_sha256": sealed.get("report_sha256"),
+        "computed_report_sha256": computed,
+        "proof": audit.block_inclusion_proof(db, block.block_index),
+    }
 
 
 def run(job_id: str, ctx: JobContext) -> dict:
-    """Execute repository engine."""
-    # 1. Canonicalize upstream reports and compute canonical report sha256
-    canonical = canonicalize_json(ctx.prior)
-    report_sha = hashlib.sha256(canonical.encode("utf-8")).hexdigest()
-
-    # 2. Load existing ledger
-    ledger_path = ctx.config.get("repository_ledger_path") or default_ledger_path()
-    ledger = load_ledger(ledger_path)
-
-    entry_index = len(ledger)
-    prev_entry_hash = GENESIS if entry_index == 0 else ledger[-1]["entry_hash"]
-    timestamp = datetime.now(timezone.utc).isoformat()
-
-    # 3. Chained entry hash
-    entry_hash = hashlib.sha256(
-        (prev_entry_hash + report_sha + timestamp).encode("utf-8")
-    ).hexdigest()
-
-    # 4. Sign entry_hash with ECDSA P-256
-    signer = get_signer()
-    sig_b64 = signer.sign_bytes(entry_hash.encode("utf-8"))
-
-    # 5. Build repository-wide Merkle tree and inclusion proof
-    all_hashes = [e["entry_hash"] for e in ledger] + [entry_hash]
-    repo_tree = build_tree(all_hashes)
-    repo_merkle_root = root(repo_tree)
-    inclusion_proof = proof(repo_tree, entry_index)
-
-    # 6. Simulated Blockchain Block
-    batch_size = 5
-    block_height = entry_index // batch_size
-    prev_block_hash = GENESIS if block_height == 0 else hashlib.sha256(f"block:{block_height-1}".encode()).hexdigest()
-    block_hash = hashlib.sha256((prev_block_hash + repo_merkle_root).encode("utf-8")).hexdigest()
-
-    sim_block = {
-        "height": block_height,
-        "block_hash": block_hash,
-        "tx_id": entry_hash[:32],
-        "simulated": True,
-    }
-
-    report = {
-        "job_id": job_id,
-        "engine": "repository",
-        "status": "ok",
-        "findings": [
-            {
-                "id": "REPO_SEALED",
-                "severity": "info",
-                "title": "Analysis report cryptographically committed to Merkle repository",
-                "evidence": f"Entry index {entry_index}, signed with {signer.key_id}, simulated block height {block_height}",
-            }
-        ],
-        "entry_index": entry_index,
-        "canonical_report_sha256": report_sha,
-        "prev_entry_hash": prev_entry_hash,
-        "entry_hash": entry_hash,
-        "signature": sig_b64,
-        "pubkey_id": signer.key_id,
-        "repo_merkle_root": repo_merkle_root,
-        "inclusion_proof": inclusion_proof,
-        "timestamp": timestamp,
-        "sim_block": sim_block,
-    }
-
-    # Append to repository ledger
-    ledger.append(report)
-    save_ledger(ledger, ledger_path)
-
+    """Seal the job's reports into the audit chain."""
+    scope = nullcontext(ctx.db) if ctx.db is not None else session_scope()
+    with scope as db:
+        sealed = seal(db, job_id, ctx.prior)
+        if ctx.db is not None:
+            db.commit()
+        block, alert = sealed["block"], sealed["alert"]
+        report = {
+            "job_id": job_id,
+            "engine": "repository",
+            "status": "ok",
+            "findings": [{
+                "id": "REPO_SEALED", "severity": "info",
+                "title": "Result recorded in the audit log",
+                "evidence": f"Block #{block.block_index}, signed with {block.key_id}",
+            }],
+            "report_sha256": sealed["payload"]["report_sha256"],
+            "block_index": block.block_index,
+            "block_hash": block.block_hash,
+            "previous_hash": block.previous_hash,
+            "payload_hash": block.payload_hash,
+            "key_id": block.key_id,
+            "signature": json.loads(block.signature_json),
+            "timestamp": block.timestamp,
+            "alert_block_index": alert.block_index if alert else None,
+            "simulation_notice": "Cryptographically Linked Blockchain Simulation: a single-node, append-only "
+                                 "hash chain — not a distributed blockchain.",
+        }
     return emit(ctx, "repo_entry.json", report)
 
 

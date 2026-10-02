@@ -28,6 +28,7 @@ from typing import Any
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from core import audit
 from core.apk_archive import ApkValidationError
 from core.comparison import build_profile, compare_with_baseline, profile_hash
 from core.crypto import KeyRing, Signer, get_keyring, get_signer, hash_payload
@@ -113,11 +114,33 @@ def snapshot_from_reports(integrity: dict[str, Any], static: dict[str, Any]) -> 
     }
 
 
-def verify_baseline(b: TrustedBaseline, keyring: KeyRing | None = None) -> dict[str, Any]:
-    """Re-verify a stored baseline. Returns {"valid": bool, "checks": {...}, "reasons": [...]}."""
+def audit_status(db: Session, baseline_id: int) -> str | None:
+    """Status implied by the last lifecycle event in the audit chain (None if never recorded)."""
+    events = audit.events_for_subject(db, f"baseline:{baseline_id}",
+                                      ("BASELINE_ENROLLED", "BASELINE_APPROVED", "BASELINE_REJECTED",
+                                       "BASELINE_REVOKED"))
+    if not events:
+        return None
+    return {"BASELINE_ENROLLED": "pending", "BASELINE_APPROVED": "approved",
+            "BASELINE_REJECTED": "rejected", "BASELINE_REVOKED": "revoked"}[events[-1].event_type]
+
+
+def verify_baseline(b: TrustedBaseline, keyring: KeyRing | None = None,
+                    db: Session | None = None) -> dict[str, Any]:
+    """Re-verify a stored baseline. Returns {"valid": bool, "checks": {...}, "reasons": [...]}.
+
+    With `db`, the row's status is also cross-checked against the audit chain, so a
+    revocation cannot be silently undone by editing the status column.
+    """
     keyring = keyring or get_keyring()
     checks: dict[str, bool] = {}
     reasons: list[str] = []
+
+    if db is not None:
+        recorded = audit_status(db, b.id)
+        checks["status_matches_audit"] = recorded == b.status
+        if not checks["status_matches_audit"]:
+            reasons.append(f"status '{b.status}' contradicts the audit trail (last recorded: {recorded})")
 
     checks["approved"] = b.status == "approved"
     if not checks["approved"]:
@@ -283,6 +306,10 @@ class BaselineService:
             current["signature_status"] = sig_status
             review = compare_with_baseline(baseline_snapshot(active), current)
             review["compared_with_baseline_id"] = active.id
+        audit.append_event(self.db, "BASELINE_ENROLLED", created_by, {
+            "baseline_id": b.id, "package_name": package, "baseline_version": next_version,
+            "apk_sha256": b.apk_sha256, "certificate_sha256": b.certificate_sha256, "merkle_root": b.merkle_root,
+            "review_status": review["status"] if review else None}, subject=f"baseline:{b.id}")
         log.info("baseline %s enrolled for %s (v%s) by %s", b.id, package, next_version, created_by)
         return b, review
 
@@ -298,6 +325,10 @@ class BaselineService:
         b.signing_key_id = envelope["key_id"]
         b.status = "approved"
         self.db.flush()
+        audit.append_event(self.db, "BASELINE_APPROVED", approved_by, {
+            "baseline_id": b.id, "package_name": b.package_name, "baseline_version": b.baseline_version,
+            "signed_payload_sha256": hash_payload(signed_payload(b)), "key_id": envelope["key_id"],
+            "note": note}, subject=f"baseline:{b.id}")
         log.info("baseline %s approved by %s, signed with %s", b.id, approved_by, envelope["key_id"])
         return b
 
@@ -307,6 +338,9 @@ class BaselineService:
             raise BaselineError(f"Only pending baselines can be rejected (baseline is {b.status}).")
         b.status, b.status_reason = "rejected", f"Rejected by {rejected_by}: {reason}"
         self.db.flush()
+        audit.append_event(self.db, "BASELINE_REJECTED", rejected_by,
+                           {"baseline_id": b.id, "package_name": b.package_name, "reason": reason},
+                           subject=f"baseline:{b.id}")
         return b
 
     def revoke(self, baseline_id: int, revoked_by: str, reason: str) -> TrustedBaseline:
@@ -315,7 +349,10 @@ class BaselineService:
             raise BaselineError(f"Only approved baselines can be revoked (baseline is {b.status}).")
         b.status, b.status_reason = "revoked", f"Revoked by {revoked_by}: {reason}"
         self.db.flush()
+        audit.append_event(self.db, "BASELINE_REVOKED", revoked_by,
+                           {"baseline_id": b.id, "package_name": b.package_name, "reason": reason},
+                           subject=f"baseline:{b.id}")
         return b
 
     def verify(self, baseline_id: int) -> dict[str, Any]:
-        return verify_baseline(self.get(baseline_id), self.keyring)
+        return verify_baseline(self.get(baseline_id), self.keyring, self.db)

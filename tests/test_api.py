@@ -24,8 +24,8 @@ def test_get_repository():
     response = client.get("/api/repository")
     assert response.status_code == 200
     data = response.json()
-    assert "total_entries" in data
-    assert "entries" in data
+    assert "total_blocks" in data
+    assert "blocks" in data and "chain" in data
 
 
 def test_upload_sample_and_job_lifecycle():
@@ -50,12 +50,31 @@ def test_upload_sample_and_job_lifecycle():
 
 
 def test_tamper_demo_endpoint():
-    res = client.post("/api/tamper-demo?corrupt_byte=true")
-    # If ledger has entries, it returns 200 with break detected
+    res = client.post("/api/tamper-demo")
     if res.status_code == 200:
         data = res.json()
-        assert data["tamper_applied"] is True
         assert data["chain_intact"] is False
-        assert data["break_detected_at_index"] >= 0
+        assert data["break_detected_at_index"] == data["target_block_index"]
+        # the demonstration works on a copy: the stored chain is still intact
+        assert client.get("/api/repository").json()["chain"]["valid"] is True
     else:
         assert res.status_code == 400
+
+
+def test_job_report_verification_end_to_end():
+    """Regression: /verify used to report every job invalid. Valid now — until the report is edited."""
+    import json
+    import os
+    from api.main import JOBS_DIR
+
+    job_id = client.post("/api/upload-sample").json()["job_id"]
+    assert client.get(f"/api/jobs/{job_id}").json()["status"] == "done"
+    ok = client.get(f"/api/jobs/{job_id}/verify").json()
+    assert ok["valid"] is True, ok["reasons"]
+
+    merged = os.path.join(JOBS_DIR, job_id, "merged.json")
+    data = json.load(open(merged, encoding="utf-8"))
+    data["reports"]["score"]["verdict"]["code"] = "CLEAN"
+    json.dump(data, open(merged, "w", encoding="utf-8"))
+    bad = client.get(f"/api/jobs/{job_id}/verify").json()
+    assert bad["valid"] is False and bad["checks"]["report_hash_matches"] is False
