@@ -248,30 +248,36 @@ function renderResults(data) {
   const staticRep = reports.static || {};
   const dynamicRep = reports.dynamic || {};
 
-  // 1. Trust Score
-  const score = scoreRep.score !== undefined ? scoreRep.score : '--';
-  const verdict = scoreRep.verdict || 'unknown';
+  // 1. Risk indicator and verdict (interim view; replaced by the redesigned UI)
+  const risk = scoreRep.risk || {};
+  const verdict = (scoreRep.verdict && scoreRep.verdict.code) || 'UNKNOWN';
+  const cssClass = { CLEAN: 'trusted', REVIEW: 'suspicious', NO_BASELINE: 'suspicious',
+                     CHANGES_DETECTED: 'suspicious', HIGH_RISK: 'malicious' }[verdict] || 'unknown';
 
-  document.getElementById('score-value').textContent = score;
-  const circle = document.getElementById('score-circle');
-  circle.className = `score-circle ${verdict}`;
-
+  document.getElementById('score-value').textContent = risk.score === null || risk.score === undefined ? '--' : risk.score;
+  document.getElementById('score-circle').className = `score-circle ${cssClass}`;
   const verdictPill = document.getElementById('verdict-pill');
-  verdictPill.className = `verdict-pill ${verdict}`;
-  verdictPill.textContent = verdict.toUpperCase();
+  verdictPill.className = `verdict-pill ${cssClass}`;
+  verdictPill.textContent = (scoreRep.verdict && scoreRep.verdict.headline) || verdict;
 
   const rulesList = document.getElementById('rules-fired-list');
-  rulesList.innerHTML = '';
-  const rules = scoreRep.rules_fired || [];
-  if (rules.length === 0) {
-    rulesList.innerHTML = '<div class="rule-item"><span>No security penalties applied. Clean baseline state.</span><span class="rule-weight">0</span></div>';
+  rulesList.replaceChildren();
+  const contributions = risk.contributions || [];
+  const row = (label, points) => {
+    const item = document.createElement('div');
+    item.className = 'rule-item';
+    const text = document.createElement('span');
+    text.textContent = label;
+    const weight = document.createElement('span');
+    weight.className = 'rule-weight';
+    weight.textContent = points;
+    item.append(text, weight);
+    rulesList.appendChild(item);
+  };
+  if (contributions.length === 0) {
+    row('No risk factors found.', '0');
   } else {
-    rules.forEach(r => {
-      const item = document.createElement('div');
-      item.className = 'rule-item';
-      item.innerHTML = `<span><strong>${r.rule_id}:</strong> ${r.reason} (${r.source})</span><span class="rule-weight">${r.weight}</span>`;
-      rulesList.appendChild(item);
-    });
+    contributions.forEach(c => row(`${c.title} (${c.finding_id})`, `+${c.points}`));
   }
 
   // 2. Cryptographic Provenance

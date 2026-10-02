@@ -73,14 +73,16 @@ class EngineStatus(Base):
 
 
 class TrustScore(Base):
-    """Computed trust score and security verdict from Basil's scoring engine."""
+    """Risk score, integrity status and verdict from the scoring engine."""
     __tablename__ = "trust_scores"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     job_id = Column(String(64), ForeignKey("jobs.id"), unique=True, nullable=False)
-    score = Column(Integer, nullable=False)  # 0 to 100
-    verdict = Column(String(32), nullable=False)  # trusted, suspicious, malicious
-    rules_fired_json = Column(Text, nullable=False, default="[]")
+    score = Column(Integer, nullable=True)  # risk indicator 0-100 (higher = riskier); NULL if not analysable
+    risk_level = Column(String(16), nullable=False, default="UNKNOWN")  # LOW|MEDIUM|HIGH|CRITICAL|UNKNOWN
+    integrity_status = Column(String(32), nullable=False, default="UNKNOWN")
+    verdict = Column(String(32), nullable=False)  # CLEAN|REVIEW|NO_BASELINE|CHANGES_DETECTED|HIGH_RISK|ANALYSIS_FAILED
+    rules_fired_json = Column(Text, nullable=False, default="[]")  # risk contributions
     inputs_json = Column(Text, nullable=False, default="{}")
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 

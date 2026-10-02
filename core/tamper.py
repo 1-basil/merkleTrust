@@ -29,13 +29,10 @@ from core.baselines import (BaselineService, baseline_snapshot, snapshot_from_re
 from core.comparison import compare_with_baseline
 from core.contracts import JobContext, emit
 from core.file_manifest import file_proof, verify_file_proof
+from core.findings import finding
 from db.database import session_scope
 
 MAX_PROOFS = 25
-
-
-def _finding(fid: str, severity: str, title: str, evidence: str) -> dict[str, str]:
-    return {"id": fid, "severity": severity, "title": title, "evidence": evidence}
 
 
 def _empty_report(job_id: str, findings: list, status: str, role: str, **extra) -> dict[str, Any]:
@@ -77,48 +74,45 @@ def _findings(cmp: dict[str, Any], baseline: dict[str, Any]) -> list[dict[str, s
         by_cat.setdefault(c["category"], []).append(c)
 
     if cmp["certificate"]["changed"]:
-        f.append(_finding("TAMPER_CERT_CHANGED", "critical", "Signing certificate differs from trusted baseline",
-                          f"Baseline {cmp['certificate']['baseline_sha256'][:16]}… "
+        f.append(finding("TAMPER_CERT_CHANGED", f"Baseline {cmp['certificate']['baseline_sha256'][:16]}… "
                           f"({cmp['certificate']['baseline_subject']}), current "
                           f"{(cmp['certificate']['current_sha256'] or 'none')[:16]}… "
                           f"({cmp['certificate']['current_subject']})"))
+    # A change re-signed with the baseline's own key and a valid signature is the
+    # developer's new release: report it, but do not treat "content changed" as risk.
+    # Risk then comes only from what the update adds (permissions, APIs, flags...).
+    authentic = not cmp["certificate"]["changed"] and cmp["signature_status"] == "verified"
+    if authentic and changed:
+        f.append(finding("TAMPER_SIGNED_UPDATE",
+                         f"{len(changed)} file(s) changed ({', '.join(sorted(by_cat))}); version "
+                         f"{cmp['version']['baseline']['name']} → {cmp['version']['current']['name']}"))
+        by_cat = {}
     if "code" in by_cat:
-        f.append(_finding("TAMPER_DEX_MODIFIED", "critical", "Application code (DEX) differs from trusted baseline",
-                          ", ".join(f"{c['path']} ({c['change_type']})" for c in by_cat["code"])))
+        f.append(finding("TAMPER_DEX_MODIFIED", ", ".join(f"{c['path']} ({c['change_type']})" for c in by_cat["code"])))
     if "native" in by_cat:
-        f.append(_finding("TAMPER_NATIVE_MODIFIED", "high", "Native libraries differ from trusted baseline",
-                          ", ".join(f"{c['path']} ({c['change_type']})" for c in by_cat["native"])))
+        f.append(finding("TAMPER_NATIVE_MODIFIED", ", ".join(f"{c['path']} ({c['change_type']})" for c in by_cat["native"])))
     if "manifest" in by_cat:
-        f.append(_finding("TAMPER_MANIFEST_MODIFIED", "high", "AndroidManifest.xml differs from trusted baseline",
-                          "The app's declared configuration changed"))
+        f.append(finding("TAMPER_MANIFEST_MODIFIED", "The app's declared configuration changed"))
     other = [c for cat, items in by_cat.items() if cat not in ("code", "native", "manifest") for c in items]
     if other:
-        f.append(_finding("TAMPER_FILES_CHANGED", "medium", f"{len(other)} other file(s) differ from baseline",
-                          ", ".join(f"{c['path']} ({c['change_type']})" for c in other[:10])))
+        f.append(finding("TAMPER_FILES_CHANGED", ", ".join(f"{c['path']} ({c['change_type']})" for c in other[:10])))
 
     md = cmp["manifest_diff"]
     if md["permissions_added"]:
-        f.append(_finding("TAMPER_PERMISSIONS_ADDED", "high", f"{len(md['permissions_added'])} permission(s) added",
-                          ", ".join(md["permissions_added"])))
+        f.append(finding("TAMPER_PERMISSIONS_ADDED", ", ".join(md["permissions_added"])))
     if md["components_added"]:
-        f.append(_finding("TAMPER_COMPONENTS_ADDED", "medium",
-                          f"{len(md['components_added'])} app component(s) added", ", ".join(md["components_added"])))
+        f.append(finding("TAMPER_COMPONENTS_ADDED", ", ".join(md["components_added"])))
     if md["newly_exported_components"]:
-        f.append(_finding("TAMPER_NEWLY_EXPORTED", "medium", "Components newly exposed to other apps",
-                          ", ".join(md["newly_exported_components"])))
+        f.append(finding("TAMPER_NEWLY_EXPORTED", ", ".join(md["newly_exported_components"])))
     for flag in md["flags_changed"]:
         if flag["flag"] == "debuggable" and flag["current"]:
-            f.append(_finding("TAMPER_DEBUGGABLE_ENABLED", "high", "Debugging enabled compared to baseline",
-                              "android:debuggable is now true"))
+            f.append(finding("TAMPER_DEBUGGABLE_ENABLED", "android:debuggable is now true"))
     if md["dangerous_apis_added"]:
-        f.append(_finding("TAMPER_DANGEROUS_API_ADDED", "high", "Sensitive APIs not present in the baseline",
-                          ", ".join(md["dangerous_apis_added"])))
+        f.append(finding("TAMPER_DANGEROUS_API_ADDED", ", ".join(md["dangerous_apis_added"])))
     if cmp["version"]["downgrade"]:
-        f.append(_finding("TAMPER_VERSION_DOWNGRADE", "high", "Version is older than the trusted baseline",
-                          f"{cmp['version']['baseline']['code']} → {cmp['version']['current']['code']}"))
+        f.append(finding("TAMPER_VERSION_DOWNGRADE", f"{cmp['version']['baseline']['code']} → {cmp['version']['current']['code']}"))
     if cmp["status"] == "CLEAN":
-        f.append(_finding("TAMPER_INTEGRITY_VERIFIED", "info", "Application matches its trusted baseline",
-                          f"Baseline #{baseline['id']} v{baseline['baseline_version']} "
+        f.append(finding("TAMPER_INTEGRITY_VERIFIED", f"Baseline #{baseline['id']} v{baseline['baseline_version']} "
                           f"({cmp['counts']['unchanged']} files identical)"))
     return f
 
@@ -147,18 +141,14 @@ def compare_reports(job_id: str, integrity: dict[str, Any], static: dict[str, An
     service = BaselineService(db)
     row = service.get_active(package)
     if row is None:
-        return _empty_report(job_id, [_finding(
-            "TAMPER_NO_BASELINE", "info", "No trusted baseline enrolled for this app",
-            f"Package {package} has no approved baseline, so changes cannot be determined. "
+        return _empty_report(job_id, [finding("TAMPER_NO_BASELINE", f"Package {package} has no approved baseline, so changes cannot be determined. "
             f"An administrator can enrol a trusted build.")], "NO_BASELINE", "no_baseline",
             reasons=["No approved baseline exists for this package."])
 
     baseline = to_dict(row)
     verification = verify_baseline(row, service.keyring)
     if not verification["valid"]:
-        return _empty_report(job_id, [_finding(
-            "TAMPER_BASELINE_INVALID", "critical", "Trusted baseline record failed verification",
-            "; ".join(verification["reasons"]))], "BASELINE_INVALID", "comparison",
+        return _empty_report(job_id, [finding("TAMPER_BASELINE_INVALID", "; ".join(verification["reasons"]))], "BASELINE_INVALID", "comparison",
             baseline_found=True, baseline_id=row.id, baseline=baseline, baseline_verification=verification,
             reasons=["The stored baseline could not be verified, so it was not used."])
 
@@ -188,9 +178,7 @@ def run(job_id: str, ctx: JobContext) -> dict:
     """Execute tamper analysis against the active trusted baseline."""
     integrity, static = ctx.prior.get("integrity"), ctx.prior.get("static")
     if not integrity or not static:
-        report = _empty_report(job_id, [_finding(
-            "TAMPER_MISSING_INPUT", "medium", "Comparison skipped: earlier analysis stages failed",
-            f"Available reports: {sorted(ctx.prior)}")], "UNKNOWN", "skipped")
+        report = _empty_report(job_id, [finding("TAMPER_MISSING_INPUT", f"Available reports: {sorted(ctx.prior)}")], "UNKNOWN", "skipped")
         report["status"] = "partial"
         return emit(ctx, "tamper.json", report)
 

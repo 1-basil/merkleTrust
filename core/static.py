@@ -30,6 +30,7 @@ from core.apk_signature import verify_apk
 from core.axml import AxmlError, parse_manifest
 from core.contracts import EngineError, JobContext, emit
 from core.dex import analyze_dex_files
+from core.findings import finding
 
 # Known Android dangerous permissions (Android runtime permissions)
 DANGEROUS_PERMISSIONS = {
@@ -102,10 +103,6 @@ def _run_decompiler(cmd: list[str], timeout_s: int) -> bool:
         return False
 
 
-def _finding(fid: str, severity: str, title: str, evidence: str) -> dict[str, str]:
-    return {"id": fid, "severity": severity, "title": title, "evidence": evidence}
-
-
 def _signature_summary(sig: dict[str, Any]) -> dict[str, Any]:
     """Compact, JSON-friendly view of the verification result."""
     schemes = {}
@@ -123,90 +120,131 @@ def _signature_summary(sig: dict[str, Any]) -> dict[str, Any]:
             "certificate_verified": sig["certificate_verified"], "schemes": schemes, "errors": sig["errors"]}
 
 
+SMS_AND_CALL_PERMISSIONS = {
+    "android.permission.SEND_SMS", "android.permission.RECEIVE_SMS", "android.permission.READ_SMS",
+    "android.permission.READ_CALL_LOG", "android.permission.WRITE_CALL_LOG", "android.permission.CALL_PHONE",
+    "android.permission.PROCESS_OUTGOING_CALLS",
+}
+API_FINDINGS = {
+    "DexClassLoader": "STATIC_DCL", "InMemoryDexClassLoader": "STATIC_DCL", "PathClassLoader": "STATIC_DCL",
+    "RuntimeExec": "STATIC_CMD_EXEC", "ProcessBuilder": "STATIC_CMD_EXEC",
+    "SmsManager_sendTextMessage": "STATIC_SMS_SEND",
+    "TelephonyManager_getDeviceId": "STATIC_DEVICE_HARVEST",
+    "DevicePolicyManager": "STATIC_DEVICE_ADMIN",
+    "WebView_addJavascriptInterface": "STATIC_WEBVIEW_JS_BRIDGE",
+    "HideComponent": "STATIC_HIDE_ICON",
+    "ReflectionInvoke": "STATIC_REFLECTION",
+}
+SENSITIVE_CLASS_FINDINGS = {"accessibility_service": "STATIC_ACCESSIBILITY",
+                            "device_admin_receiver": "STATIC_DEVICE_ADMIN"}
+
+
+def static_findings(manifest: dict[str, Any], classified: list[dict[str, Any]], signature: dict[str, Any],
+                    dex: dict[str, Any], archive_warnings: list[str]) -> list[dict[str, Any]]:
+    """Turn observed facts into catalogue findings (see core/findings.py)."""
+    out: list[dict[str, Any]] = []
+    for warning in archive_warnings:
+        out.append(finding("STATIC_ARCHIVE_PREFIX", warning))
+    if manifest["format"] != "binary":
+        out.append(finding("STATIC_TEXT_MANIFEST", "AndroidManifest.xml is plain-text XML."))
+
+    # Signature and certificate
+    status = signature["status"]
+    if status == "invalid":
+        out.append(finding("STATIC_SIGNATURE_INVALID", "; ".join(signature["errors"][:5])))
+    elif status == "unsigned":
+        out.append(finding("STATIC_UNSIGNED", "No v1 (JAR), v2 or v3 signature found."))
+    elif status == "unverifiable":
+        out.append(finding("STATIC_SIGNATURE_UNVERIFIABLE", "; ".join(signature["errors"][:3])))
+    cert = signature["certificate"]
+    if cert.get("debug_certificate"):
+        out.append(finding("STATIC_DEBUG_CERT", f"Certificate subject: {cert.get('subject')}"))
+
+    # Manifest security settings
+    app = manifest["application"]
+    if app.get("debuggable"):
+        out.append(finding("STATIC_DEBUGGABLE", 'android:debuggable="true" in <application>'))
+    if app.get("testOnly"):
+        out.append(finding("STATIC_TEST_ONLY", 'android:testOnly="true" in <application>'))
+    if app.get("usesCleartextTraffic"):
+        out.append(finding("STATIC_CLEARTEXT_TRAFFIC", 'android:usesCleartextTraffic="true" in <application>'))
+    if app.get("allowBackup") is True:
+        out.append(finding("STATIC_ALLOW_BACKUP", 'android:allowBackup="true" in <application>'))
+    exposed = [c for c in manifest["component_details"]
+               if c["type"] != "activity" and c["exported_effective"] and not c.get("permission")]
+    if exposed:
+        out.append(finding("STATIC_EXPORTED_UNPROTECTED",
+                           ", ".join(f"{c['type']} {c['name']}" for c in exposed),
+                           points=min(16, 8 * len(exposed))))
+    dangerous = [p["name"] for p in classified if p["is_dangerous"]]
+    if dangerous:
+        sensitive = bool(set(dangerous) & SMS_AND_CALL_PERMISSIONS)
+        out.append(finding("STATIC_DANGEROUS_PERM", ", ".join(dangerous),
+                           severity="high" if len(dangerous) > 3 or sensitive else "medium",
+                           points=min(15, 3 * len(dangerous) + (5 if sensitive else 0)),
+                           title=f"The app asks for access to sensitive data ({len(dangerous)} permission"
+                                 f"{'s' if len(dangerous) != 1 else ''})"))
+    target, minimum = manifest["target_sdk"], manifest["min_sdk"]
+    if target is not None and target < 28:
+        out.append(finding("STATIC_LOW_TARGET_SDK", f"targetSdkVersion = {target}"))
+    if minimum is not None and minimum < 24:
+        out.append(finding("STATIC_LOW_MIN_SDK", f"minSdkVersion = {minimum}"))
+
+    # Code
+    for f in dex["dex_files"]:
+        if f.get("parsed") and not (f["checksum_valid"] and f["signature_valid"]):
+            out.append(finding("STATIC_DEX_HEADER_MISMATCH",
+                               f"{f['path']}: Adler-32 valid = {f['checksum_valid']}, "
+                               f"SHA-1 valid = {f['signature_valid']}"))
+    grouped: dict[str, list[dict[str, Any]]] = {}
+    for api in dex["dangerous_apis"]:
+        fid = API_FINDINGS.get(api["api"])
+        if fid:
+            grouped.setdefault(fid, []).append(api)
+    for cls in dex["sensitive_classes"]:
+        fid = SENSITIVE_CLASS_FINDINGS.get(cls["kind"])
+        if fid:
+            grouped.setdefault(fid, []).append({"class": cls["class"], "method": "(subclass)", "match": "method_ref",
+                                                "source": cls["source"]})
+    for fid, items in grouped.items():
+        weak = all(i.get("match") == "string" for i in items)
+        evidence = "; ".join(f"{i['class']}.{i['method']} in {i['source']}" for i in items)
+        if weak:
+            evidence += " (weak evidence: name found as text, not as a method call)"
+        base = finding(fid, evidence)
+        out.append(finding(fid, evidence, points=base["points"] // 2 if weak else None))
+
+    # Network indicators
+    if dex["iocs"]["ips"]:
+        out.append(finding("STATIC_HARDCODED_IP", ", ".join(dex["iocs"]["ips"][:10])))
+    http_urls = [u for u in dex["iocs"]["urls"] if u.lower().startswith("http://")]
+    if http_urls:
+        out.append(finding("STATIC_HTTP_URLS", ", ".join(http_urls[:10])))
+    return out
+
+
 def analyze_apk(apk_path: str, limits: dict | None = None) -> dict[str, Any]:
     """Pure analysis function (no workspace, no job). Raises ApkValidationError."""
-    findings: list[dict[str, str]] = []
     with ApkArchive(apk_path, limits=limits) as apk:
-        for warning in apk.report.warnings:
-            findings.append(_finding("STATIC_ARCHIVE_PREFIX", "high",
-                                     "Unexpected data before the APK contents", warning))
-
         try:
             manifest = parse_manifest(apk.read("AndroidManifest.xml", max_bytes=8 * 1024 * 1024))
         except AxmlError as exc:
             raise ApkValidationError(f"AndroidManifest.xml could not be parsed: {exc}") from None
-        if manifest["format"] != "binary":
-            findings.append(_finding("STATIC_TEXT_MANIFEST", "medium",
-                                     "Manifest is not compiled binary XML",
-                                     "Android only installs APKs with a compiled manifest; this archive "
-                                     "was not produced by the Android build tools."))
-
         signature = verify_apk(apk, target_sdk=manifest["target_sdk"])
         dex_files = [(n, apk.read(n)) for n in apk.names()
                      if n.endswith(".dex") and "/" not in n]
         dex = analyze_dex_files(dex_files)
-
         native_libs = []
         for entry in apk.files():
             if entry.name.startswith("lib/") and entry.name.endswith(".so"):
                 parts = entry.name.split("/")
                 native_libs.append({"path": entry.name, "arch": parts[1] if len(parts) > 2 else "unknown",
                                     "sha256": hashlib.sha256(apk.read(entry.name)).hexdigest()})
+        archive_warnings = list(apk.report.warnings)
 
     classified = [classify_permission(p) for p in manifest["permissions"]]
-    dangerous = [p["name"] for p in classified if p["is_dangerous"]]
-    if dangerous:
-        findings.append(_finding("STATIC_DANGEROUS_PERM", "high" if len(dangerous) > 3 else "medium",
-                                 f"App requests {len(dangerous)} dangerous permission(s)",
-                                 f"Permissions: {', '.join(dangerous)}"))
-    min_sdk = manifest["min_sdk"]
-    if min_sdk is not None and min_sdk < 24:
-        findings.append(_finding("STATIC_LOW_MIN_SDK", "low", "Low minSdkVersion allows outdated Android runtime",
-                                 f"minSdkVersion: {min_sdk} (recommended >= 24)"))
-
-    status = signature["status"]
-    if status == "invalid":
-        findings.append(_finding("STATIC_SIGNATURE_INVALID", "critical", "APK signature verification failed",
-                                 "; ".join(signature["errors"][:5])))
-    elif status == "unsigned":
-        findings.append(_finding("STATIC_UNSIGNED", "high", "APK is not signed",
-                                 "No v1, v2 or v3 signature found; Android will refuse to install it."))
-    elif status == "unverifiable":
-        findings.append(_finding("STATIC_SIGNATURE_UNVERIFIABLE", "low",
-                                 "APK signature uses an algorithm this tool cannot verify",
-                                 "; ".join(signature["errors"][:3])))
-
     cert = signature["certificate"]
-    if cert.get("self_signed"):
-        findings.append(_finding("STATIC_SELF_SIGNED_CERT", "medium", "Application certificate is self-signed",
-                                 f"Issuer: {cert.get('issuer', '')}"))
-
-    for f in dex["dex_files"]:
-        if f.get("parsed") and not (f["checksum_valid"] and f["signature_valid"]):
-            findings.append(_finding("STATIC_DEX_HEADER_MISMATCH", "high",
-                                     "DEX header checksum does not match its contents",
-                                     f"{f['path']}: adler32 valid={f['checksum_valid']}, "
-                                     f"sha1 valid={f['signature_valid']} (bytes changed after compilation)"))
-
-    for api in dex["dangerous_apis"]:
-        api_name = api["api"]
-        if api_name in ("DexClassLoader", "PathClassLoader", "InMemoryDexClassLoader"):
-            findings.append(_finding("STATIC_DCL", "high", "Dynamic Code Loading (DCL) capability",
-                                     f"API: {api_name} in {api['source']}"))
-        elif api_name in ("RuntimeExec", "ProcessBuilder"):
-            findings.append(_finding("STATIC_CMD_EXEC", "high", "Arbitrary command execution capability",
-                                     f"API: {api['class']}->{api['method']}"))
-        elif api_name == "SmsManager_sendTextMessage":
-            findings.append(_finding("STATIC_SMS_SEND", "high", "Programmatic SMS transmission API detected",
-                                     f"API: {api['class']}->{api['method']}"))
-        elif api_name == "TelephonyManager_getDeviceId":
-            findings.append(_finding("STATIC_DEVICE_HARVEST", "medium",
-                                     "Hardware/Subscriber identifier access detected",
-                                     f"API: {api['class']}->{api['method']}"))
-    if dex["iocs"]["ips"]:
-        findings.append(_finding("STATIC_HARDCODED_IP", "medium",
-                                 f"Hardcoded external IP address(es) detected ({len(dex['iocs']['ips'])})",
-                                 f"IPs: {', '.join(dex['iocs']['ips'][:5])}"))
+    findings = static_findings(manifest, classified, signature, dex, archive_warnings)
 
     return {
         "findings": findings,

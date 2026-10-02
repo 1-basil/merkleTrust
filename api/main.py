@@ -207,9 +207,11 @@ def get_job_status(job_id: str, db: Session = Depends(get_db)):
     score_data = None
     if job.trust_score:
         score_data = {
-            "score": job.trust_score.score,
+            "risk_score": job.trust_score.score,
+            "risk_level": job.trust_score.risk_level,
+            "integrity_status": job.trust_score.integrity_status,
             "verdict": job.trust_score.verdict,
-            "rules_fired": json.loads(job.trust_score.rules_fired_json or "[]"),
+            "risk_contributions": json.loads(job.trust_score.rules_fired_json or "[]"),
         }
 
     return {

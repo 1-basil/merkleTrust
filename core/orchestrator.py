@@ -105,19 +105,14 @@ def run_job(apk_path: str, job_id: str | None = None, root: str = "jobs", db_ses
                     if name == "score":
                         ts = db_session.query(TrustScore).filter_by(job_id=job_id).first()
                         if not ts:
-                            ts = TrustScore(
-                                job_id=job_id,
-                                score=report.get("score", 0),
-                                verdict=report.get("verdict", "unknown"),
-                                rules_fired_json=json.dumps(report.get("rules_fired", [])),
-                                inputs_json=json.dumps(report.get("inputs", {})),
-                            )
+                            ts = TrustScore(job_id=job_id)
                             db_session.add(ts)
-                        else:
-                            ts.score = report.get("score", 0)
-                            ts.verdict = report.get("verdict", "unknown")
-                            ts.rules_fired_json = json.dumps(report.get("rules_fired", []))
-                            ts.inputs_json = json.dumps(report.get("inputs", {}))
+                        ts.score = report["risk"]["score"]
+                        ts.risk_level = report["risk"]["level"]
+                        ts.integrity_status = report["integrity"]["status"]
+                        ts.verdict = report["verdict"]["code"]
+                        ts.rules_fired_json = json.dumps(report["risk"]["contributions"])
+                        ts.inputs_json = json.dumps(report.get("inputs", {}))
                         db_session.commit()
 
                     elif name == "repository":
@@ -191,7 +186,9 @@ def run_job(apk_path: str, job_id: str | None = None, root: str = "jobs", db_ses
             print(f"[Orchestrator DB completion warning]: {e}")
 
     score = prior.get("score", {})
-    print(f"\nverdict: {score.get('verdict', 'n/a')}  score: {score.get('score', 'n/a')}")
+    if score:
+        print(f"\nverdict: {score['verdict']['code']}  integrity: {score['integrity']['status']}  "
+              f"risk: {score['risk']['level']} ({score['risk']['score']})")
     return prior
 
 
