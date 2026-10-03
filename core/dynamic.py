@@ -19,7 +19,6 @@ Later phases will add:
   - Database integration (Phase 7)
 """
 
-import sys
 import os
 import json
 import time
@@ -27,7 +26,7 @@ import tempfile
 import subprocess
 import shutil
 
-from core.contracts import JobContext, EngineError, emit
+from core.contracts import JobContext, emit
 
 
 # ── ADB helpers ───────────────────────────────────────────────────────────────

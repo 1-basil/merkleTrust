@@ -7,7 +7,6 @@ import pytest
 
 from core.integrity import compute_chunks, extract_file_map, run
 from core.contracts import JobContext
-from core.merkle import build_tree, root
 
 pytestmark = pytest.mark.unit
 

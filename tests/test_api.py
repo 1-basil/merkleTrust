@@ -15,7 +15,7 @@ from sqlalchemy import select
 from api.main import create_app
 from api.ratelimit import limiter
 from api.security import create_user
-from core.config import Settings, get_settings
+from core.config import get_settings
 from db.models import AuthSession, Job, User
 
 pytestmark = pytest.mark.api

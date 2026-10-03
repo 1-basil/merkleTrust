@@ -5,7 +5,6 @@ import json
 import logging
 import struct
 import threading
-import zipfile
 from pathlib import Path
 
 import pytest
