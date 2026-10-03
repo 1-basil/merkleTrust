@@ -24,9 +24,23 @@ SessionLocal = sessionmaker(autocommit=False, autoflush=False, expire_on_commit=
 _engine: Engine | None = None
 
 
-def _enable_sqlite_foreign_keys(dbapi_conn, _record) -> None:
+def _configure_sqlite(dbapi_conn, _record) -> None:
+    """Per-connection SQLite settings.
+
+    foreign_keys  enforce declared foreign keys (off by default in SQLite).
+    WAL journal   write-ahead logging: commits append to one log file instead of
+                  creating and deleting a rollback journal each time (measured: the
+                  per-commit journal churn dominated request time), and readers no
+                  longer block the writer.
+    synchronous   FULL: every commit is flushed to disk, so an acknowledged audit
+                  event survives a power failure.
+    busy_timeout  wait up to 5 s for a competing writer instead of failing at once.
+    """
     cur = dbapi_conn.cursor()
     cur.execute("PRAGMA foreign_keys=ON")
+    cur.execute("PRAGMA journal_mode=WAL")
+    cur.execute("PRAGMA synchronous=FULL")
+    cur.execute("PRAGMA busy_timeout=5000")
     cur.close()
 
 
@@ -41,7 +55,7 @@ def configure_database(url: str | None = None) -> Engine:
     connect_args = {"check_same_thread": False} if url.startswith("sqlite") else {}
     _engine = create_engine(url, connect_args=connect_args, future=True)
     if url.startswith("sqlite"):
-        event.listen(_engine, "connect", _enable_sqlite_foreign_keys)
+        event.listen(_engine, "connect", _configure_sqlite)
     SessionLocal.configure(bind=_engine)
     return _engine
 

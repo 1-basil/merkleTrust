@@ -18,13 +18,15 @@ test_phase3/
 # Local baseline database and persistent stores
 data/*.sqlite3
 data/*.db
+*.db-wal
+*.db-shm
 data/keys/
 data/repository_ledger.json
 data/tmp/
 
 # Binaries, archives and test artifacts (exclude tracked sample)
 *.apk
-!test_sample.apk
+!evaluation/dataset/*.apk
 !tests/fixtures/apks/*.apk
 *.dex
 *.jar

@@ -7,7 +7,7 @@ pip install -r requirements.txt
 python -m pytest                     # full suite (~30 s)
 python -m pytest -m security         # attack / abuse scenarios only
 python -m pytest -m "unit"           # fast single-module tests
-python -m scripts.coverage_report    # line coverage (standard library only; slow, ~10 min)
+python -m scripts.coverage_report    # line coverage (standard library only; slow, ~15 min)
 python -m scripts.crosscheck_apksigner   # differential check vs Google's apksigner (needs Android SDK)
 python -m scripts.stress_audit_chain     # concurrent audit-chain writers under CPU load
 node tests/e2e/ui_smoke.mjs <url> <shots-dir> "<ids>"   # browser end-to-end (needs Chrome, Node 22+)
@@ -122,8 +122,8 @@ concurrent ledger writers.
 
 ## Known limitations of the test suite
 
-* Line coverage is measured (not branch coverage) with `scripts/coverage_report.py`;
-  see the table below. The least-covered module is the optional dynamic engine,
+* Line coverage is measured (not branch coverage) with `scripts/coverage_report.py`:
+  **90.5 %** of the lines in `core/`, `api/` and `db/` (4 226 of 4 671). The least-covered module is the optional dynamic engine,
   whose remaining code drives a real `adb`/emulator.
 * The dynamic engine is tested against a simulated `adb`, not a real emulator.
 * PostgreSQL is not tested; SQLite is the tested database.

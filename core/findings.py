@@ -270,6 +270,30 @@ _CATALOG_SPEC: dict[str, tuple] = {
         "Traffic to http:// addresses is not encrypted.",
         "Use https:// endpoints.", 4, "cleartext"),
 
+    # ------------------------------------------------ behaviour patterns --
+    # Combinations of capabilities that characterise well-known Android malware
+    # families. Each adds to (does not replace) the individual capability findings.
+    "PATTERN_DROPPER": _t(
+        "high", "code", "Can download and run code from the internet",
+        "Dynamic code loading in an app with network access (dropper pattern)",
+        "Loading executable code at runtime in an app that can reach the internet is how 'dropper' malware "
+        "installs its real payload after passing review: what was checked is not what will run.",
+        "Find out what code is loaded and where it comes from before trusting the app.", 25, "pattern_dropper"),
+    "PATTERN_SMS_FRAUD": _t(
+        "critical", "code", "Can send paid text messages without the user",
+        "SMS sending + SEND_SMS permission + triggered by the system (boot or exported receiver)",
+        "Sending SMS automatically when the phone starts or when a broadcast arrives, without the user pressing "
+        "anything, is the pattern of premium-rate SMS fraud.",
+        "Do not install unless the app is a messaging app you trust.", 30, "pattern_sms_fraud"),
+    "PATTERN_SPYWARE": _t(
+        "high", "code", "Collects personal data and can secretly send it away",
+        "Sensitive data access + network access + concealment/exfiltration indicator",
+        "The app can read personal data (identifiers, contacts, location, microphone, call logs), can reach "
+        "the internet, and shows a sign of hiding or exfiltration (command execution, hard-coded IP address, "
+        "hiding its icon, accessibility control) — the profile of spyware.",
+        "Do not install unless every permission is clearly justified by the app's purpose.", 25,
+        "pattern_spyware"),
+
     # ------------------------------------------------------- analysis --
     "INTEGRITY_COMPUTED": _t("info", "analysis", "File fingerprints computed", "Per-file SHA-256 manifest and Merkle root computed",
                              "Every file was hashed and committed to a Merkle root.", "No action needed.", 0),

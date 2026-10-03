@@ -1,0 +1,600 @@
+{
+  "description": "MerkleTrust controlled evaluation dataset (real APKs built with aapt2/d8/apksigner)",
+  "baselines": {
+    "demo": "baseline_demo.apk",
+    "notes": "baseline_notes.apk",
+    "weather": "baseline_weather.apk"
+  },
+  "keys": {
+    "A": "developer key (EC P-256)",
+    "B": "attacker key copying the developer's subject name (EC)",
+    "C": "attacker key (RSA-2048)"
+  },
+  "cases": [
+    {
+      "id": "D01",
+      "file": "demo_official_copy.apk",
+      "derive": "copy",
+      "description": "Byte-identical copy of the official build",
+      "baseline": "demo",
+      "truth": {
+        "integrity": "CLEAN",
+        "changed": false,
+        "unauthorized": false,
+        "risky": false,
+        "files": {}
+      },
+      "schemes": [],
+      "set": "development"
+    },
+    {
+      "id": "D02",
+      "file": "demo_same_key_resign.apk",
+      "key": "A",
+      "schemes": [
+        "v2",
+        "v3"
+      ],
+      "description": "Rebuilt and re-signed by the developer with the same key (v2+v3)",
+      "baseline": "demo",
+      "truth": {
+        "integrity": "CLEAN",
+        "changed": false,
+        "unauthorized": false,
+        "risky": false,
+        "files": {}
+      },
+      "set": "development"
+    },
+    {
+      "id": "D03",
+      "file": "demo_legit_update.apk",
+      "key": "A",
+      "schemes": [
+        "v1",
+        "v2"
+      ],
+      "description": "Legitimate next release by the developer (+CAMERA, +1 service)",
+      "baseline": "demo",
+      "truth": {
+        "integrity": "MODIFIED",
+        "changed": true,
+        "unauthorized": false,
+        "risky": false,
+        "required": {
+          "modified": [
+            "AndroidManifest.xml",
+            "classes.dex"
+          ]
+        }
+      },
+      "set": "development"
+    },
+    {
+      "id": "D04",
+      "file": "demo_manifest_mod.apk",
+      "key": "B",
+      "schemes": [
+        "v1",
+        "v2"
+      ],
+      "description": "Manifest modified (debuggable, backup) and re-signed",
+      "baseline": "demo",
+      "truth": {
+        "integrity": "CERTIFICATE_CHANGED",
+        "changed": true,
+        "unauthorized": true,
+        "risky": true,
+        "files": {
+          "modified": [
+            "AndroidManifest.xml"
+          ]
+        }
+      },
+      "set": "development"
+    },
+    {
+      "id": "D05",
+      "file": "demo_dex_mod.apk",
+      "key": "B",
+      "schemes": [
+        "v2"
+      ],
+      "description": "Program code (DEX) modified to run commands and re-signed",
+      "baseline": "demo",
+      "truth": {
+        "integrity": "CERTIFICATE_CHANGED",
+        "changed": true,
+        "unauthorized": true,
+        "risky": true,
+        "files": {
+          "modified": [
+            "classes.dex"
+          ]
+        }
+      },
+      "set": "development"
+    },
+    {
+      "id": "D06",
+      "file": "demo_cert_replaced.apk",
+      "key": "B",
+      "schemes": [
+        "v1",
+        "v2"
+      ],
+      "description": "Unchanged content re-signed with a look-alike certificate (same subject name)",
+      "baseline": "demo",
+      "truth": {
+        "integrity": "CERTIFICATE_CHANGED",
+        "changed": true,
+        "unauthorized": true,
+        "risky": true,
+        "files": {}
+      },
+      "set": "development"
+    },
+    {
+      "id": "D07",
+      "file": "demo_added_file.apk",
+      "key": "C",
+      "schemes": [
+        "v2"
+      ],
+      "description": "File injected (assets/payload.bin) and re-signed",
+      "baseline": "demo",
+      "truth": {
+        "integrity": "CERTIFICATE_CHANGED",
+        "changed": true,
+        "unauthorized": true,
+        "risky": true,
+        "files": {
+          "added": [
+            "assets/payload.bin"
+          ]
+        }
+      },
+      "set": "development"
+    },
+    {
+      "id": "D08",
+      "file": "demo_deleted_file.apk",
+      "key": "B",
+      "schemes": [
+        "v2"
+      ],
+      "description": "File deleted (assets/config.json) and re-signed",
+      "baseline": "demo",
+      "truth": {
+        "integrity": "CERTIFICATE_CHANGED",
+        "changed": true,
+        "unauthorized": true,
+        "risky": true,
+        "files": {
+          "deleted": [
+            "assets/config.json"
+          ]
+        }
+      },
+      "set": "development"
+    },
+    {
+      "id": "D09",
+      "file": "demo_repackaged.apk",
+      "key": "C",
+      "schemes": [
+        "v1",
+        "v2"
+      ],
+      "description": "Repackaged: injected loader + SMS code, new permission, extra native library",
+      "baseline": "demo",
+      "truth": {
+        "integrity": "CERTIFICATE_CHANGED",
+        "changed": true,
+        "unauthorized": true,
+        "risky": true,
+        "required": {
+          "modified": [
+            "AndroidManifest.xml",
+            "classes.dex"
+          ],
+          "added": [
+            "lib/x86_64/libpayload.so"
+          ]
+        }
+      },
+      "set": "development"
+    },
+    {
+      "id": "D10",
+      "file": "demo_permission_mod.apk",
+      "key": "B",
+      "schemes": [
+        "v2"
+      ],
+      "description": "Permissions added (SEND_SMS, READ_CONTACTS) and re-signed",
+      "baseline": "demo",
+      "truth": {
+        "integrity": "CERTIFICATE_CHANGED",
+        "changed": true,
+        "unauthorized": true,
+        "risky": true,
+        "files": {
+          "modified": [
+            "AndroidManifest.xml"
+          ]
+        }
+      },
+      "set": "development"
+    },
+    {
+      "id": "D11",
+      "file": "demo_invalid_signature.apk",
+      "derive": "modify_config",
+      "description": "Asset modified after signing (signature now invalid)",
+      "baseline": "demo",
+      "truth": {
+        "integrity": "MODIFIED",
+        "changed": true,
+        "unauthorized": true,
+        "risky": true,
+        "files": {
+          "modified": [
+            "assets/config.json"
+          ]
+        }
+      },
+      "schemes": [],
+      "set": "development"
+    },
+    {
+      "id": "D12",
+      "file": "demo_signature_stripped.apk",
+      "derive": "strip_v2",
+      "description": "v2 signature block stripped (downgrade to v1)",
+      "baseline": "demo",
+      "truth": {
+        "integrity": "MODIFIED",
+        "changed": true,
+        "unauthorized": true,
+        "risky": true,
+        "files": {}
+      },
+      "schemes": [],
+      "set": "development"
+    },
+    {
+      "id": "D13",
+      "file": "demo_janus_prefix.apk",
+      "derive": "janus",
+      "description": "DEX data prepended to the signed APK (Janus-style)",
+      "baseline": "demo",
+      "truth": {
+        "integrity": "MODIFIED",
+        "changed": true,
+        "unauthorized": true,
+        "risky": true,
+        "files": {}
+      },
+      "schemes": [],
+      "set": "development"
+    },
+    {
+      "id": "N01",
+      "file": "notes_official_copy.apk",
+      "derive": "copy",
+      "description": "Byte-identical copy of the official build",
+      "baseline": "notes",
+      "truth": {
+        "integrity": "CLEAN",
+        "changed": false,
+        "unauthorized": false,
+        "risky": false,
+        "files": {}
+      },
+      "schemes": [],
+      "set": "development"
+    },
+    {
+      "id": "N02",
+      "file": "notes_same_key_resign.apk",
+      "key": "A",
+      "schemes": [
+        "v2"
+      ],
+      "description": "Re-signed by the developer, v2 only",
+      "baseline": "notes",
+      "truth": {
+        "integrity": "CLEAN",
+        "changed": false,
+        "unauthorized": false,
+        "risky": false,
+        "files": {}
+      },
+      "set": "development"
+    },
+    {
+      "id": "N03",
+      "file": "notes_cert_replaced.apk",
+      "key": "C",
+      "schemes": [
+        "v2",
+        "v3"
+      ],
+      "description": "Re-signed with an attacker key (RSA)",
+      "baseline": "notes",
+      "truth": {
+        "integrity": "CERTIFICATE_CHANGED",
+        "changed": true,
+        "unauthorized": true,
+        "risky": true,
+        "files": {}
+      },
+      "set": "development"
+    },
+    {
+      "id": "N04",
+      "file": "notes_code_mod.apk",
+      "key": "B",
+      "schemes": [
+        "v2"
+      ],
+      "description": "Code modified (new network endpoint) and re-signed",
+      "baseline": "notes",
+      "truth": {
+        "integrity": "CERTIFICATE_CHANGED",
+        "changed": true,
+        "unauthorized": true,
+        "risky": true,
+        "files": {
+          "modified": [
+            "classes.dex"
+          ]
+        }
+      },
+      "set": "development"
+    },
+    {
+      "id": "W01",
+      "file": "weather_official_copy.apk",
+      "derive": "copy",
+      "description": "Byte-identical copy of the official build",
+      "baseline": "weather",
+      "truth": {
+        "integrity": "CLEAN",
+        "changed": false,
+        "unauthorized": false,
+        "risky": false,
+        "files": {}
+      },
+      "schemes": [],
+      "set": "development"
+    },
+    {
+      "id": "W02",
+      "file": "weather_legit_update.apk",
+      "key": "A",
+      "schemes": [
+        "v1",
+        "v2"
+      ],
+      "description": "Legitimate data-only update by the developer",
+      "baseline": "weather",
+      "truth": {
+        "integrity": "MODIFIED",
+        "changed": true,
+        "unauthorized": false,
+        "risky": false,
+        "files": {
+          "modified": [
+            "AndroidManifest.xml",
+            "assets/cities.json"
+          ]
+        }
+      },
+      "set": "development"
+    },
+    {
+      "id": "W03",
+      "file": "weather_permission_mod.apk",
+      "key": "C",
+      "schemes": [
+        "v2"
+      ],
+      "description": "Location tracking permissions added and re-signed",
+      "baseline": "weather",
+      "truth": {
+        "integrity": "CERTIFICATE_CHANGED",
+        "changed": true,
+        "unauthorized": true,
+        "risky": true,
+        "files": {
+          "modified": [
+            "AndroidManifest.xml"
+          ]
+        }
+      },
+      "set": "development"
+    },
+    {
+      "id": "R01",
+      "file": "risk_suspicious.apk",
+      "key": "B",
+      "schemes": [
+        "v2"
+      ],
+      "description": "Debuggable app with command execution, code loading and SMS sending",
+      "baseline": null,
+      "truth": {
+        "integrity": "NO_BASELINE",
+        "risky": true
+      },
+      "set": "development"
+    },
+    {
+      "id": "R02",
+      "file": "risk_dropper.apk",
+      "key": "C",
+      "schemes": [
+        "v2"
+      ],
+      "description": "Dropper: downloads and loads extra code",
+      "baseline": null,
+      "truth": {
+        "integrity": "NO_BASELINE",
+        "risky": true
+      },
+      "set": "development"
+    },
+    {
+      "id": "R03",
+      "file": "risk_smsfraud.apk",
+      "key": "C",
+      "schemes": [
+        "v2"
+      ],
+      "description": "Premium-SMS fraud on boot",
+      "baseline": null,
+      "truth": {
+        "integrity": "NO_BASELINE",
+        "risky": true
+      },
+      "set": "development"
+    },
+    {
+      "id": "R04",
+      "file": "risk_spyware.apk",
+      "key": "B",
+      "schemes": [
+        "v2"
+      ],
+      "description": "Spyware: identifiers, contacts, location, audio, command execution",
+      "baseline": null,
+      "truth": {
+        "integrity": "NO_BASELINE",
+        "risky": true
+      },
+      "set": "development"
+    },
+    {
+      "id": "R05",
+      "file": "risk_misconfigured.apk",
+      "key": "A",
+      "schemes": [
+        "v2"
+      ],
+      "description": "Benign app with debuggable/cleartext/backup enabled (should be review, not high risk)",
+      "baseline": null,
+      "truth": {
+        "integrity": "NO_BASELINE",
+        "risky": false
+      },
+      "set": "development"
+    },
+    {
+      "id": "H01",
+      "file": "held_inmemory_dropper.apk",
+      "key": "C",
+      "schemes": [
+        "v2"
+      ],
+      "description": "Dropper using InMemoryDexClassLoader + HTTPS download",
+      "baseline": null,
+      "set": "held_out",
+      "truth": {
+        "integrity": "NO_BASELINE",
+        "risky": true
+      }
+    },
+    {
+      "id": "H02",
+      "file": "held_sms_on_receive.apk",
+      "key": "B",
+      "schemes": [
+        "v2"
+      ],
+      "description": "SMS fraud triggered by incoming SMS (multipart send)",
+      "baseline": null,
+      "set": "held_out",
+      "truth": {
+        "integrity": "NO_BASELINE",
+        "risky": true
+      }
+    },
+    {
+      "id": "H03",
+      "file": "held_stalkerware.apk",
+      "key": "C",
+      "schemes": [
+        "v2"
+      ],
+      "description": "Stalkerware: call log, location, phone number, hides its icon",
+      "baseline": null,
+      "set": "held_out",
+      "truth": {
+        "integrity": "NO_BASELINE",
+        "risky": true
+      }
+    },
+    {
+      "id": "H04",
+      "file": "held_root_booster.apk",
+      "key": "B",
+      "schemes": [
+        "v2"
+      ],
+      "description": "Runs 'su' to disable SELinux on boot",
+      "baseline": null,
+      "set": "held_out",
+      "truth": {
+        "integrity": "NO_BASELINE",
+        "risky": true
+      }
+    },
+    {
+      "id": "H05",
+      "file": "held_benign_plugins.apk",
+      "key": "A",
+      "schemes": [
+        "v2"
+      ],
+      "description": "Benign drawing app loading its own plugins (legitimate code loading)",
+      "baseline": null,
+      "set": "held_out",
+      "truth": {
+        "integrity": "NO_BASELINE",
+        "risky": false
+      }
+    },
+    {
+      "id": "H06",
+      "file": "held_benign_sms_reminder.apk",
+      "key": "A",
+      "schemes": [
+        "v2"
+      ],
+      "description": "Benign user-initiated SMS reminders",
+      "baseline": null,
+      "set": "held_out",
+      "truth": {
+        "integrity": "NO_BASELINE",
+        "risky": false
+      }
+    },
+    {
+      "id": "H07",
+      "file": "held_benign_fitness.apk",
+      "key": "A",
+      "schemes": [
+        "v2"
+      ],
+      "description": "Benign fitness tracker with location",
+      "baseline": null,
+      "set": "held_out",
+      "truth": {
+        "integrity": "NO_BASELINE",
+        "risky": false
+      }
+    }
+  ]
+}

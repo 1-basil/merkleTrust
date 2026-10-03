@@ -177,9 +177,17 @@ def test_thread_job_runner_completes_jobs(db, fixture_apk, tmp_path):
     runner = JobRunner(get_settings().model_copy(update={"job_execution": "thread", "job_workers": 2,
                                                          "data_dir": tmp_path}))
     runner.submit("33333333-3333-3333-3333-333333333333", fixture_apk("signed_v1v2_ec.apk"))
-    runner.shutdown()                          # waits for running work
-    db.expire_all()
-    job = db.get(Job, "33333333-3333-3333-3333-333333333333")
+    # Wait for the worker (shutdown() would cancel a job that has not started yet;
+    # such jobs are marked failed at the next startup by recover_interrupted()).
+    import time
+    deadline = time.monotonic() + 120
+    while time.monotonic() < deadline:
+        db.expire_all()
+        job = db.get(Job, "33333333-3333-3333-3333-333333333333")
+        if job.status in ("done", "failed"):
+            break
+        time.sleep(0.1)
+    runner.shutdown()
     assert job.status == "done" and job.package_name == "com.merkletrust.demo"
 
 
