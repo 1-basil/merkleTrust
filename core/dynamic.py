@@ -230,6 +230,67 @@ def _launch_app(package, activity=None, timeout_s=15):
     return False, "failed", detail
 
 
+def _capture_logcat(dyn_dir, duration_s=6):
+    """Clear logcat, let the app run for `duration_s`, then dump the buffer.
+
+    Returns (logcat_text, process_events) where process_events is a light
+    filter of lifecycle/crash lines — not a full parser, just enough to show
+    the app actually did something during the window.
+    """
+    _adb("logcat", "-c", timeout_s=10)
+    time.sleep(duration_s)
+    rc, out, _ = _adb("logcat", "-d", "-v", "time", timeout_s=20)
+    text = out if rc == 0 else ""
+    events = [{"line": line.strip()[:300]} for line in text.splitlines()
+              if any(tag in line for tag in ("ActivityManager", "AndroidRuntime", "Process", "FATAL"))][:50]
+    return text, events
+
+
+def _attach_frida(package, script_code, duration_s=6):
+    """Attach Frida to the already-running process and collect console.log
+    messages from the generated hook script for `duration_s` seconds.
+
+    Frida's by-name attach matches the app's display label (e.g. "Hotel
+    Booking"), not its Android package name, so the target PID is resolved
+    via `adb shell pidof` first.
+
+    Best-effort: any failure (bindings missing, attach refused, app not
+    instrumentable) is reported as a reason string, never raised.
+    """
+    try:
+        import frida
+    except ImportError:
+        return [], "frida Python bindings not installed"
+
+    rc, out, _ = _adb("shell", "pidof", "-s", package, timeout_s=10)
+    if rc != 0 or not out.strip().isdigit():
+        return [], f"could not resolve a PID for package {package!r} via pidof"
+    pid = int(out.strip())
+
+    messages: list[str] = []
+
+    def on_message(message, _data):
+        kind = message.get("type")
+        if kind == "send":
+            messages.append(str(message.get("payload")))
+        elif kind == "log":
+            messages.append(str(message.get("payload")))
+        elif kind == "error":
+            messages.append(f"[frida-error] {message.get('description')}")
+
+    try:
+        device = frida.get_usb_device(timeout=5)
+        session = device.attach(pid)
+        script = session.create_script(script_code)
+        script.on("message", on_message)
+        script.load()
+        time.sleep(duration_s)
+        session.detach()
+    except Exception as exc:
+        return messages, f"frida attach failed: {exc}"
+    return messages, None
+
+
 def generate_frida_script(targets: list[dict], package: str) -> str:
     """Generate a dynamic Frida instrumentation script driven by suspicious_targets."""
     lines = [
@@ -437,6 +498,38 @@ def run(job_id: str, ctx: JobContext) -> dict:
         # Not installed — can't launch
         launch_method = "skipped"
 
+    # --- Step 6: Runtime capture (logcat + Frida), only if the app is actually
+    # running. Timeboxed against whatever remains of dynamic_timeout_s so a
+    # slow capture window can never make the pipeline hang.
+    logcat_text, process_events, hooks = "", [], []
+    frida_note = None
+    if launched:
+        remaining = timeout_s - (time.time() - start_time)
+        capture_s = max(0, min(6, int(remaining // 2)))
+        if capture_s > 0:
+            logcat_text, process_events = _capture_logcat(dyn_dir, duration_s=capture_s)
+            hooks, frida_note = _attach_frida(package, frida_code, duration_s=capture_s)
+            if frida_note:
+                findings.append({
+                    "id": "DYN_006",
+                    "severity": "info",
+                    "title": "Frida instrumentation did not attach",
+                    "evidence": frida_note,
+                })
+            elif hooks:
+                findings.append({
+                    "id": "DYN_007",
+                    "severity": "info",
+                    "title": f"Frida hooks observed {len(hooks)} event(s) during the capture window",
+                    "evidence": "; ".join(hooks[:5])[:300],
+                })
+
+    with open(logcat_path, "w", encoding="utf-8") as lf:
+        lf.write(logcat_text)
+    if not os.path.exists(pcap_path):
+        with open(pcap_path, "wb"):
+            pass
+
     # --- Build the report ---
     elapsed = int(time.time() - start_time)
 
@@ -460,12 +553,13 @@ def run(job_id: str, ctx: JobContext) -> dict:
         "installed": installed,
         "launched": launched,
         "duration_s": elapsed,
-        # Phase 4+ will populate these:
+        # Not implemented: packet capture requires pushing a tcpdump binary
+        # onto the emulator, which this engine does not do.
         "network": [],
         "dns": [],
         "file_ops": [],
-        "process_events": [],
-        "hooks": [],
+        "process_events": process_events,
+        "hooks": hooks,
         "runtime_permissions": [],
         "artifacts": {
             "pcap": "dynamic/capture.pcap",
