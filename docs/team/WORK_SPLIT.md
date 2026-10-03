@@ -1,3 +1,7 @@
+> **Historical planning document** — written at the start of the project and kept for the record.
+> The system as built is described in [../ARCHITECTURE.md](../ARCHITECTURE.md); where this plan differs
+> (e.g. chunk-based integrity, automatic baselines, trust score, PostgreSQL/React), the architecture document is authoritative.
+
 # MerkleTrust — 4-Person Work Split & Integration Contract
 
 Assumed stack: Python 3.11 + FastAPI + PostgreSQL (SQLAlchemy) + React frontend. One Git repo, one branch per person.

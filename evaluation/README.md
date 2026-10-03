@@ -117,7 +117,7 @@ Held-out errors, kept as they are:
 From `results/benchmark.md` (median of 9 runs on a machine in interactive use):
 end-to-end upload-to-result through the API takes about 0.1 s for a small APK and
 about 1.1 s for a 52 MB APK; ECDSA P-256 signing/verification take well under a
-millisecond; a Merkle tree over 100 000 leaves builds in under 0.3 s and proofs verify in
+millisecond; a Merkle tree over 100 000 leaves builds in about 0.3 s and proofs verify in
 microseconds.
 
 Profiling during the benchmark showed that SQLite's default rollback journal (creating
