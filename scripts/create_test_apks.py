@@ -13,7 +13,9 @@ import hashlib
 
 APKS_DIR = os.path.join(os.getcwd(), "apks")
 os.makedirs(APKS_DIR, exist_ok=True)
-SAMPLE_SRC = os.path.join(os.getcwd(), "test_sample.apk")
+# A real signed APK (v1 + v2 signatures): only signed builds can become baselines.
+SAMPLE_SRC = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                          "tests", "fixtures", "apks", "signed_v1v2_ec.apk")
 
 
 def create_clean_baseline(src: str = SAMPLE_SRC):

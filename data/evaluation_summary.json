@@ -1,38 +1,38 @@
 [
   {
     "sample": "clean_baseline.apk",
-    "sha256": "f5b58728c978bc11...",
+    "sha256": "b26efba03dd9ea9a...",
     "role": "comparison",
-    "changed_chunks": 1,
-    "changed_files": 4,
-    "cert_changed": true,
+    "changed_chunks": 0,
+    "changed_files": 0,
+    "cert_changed": false,
     "score": 0,
-    "verdict": "malicious",
-    "merkle_root": "f5b58728c978bc11...",
-    "block_height": 1
+    "verdict": "CLEAN",
+    "merkle_root": "29f615fa410ef1a6...",
+    "block_height": 19
   },
   {
     "sample": "tampered_repackaged.apk",
-    "sha256": "0bd0cd5ca8f74036...",
+    "sha256": "d52c311fbba60a76...",
     "role": "comparison",
     "changed_chunks": 1,
     "changed_files": 4,
     "cert_changed": true,
-    "score": 0,
-    "verdict": "malicious",
-    "merkle_root": "0bd0cd5ca8f74036...",
-    "block_height": 1
+    "score": 75,
+    "verdict": "HIGH_RISK",
+    "merkle_root": "75307d6501b4db22...",
+    "block_height": 20
   },
   {
     "sample": "malicious_sample.apk",
-    "sha256": "3565af1724fd7d1a...",
+    "sha256": "b4817a986fe68e2e...",
     "role": "comparison",
     "changed_chunks": 1,
-    "changed_files": 4,
-    "cert_changed": true,
-    "score": 0,
-    "verdict": "malicious",
-    "merkle_root": "3565af1724fd7d1a...",
-    "block_height": 2
+    "changed_files": 1,
+    "cert_changed": false,
+    "score": 70,
+    "verdict": "HIGH_RISK",
+    "merkle_root": "49436f3f3cee21d0...",
+    "block_height": 22
   }
 ]

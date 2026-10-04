@@ -16,7 +16,9 @@ import tempfile
 # Ensure project root is in sys.path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+from core.baselines import BaselineService
 from core.orchestrator import run_job
+from db.database import init_db, session_scope
 from scripts.create_test_apks import (
     create_clean_baseline,
     create_tampered_repackaged,
@@ -30,6 +32,11 @@ def run_evaluation():
     print("=" * 75 + "\n")
 
     clean_apk = create_clean_baseline()
+    init_db()
+    with session_scope() as db:
+        svc = BaselineService(db)
+        enrolled, _ = svc.enroll(clean_apk, "evaluation")
+        svc.approve(enrolled.id, "evaluation", "evaluation reference build")
     tampered_apk = create_tampered_repackaged()
     malicious_apk = create_malicious_sample()
 
@@ -48,10 +55,10 @@ def run_evaluation():
         "changed_chunks": len(rep_clean["tamper"].get("changed_chunks", [])),
         "changed_files": len(rep_clean["tamper"].get("changed_files", [])),
         "cert_changed": rep_clean["tamper"].get("certificate_changed"),
-        "score": rep_clean["score"].get("score"),
-        "verdict": rep_clean["score"].get("verdict"),
+        "score": rep_clean["score"]["risk"]["score"],
+        "verdict": rep_clean["score"]["verdict"]["code"],
         "merkle_root": rep_clean["integrity"].get("merkle_root")[:16] + "...",
-        "block_height": rep_clean["repository"].get("sim_block", {}).get("height", 0),
+        "block_height": rep_clean["repository"].get("block_index"),
     })
 
     # 2. Tampered APK
@@ -64,10 +71,10 @@ def run_evaluation():
         "changed_chunks": len(rep_tamper["tamper"].get("changed_chunks", [])),
         "changed_files": len(rep_tamper["tamper"].get("changed_files", [])),
         "cert_changed": rep_tamper["tamper"].get("certificate_changed"),
-        "score": rep_tamper["score"].get("score"),
-        "verdict": rep_tamper["score"].get("verdict"),
+        "score": rep_tamper["score"]["risk"]["score"],
+        "verdict": rep_tamper["score"]["verdict"]["code"],
         "merkle_root": rep_tamper["integrity"].get("merkle_root")[:16] + "...",
-        "block_height": rep_tamper["repository"].get("sim_block", {}).get("height", 0),
+        "block_height": rep_tamper["repository"].get("block_index"),
     })
 
     # 3. Malicious APK
@@ -80,10 +87,10 @@ def run_evaluation():
         "changed_chunks": len(rep_mal["tamper"].get("changed_chunks", [])),
         "changed_files": len(rep_mal["tamper"].get("changed_files", [])),
         "cert_changed": rep_mal["tamper"].get("certificate_changed"),
-        "score": rep_mal["score"].get("score"),
-        "verdict": rep_mal["score"].get("verdict"),
+        "score": rep_mal["score"]["risk"]["score"],
+        "verdict": rep_mal["score"]["verdict"]["code"],
         "merkle_root": rep_mal["integrity"].get("merkle_root")[:16] + "...",
-        "block_height": rep_mal["repository"].get("sim_block", {}).get("height", 0),
+        "block_height": rep_mal["repository"].get("block_index"),
     })
 
     # Print Comparison Table
