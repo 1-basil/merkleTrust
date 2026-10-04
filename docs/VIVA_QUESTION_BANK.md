@@ -152,6 +152,17 @@ It cannot know intent (a plugin loader looks like a dropper), cannot see code do
 runtime, and can be evaded by obfuscation and reflection. The optional dynamic engine and
 human review address part of that.
 
+**Q25a. What does the emulator (dynamic) engine add, and how does it see a failed `su`?**
+It installs the app in a rooted Android 11 emulator, starts it, sends its receivers the
+broadcasts the system would send (e.g. `BOOT_COMPLETED`) and watches for 20 s: programs
+executed, sockets (named from a packet capture), files written, SMS sent, icon hiding.
+An unprivileged app's `su` is refused by the kernel before it becomes a process, so `ps`
+and logcat never see it; a kprobe on `execve` plus fork events in a private ftrace
+instance records every exec *attempt* by the app's process tree. That caught held-out
+H04 (`su -c setenforce 0`). Honest caveats: it was finished after the held-out results
+were known, it only sees what an unattended run triggers, and "nothing observed" is not
+"safe" (`core/dynamic.py`, `evaluation/results/dynamic.md`).
+
 ## E. Engineering
 
 **Q26. How do you handle malicious uploads?**
@@ -171,7 +182,7 @@ The dashboard builds DOM nodes with `textContent` only — a test fails if any H
 API appears — and a CSP with `script-src 'self'` and no inline scripts.
 
 **Q29. How did you test it?**
-337 automated tests (unit, integration, API, security) at 90.5 % line coverage; real signed
+357 automated tests (unit, integration, API, security) at 91.9 % line coverage; real signed
 APK fixtures; regression tests that fail on the old code for every fixed bug; a headless
 Chrome end-to-end test; a differential check against `apksigner`; a concurrency stress
 test; and the evaluation (`docs/TESTING.md`).

@@ -55,7 +55,7 @@ explicit in each test.
 | Merkle tree | `test_merkle.py::test_root_matches_rfc6962_reference` (36 sizes), `::test_no_duplicate_last_leaf_collision`, `::test_internal_node_cannot_pose_as_leaf` |
 | Merkle proofs | `test_merkle.py::test_every_proof_verifies`, `::test_proof_length_is_logarithmic`; `test_file_manifest.py::test_file_proof_valid_and_invalid` |
 | Blockchain simulation | `test_audit_chain.py::test_genesis_and_linking`, `::test_block_hash_depends_on_previous_hash`, `::test_inclusion_proof` |
-| Dynamic engine | `test_dynamic_engine.py` (no device, simulated device, failures, timeouts) |
+| Dynamic engine | `test_dynamic_engine.py::test_disabled_by_default`, `::test_physical_device_is_refused`, `::test_full_run_observes_malicious_behaviour`, `::test_hostile_names_never_reach_the_device_shell`, `::test_runtime_findings_are_not_double_counted_with_static`, `::test_pcap_reader_never_raises_on_garbage` (simulated emulator); real emulator: `scripts/run_dynamic_evaluation.py` |
 
 ### Integration tests
 
@@ -123,9 +123,11 @@ concurrent ledger writers.
 ## Known limitations of the test suite
 
 * Line coverage is measured (not branch coverage) with `scripts/coverage_report.py`:
-  **90.5 %** of the lines in `core/`, `api/` and `db/` (4 226 of 4 671). The least-covered module is the optional dynamic engine,
-  whose remaining code drives a real `adb`/emulator.
-* The dynamic engine is tested against a simulated `adb`, not a real emulator.
+  **91.9 %** of the lines in `core/`, `api/` and `db/` (4 831 of 5 259). The least-covered module is the optional dynamic engine
+  (85.9 %), whose uncovered lines are mostly the standalone command-line entry point and Frida process handling.
+* The dynamic engine's unit tests use a simulated emulator (captured adb, kernel-trace and
+  packet-capture formats); the real emulator is exercised by `scripts/run_dynamic_evaluation.py`
+  and the browser test with dynamic analysis enabled, which are run manually (not in CI).
 * PostgreSQL is not tested; SQLite is the tested database.
 * The CI workflow (`.github/workflows/tests.yml`, Python 3.12/3.13 on Linux) has
   been written but can only be confirmed once it runs on GitHub; local runs use

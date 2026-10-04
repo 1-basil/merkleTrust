@@ -55,11 +55,46 @@ missing core results into **ANALYSIS_FAILED**, never into a safe verdict.
 | 1. integrity | `core/integrity.py` | Per-file SHA-256 manifest and its Merkle root (authoritative); 64 KB chunk hashes and chunk Merkle root (forensics only); ZIP entry byte spans |
 | 2. static | `core/static.py` | Manifest model (AXML), APK signature verification (v1/v2/v3) and certificate, DEX analysis (header checks, sensitive API method references, sensitive base classes, network indicators), native libraries, findings |
 | 3. tamper | `core/tamper.py` | Comparison with the package's active approved baseline: integrity status, file changes, certificate/version/profile diff, Merkle proofs for changed files |
-| 4. dynamic | `core/dynamic.py` | Optional emulator run (adb install/launch, Frida hook script); degrades to `partial` without a device; never adds risk points |
+| 4. dynamic | `core/dynamic.py` | Optional (off by default) emulator run: install, launch, trigger exported receivers/services, observe processes, sockets, DNS/TLS (packet capture), files, SMS, icon hiding and SELinux denials; RUNTIME_* findings; degrades to `partial` without a device (§2.1) |
 | 5. score | `core/scoring.py` | Integrity status, risk score and level, verdict, all findings normalised |
 | 6. repository | `core/repository.py` | Seals the canonical hash of all reports into the audit chain |
 
-### 2.1 Parsing untrusted APKs
+### 2.1 Dynamic analysis (emulator)
+
+`core/dynamic.py` runs the app in an Android emulator when
+`MERKLETRUST_DYNAMIC_ENABLED=true` and a device is connected (set one up with
+`scripts/setup_avd.ps1`). It is off by default because it executes the uploaded code.
+
+1. **Gates.** adb found (config, PATH, Android SDK); a ready device; it must be an
+   emulator (a physical phone is refused unless `dynamic_allow_physical`); boot
+   completed; `adb root` when the image allows it. One analysis at a time per process.
+2. **Install** with `-r -g` (all runtime permissions granted, so permission-gated
+   behaviour can be seen) after removing leftovers of an earlier run.
+3. **Observe.** Start the emulator packet capture (`adb emu network capture`), clear
+   logcat, launch the launcher activity (or Frida-spawn it when `MERKLETRUST_FRIDA_PATH`
+   is set), send each exported receiver its declared actions (e.g. `BOOT_COMPLETED`)
+   and start exported services, then poll `ps` and `/proc/net/{tcp,udp}[6]` filtered by
+   the app's UID for the observation window. On a rooted emulator a kprobe on `execve`
+   and `sched_process_fork` events are recorded in a private ftrace instance, so every
+   program the app *or its descendants* tries to execute is seen, including attempts the
+   kernel refuses (e.g. `su` for an unprivileged app), which never become a process.
+4. **Collect.** Screenshot, logcat (crashes, SELinux denials, `su` attempts), files in the
+   app's storage, new rows in the SMS sent box, disabled launcher activity, runtime
+   permissions; the capture is decoded by `core/pcap.py` (DNS, TLS SNI, HTTP Host,
+   flows) to name the app's connections. The app is uninstalled afterwards.
+   The time budget reserves the observation window and collection; a window cut short
+   by a slow emulator is reported (DYN_013) and the run marked `partial`.
+5. **Findings.** Behaviour becomes RUNTIME_* findings that share a group with the
+   matching static capability (`RUNTIME_CMD_EXEC` / `STATIC_CMD_EXEC` →
+   `command_execution`), so "can" and "did" count once. `RUNTIME_PRIV_ESC` (su) has its
+   own group. Problems running the analysis are DYN_* findings with 0 points.
+
+Untrusted values from the APK (package, component and action names) are validated
+against Android's naming rules and shell-quoted before any `adb shell` command, and are
+emitted as JSON string literals in the generated Frida script. Every adb call is
+time-boxed and the stage respects `dynamic_timeout_s`.
+
+### 2.2 Parsing untrusted APKs
 
 * **`core/apk_archive.py`** validates every archive before anything reads it: size,
   entry count, total and per-entry uncompressed size, compression ratio (zip bombs),
@@ -121,7 +156,7 @@ These are separate questions with separate answers (`core/comparison.py`, `core/
 | BASELINE_INVALID | The stored baseline failed verification |
 
 **Risk** — "does it have dangerous characteristics?" Every finding comes from one
-catalogue (`core/findings.py`, 47 entries) with a plain title, technical title,
+catalogue (`core/findings.py`, 54 entries) with a plain title, technical title,
 severity, explanation, recommendation, points and a *group*. The score is the sum of
 the highest-scoring finding per group (no double counting), capped at 100.
 Level: LOW < 20 ≤ MEDIUM < 45 ≤ HIGH < 70 ≤ CRITICAL; a critical-severity finding
@@ -327,7 +362,8 @@ colour alone. `tests/e2e/ui_smoke.mjs` drives every page in headless Chrome.
 All settings are environment variables with the `MERKLETRUST_` prefix (or `.env`), see
 `core/config.py` and `.env.example`: environment, data directory, database URL,
 signing key path/password, trusted keys directory, CORS origins, upload size, session
-lifetime, job workers/queue size, demo endpoints, migrations, logging, rate limits.
+lifetime, job workers/queue size, demo endpoints, migrations, logging, rate limits, and
+the dynamic-analysis switch, time budget, observation window, adb path/serial and Frida path.
 No secret has a default value.
 
 ## 10. Repository layout

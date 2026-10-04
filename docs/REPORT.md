@@ -160,7 +160,7 @@ decentralisation, and the documentation and UI say so.
 
 ## 14. Risk analysis
 
-Integrity and risk are separate outputs. Risk is computed from a catalogue of 47 finding
+Integrity and risk are separate outputs. Risk is computed from a catalogue of 54 finding
 types, each with a plain-language title, explanation, evidence and recommendation, and
 documented points. Findings describing the same fact share a group and are counted once;
 self-signed certificates are not penalised (normal on Android); operational messages
@@ -235,12 +235,18 @@ disclosure: [../evaluation/README.md](../evaluation/README.md).
 Exact integrity status 32/32; exact changed-file localisation 20/20; median
 upload-to-result time 84 ms per dataset APK. Performance on a machine in interactive use
 (median, 9 runs): about 0.11 s end-to-end for a 9 KB APK and about 1.1 s for a 52 MB APK;
-full verification of a 562-block audit chain about 95 ms. The test suite has 337
-automated tests at 90.5 % line coverage, plus a headless-browser end-to-end test, an
+full verification of a 562-block audit chain about 95 ms. The test suite has 357
+automated tests at 91.9 % line coverage, plus a headless-browser end-to-end test, an
 `apksigner` cross-check and a concurrency stress test. Details:
 [../evaluation/results/evaluation.md](../evaluation/results/evaluation.md),
 [../evaluation/results/benchmark.md](../evaluation/results/benchmark.md),
 [TESTING.md](TESTING.md).
+
+**Emulator.** With the optional dynamic engine (`results/dynamic.md`), the held-out
+behavioural result becomes 4 TP / 1 FP / 2 TN / 0 FN: the booster's `su -c setenforce 0`
+was recorded by a kernel exec trace when the engine delivered its boot broadcast, and
+SMS fraud was confirmed at runtime for R03 and H02. The engine was finished after the
+held-out results were known, so this row is not an independent test (§22).
 
 **Interpretation.** The integrity and cryptographic results test deterministic mechanisms;
 correct implementations should be exact, and the evaluation confirms that on realistic
@@ -279,7 +285,10 @@ approver, and the limits of static analysis — are listed in
 * v3 key-rotation lineage is reported but not validated; verity-only and DSA signatures
   are reported as unverifiable.
 * SQLite and an in-process rate limiter suit a single server, not a cluster.
-* The dynamic (emulator) engine is optional and tested only against a simulated device.
+* The dynamic (emulator) engine is optional, off by default, needs a rooted x86_64
+  emulator for its full observations, and sees only behaviour that an unattended 20 s
+  run triggers (no UI exploration; emulator-aware apps can stay quiet). It was evaluated
+  on a real emulator only after the held-out results were known.
 
 ## 23. Future work
 
@@ -289,6 +298,6 @@ approver, and the limits of static analysis — are listed in
 * Validate v3 rotation lineage and v4 (incremental) signatures.
 * Grow the evaluation with third-party malware corpora and benign app stores to measure
   real-world risk detection, and calibrate risk weights on that data.
-* Rules for privilege escalation and obfuscation; integrate the dynamic engine's runtime
-  observations into scoring.
+* Static rules for privilege escalation and obfuscation; UI exploration and longer runs
+  for the dynamic engine; a fresh held-out set to measure it independently.
 * PostgreSQL and a shared rate-limit store for multi-instance deployment.
