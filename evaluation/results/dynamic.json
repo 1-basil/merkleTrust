@@ -1,0 +1,352 @@
+{
+  "environment": {
+    "generated": "2026-10-04T08:30:47+00:00",
+    "platform": "Windows 11",
+    "python": "3.14.7",
+    "observe_s": 20
+  },
+  "summary": {
+    "development": {
+      "static": {
+        "n": 5,
+        "tp": 4,
+        "fp": 0,
+        "tn": 1,
+        "fn": 0,
+        "accuracy": 1.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0,
+        "false_positive_rate": 0.0,
+        "false_negative_rate": 0.0
+      },
+      "with_dynamic": {
+        "n": 5,
+        "tp": 4,
+        "fp": 0,
+        "tn": 1,
+        "fn": 0,
+        "accuracy": 1.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0,
+        "false_positive_rate": 0.0,
+        "false_negative_rate": 0.0
+      }
+    },
+    "held_out": {
+      "static": {
+        "n": 7,
+        "tp": 3,
+        "fp": 1,
+        "tn": 2,
+        "fn": 1,
+        "accuracy": 0.7143,
+        "precision": 0.75,
+        "recall": 0.75,
+        "f1": 0.75,
+        "false_positive_rate": 0.3333,
+        "false_negative_rate": 0.25
+      },
+      "with_dynamic": {
+        "n": 7,
+        "tp": 4,
+        "fp": 1,
+        "tn": 2,
+        "fn": 0,
+        "accuracy": 0.8571,
+        "precision": 0.8,
+        "recall": 1.0,
+        "f1": 0.8889,
+        "false_positive_rate": 0.3333,
+        "false_negative_rate": 0.0
+      }
+    }
+  },
+  "cases": [
+    {
+      "id": "R01",
+      "set": "development",
+      "description": "Debuggable app with command execution, code loading and SMS sending",
+      "truth_risky": true,
+      "dynamic_status": "ok",
+      "launched": true,
+      "triggers": [
+        "android.intent.action.BOOT_COMPLETED"
+      ],
+      "static": {
+        "level": "CRITICAL",
+        "score": 100
+      },
+      "with_dynamic": {
+        "level": "CRITICAL",
+        "score": 100
+      },
+      "runtime_findings": [
+        "RUNTIME_CMD_EXEC",
+        "RUNTIME_SMS_SENT"
+      ],
+      "evidence": {
+        "RUNTIME_CMD_EXEC": "id",
+        "RUNTIME_SMS_SENT": "to +10000000000"
+      },
+      "operational": [],
+      "duration_s": 35
+    },
+    {
+      "id": "R02",
+      "set": "development",
+      "description": "Dropper: downloads and loads extra code",
+      "truth_risky": true,
+      "dynamic_status": "ok",
+      "launched": true,
+      "triggers": [],
+      "static": {
+        "level": "HIGH",
+        "score": 49
+      },
+      "with_dynamic": {
+        "level": "HIGH",
+        "score": 49
+      },
+      "runtime_findings": [],
+      "evidence": {},
+      "operational": [],
+      "duration_s": 32
+    },
+    {
+      "id": "R03",
+      "set": "development",
+      "description": "Premium-SMS fraud on boot",
+      "truth_risky": true,
+      "dynamic_status": "ok",
+      "launched": true,
+      "triggers": [
+        "android.intent.action.BOOT_COMPLETED"
+      ],
+      "static": {
+        "level": "HIGH",
+        "score": 66
+      },
+      "with_dynamic": {
+        "level": "HIGH",
+        "score": 66
+      },
+      "runtime_findings": [
+        "RUNTIME_SMS_SENT"
+      ],
+      "evidence": {
+        "RUNTIME_SMS_SENT": "to 90901"
+      },
+      "operational": [],
+      "duration_s": 32
+    },
+    {
+      "id": "R04",
+      "set": "development",
+      "description": "Spyware: identifiers, contacts, location, audio, command execution",
+      "truth_risky": true,
+      "dynamic_status": "ok",
+      "launched": true,
+      "triggers": [],
+      "static": {
+        "level": "HIGH",
+        "score": 68
+      },
+      "with_dynamic": {
+        "level": "HIGH",
+        "score": 68
+      },
+      "runtime_findings": [],
+      "evidence": {},
+      "operational": [],
+      "duration_s": 33
+    },
+    {
+      "id": "R05",
+      "set": "development",
+      "description": "Benign app with debuggable/cleartext/backup enabled (should be review, not high risk)",
+      "truth_risky": false,
+      "dynamic_status": "ok",
+      "launched": true,
+      "triggers": [],
+      "static": {
+        "level": "MEDIUM",
+        "score": 26
+      },
+      "with_dynamic": {
+        "level": "MEDIUM",
+        "score": 26
+      },
+      "runtime_findings": [],
+      "evidence": {},
+      "operational": [],
+      "duration_s": 29
+    },
+    {
+      "id": "H01",
+      "set": "held_out",
+      "description": "Dropper using InMemoryDexClassLoader + HTTPS download",
+      "truth_risky": true,
+      "dynamic_status": "ok",
+      "launched": true,
+      "triggers": [],
+      "static": {
+        "level": "HIGH",
+        "score": 45
+      },
+      "with_dynamic": {
+        "level": "HIGH",
+        "score": 45
+      },
+      "runtime_findings": [],
+      "evidence": {},
+      "operational": [],
+      "duration_s": 28
+    },
+    {
+      "id": "H02",
+      "set": "held_out",
+      "description": "SMS fraud triggered by incoming SMS (multipart send)",
+      "truth_risky": true,
+      "dynamic_status": "ok",
+      "launched": true,
+      "triggers": [
+        "android.provider.Telephony.SMS_RECEIVED"
+      ],
+      "static": {
+        "level": "HIGH",
+        "score": 69
+      },
+      "with_dynamic": {
+        "level": "HIGH",
+        "score": 69
+      },
+      "runtime_findings": [
+        "RUNTIME_SMS_SENT"
+      ],
+      "evidence": {
+        "RUNTIME_SMS_SENT": "to 7726"
+      },
+      "operational": [],
+      "duration_s": 34
+    },
+    {
+      "id": "H03",
+      "set": "held_out",
+      "description": "Stalkerware: call log, location, phone number, hides its icon",
+      "truth_risky": true,
+      "dynamic_status": "ok",
+      "launched": true,
+      "triggers": [],
+      "static": {
+        "level": "HIGH",
+        "score": 55
+      },
+      "with_dynamic": {
+        "level": "HIGH",
+        "score": 55
+      },
+      "runtime_findings": [],
+      "evidence": {},
+      "operational": [],
+      "duration_s": 35
+    },
+    {
+      "id": "H04",
+      "set": "held_out",
+      "description": "Runs 'su' to disable SELinux on boot",
+      "truth_risky": true,
+      "dynamic_status": "ok",
+      "launched": true,
+      "triggers": [
+        "android.intent.action.BOOT_COMPLETED"
+      ],
+      "static": {
+        "level": "MEDIUM",
+        "score": 23
+      },
+      "with_dynamic": {
+        "level": "HIGH",
+        "score": 53
+      },
+      "runtime_findings": [
+        "RUNTIME_PRIV_ESC"
+      ],
+      "evidence": {
+        "RUNTIME_PRIV_ESC": "su -c setenforce 0"
+      },
+      "operational": [],
+      "duration_s": 32
+    },
+    {
+      "id": "H05",
+      "set": "held_out",
+      "description": "Benign drawing app loading its own plugins (legitimate code loading)",
+      "truth_risky": false,
+      "dynamic_status": "ok",
+      "launched": true,
+      "triggers": [],
+      "static": {
+        "level": "HIGH",
+        "score": 45
+      },
+      "with_dynamic": {
+        "level": "HIGH",
+        "score": 45
+      },
+      "runtime_findings": [],
+      "evidence": {},
+      "operational": [],
+      "duration_s": 30
+    },
+    {
+      "id": "H06",
+      "set": "held_out",
+      "description": "Benign user-initiated SMS reminders",
+      "truth_risky": false,
+      "dynamic_status": "ok",
+      "launched": true,
+      "triggers": [],
+      "static": {
+        "level": "MEDIUM",
+        "score": 28
+      },
+      "with_dynamic": {
+        "level": "MEDIUM",
+        "score": 28
+      },
+      "runtime_findings": [],
+      "evidence": {},
+      "operational": [],
+      "duration_s": 28
+    },
+    {
+      "id": "H07",
+      "set": "held_out",
+      "description": "Benign fitness tracker with location",
+      "truth_risky": false,
+      "dynamic_status": "ok",
+      "launched": true,
+      "triggers": [],
+      "static": {
+        "level": "LOW",
+        "score": 3
+      },
+      "with_dynamic": {
+        "level": "LOW",
+        "score": 3
+      },
+      "runtime_findings": [],
+      "evidence": {},
+      "operational": [],
+      "duration_s": 26
+    }
+  ],
+  "emulator": {
+    "avd": "mt_api30_root",
+    "serial": "emulator-5554",
+    "api_level": 30,
+    "rooted": true
+  }
+}

@@ -112,6 +112,39 @@ Held-out errors, kept as they are:
 * **H04 — false negative.** A "booster" that runs `su` to disable SELinux on boot is
   only MEDIUM: there is no rule for privilege-escalation commands.
 
+## Emulator (dynamic) evaluation
+
+`python -m scripts.run_dynamic_evaluation` (needs the running `mt_api30_root` emulator)
+runs the 12 cases without a baseline through the real pipeline with the dynamic engine
+enabled, and computes the risk level twice from the same reports: without and with the
+emulator's findings. Full table: `results/dynamic.md` (Android API 30, rooted, 20 s
+observation window, about 20 s per app).
+
+| Cases | n | Static only: TP / FP / TN / FN | With emulator: TP / FP / TN / FN |
+|---|---|---|---|
+| Development R* | 5 | 4 / 0 / 1 / 0 | 4 / 0 / 1 / 0 |
+| Held-out H* | 7 | 3 / 1 / 2 / 1 | 4 / 1 / 2 / 0 |
+
+* **H04 is now detected.** When the engine sent the booster its `BOOT_COMPLETED`
+  broadcast, the kernel exec trace recorded the app running `su -c setenforce 0`
+  (`RUNTIME_PRIV_ESC`), raising it from MEDIUM (23) to HIGH (53). The attempt fails
+  (the app is not allowed to use `su`), so it never appears as a process in `ps` or in
+  logcat; only the execve kprobe sees it.
+* **SMS fraud confirmed at runtime** for R03 (boot receiver → `90901`) and H02 (incoming
+  SMS receiver → `7726`), and command execution plus an SMS for R01, read from the
+  device's SMS sent box and the exec trace.
+* **No benign app got worse**: H05's false positive is a *static* finding and stays;
+  runtime observation adds evidence, it never removes points.
+* **"Nothing suspicious" is not "safe".** R02, R04, H01 and H03 keep their malicious code
+  in classes the app never calls during an unattended run (no UI interaction, and the
+  dropper's download server does not exist), so there was nothing to observe; their
+  static verdicts stand.
+
+**Disclosure.** The dynamic engine was completed *after* the held-out results above were
+known, and H04 was the motivating miss, so the held-out row is not an independent test of
+the engine. It shows what runtime evidence adds on samples whose behaviour is documented
+in their source. A fair measurement needs new samples written after this engine.
+
 ## Performance (summary)
 
 From `results/benchmark.md` (median of 9 runs on a machine in interactive use):
@@ -131,6 +164,7 @@ from about 1.2 s to about 0.1 s.
   realistic APKs and attacks; it does not measure performance on real-world malware.
 * The risk heuristics and the development labels come from the same team; only the
   held-out row is an (imperfect) independent check, and it has just 7 samples.
-* Static analysis only; the emulator-based engine is optional and was not part of the
-  evaluation.
+* The main evaluation is static analysis only; the optional emulator engine is
+  evaluated separately on the 12 behaviour cases (above), after the held-out results
+  were known.
 * Timings are from one Windows machine under normal interactive load.
