@@ -26,7 +26,7 @@ from core.contracts import JobContext, emit
 from core.crypto import get_keyring, hash_payload
 from db.database import session_scope
 
-SEALED_ENGINES = ("integrity", "static", "tamper", "dynamic", "score")
+SEALED_ENGINES = ("integrity", "static", "tamper", "dynamic", "content", "score")
 ALERT_STATUSES = {"MODIFIED", "CERTIFICATE_CHANGED", "BASELINE_INVALID"}
 
 
@@ -56,6 +56,9 @@ def seal(db: Session, job_id: str, reports: dict[str, Any], actor: str = "pipeli
         "engines": sorted(k for k in reports if k in SEALED_ENGINES),
         "report_sha256": report_hash(reports),
     }
+    if integrity.get("file_category"):   # non-APK content: record what was sealed and its chunk commitment
+        payload.update({"file_category": integrity["file_category"], "mime_type": integrity.get("mime_type"),
+                        "chunk_merkle_root": integrity.get("chunk_merkle_root")})
     block = audit.append_event(db, "ANALYSIS_COMPLETED", actor, payload, subject=job_id)
     alert = None
     if integrity_status in ALERT_STATUSES:

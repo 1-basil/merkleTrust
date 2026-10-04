@@ -1,6 +1,8 @@
 """core/orchestrator.py — BASIL.
 
-Runs the analysis pipeline for one APK:
+Runs the analysis pipeline for one uploaded file. The file's type is detected
+from its magic bytes (core.detector). An APK (or anything unrecognised, which
+the APK engine then rejects exactly as before) runs:
 
   1. integrity   per-file SHA-256 manifest + Merkle root (and chunk forensics)
   2. static      manifest, signature/certificate, DEX analysis
@@ -8,6 +10,10 @@ Runs the analysis pipeline for one APK:
   4. dynamic     optional emulator run (off by default; degrades gracefully without one)
   5. score       integrity status, risk score, verdict
   6. repository  seal the reports into the audit chain
+
+Images, audio/video, web pages and PDFs run integrity (chunk Merkle root over
+the raw bytes) -> content (core.analyzers: image | media | web | document)
+-> score -> repository; the APK-only stages are recorded as "skipped".
 
 An engine failure is recorded and the pipeline continues; the scoring stage
 turns missing core results into ANALYSIS_FAILED rather than a false "safe".
@@ -29,9 +35,10 @@ import uuid
 from datetime import datetime, timezone
 from typing import Any
 
-from core import dynamic, integrity, repository, scoring, static, tamper
+from core import analyzers, dynamic, integrity, repository, scoring, static, tamper
 from core.config import get_settings
 from core.contracts import EngineError, JobContext
+from core.detector import detect_content_type
 from db.database import init_db
 
 log = logging.getLogger("merkletrust.pipeline")
@@ -59,6 +66,21 @@ STAGES = [
     ("score", scoring.run),
     ("repository", repository.run),
 ]
+
+# Non-APK content: same integrity, scoring and sealing, format analyser instead of the APK engines.
+CONTENT_STAGES = [
+    ("integrity", integrity.run),
+    ("content", analyzers.run),
+    ("score", scoring.run),
+    ("repository", repository.run),
+]
+APK_ONLY_STAGES = ("static", "tamper", "dynamic")
+
+
+def classify(path: str) -> tuple[str, str]:
+    """(mime_type, file_category) for the pipeline; unrecognised files take the APK path."""
+    mime_type, category = detect_content_type(path)
+    return mime_type, ("apk" if category == "unknown" else category)
 
 
 class _Tracker:
@@ -126,26 +148,32 @@ class _Tracker:
 
 
 def run_job(apk_path: str, job_id: str | None = None, root: str | None = None, db_session: Any = None) -> dict:
-    """Execute the complete analysis pipeline on an APK and return all engine reports."""
+    """Execute the complete analysis pipeline on a file (APK or other content) and return all engine reports."""
     job_id = job_id or str(uuid.uuid4())
     init_db()
     workspace = os.path.join(root or str(get_settings().jobs_dir), job_id)
     os.makedirs(workspace, exist_ok=True)
     with open(apk_path, "rb") as fh:
         apk_sha256 = hashlib.sha256(fh.read()).hexdigest()
-    log.info("job %s started (sha256 %s)", job_id, apk_sha256)
+    mime_type, file_category = classify(apk_path)
+    log.info("job %s started (sha256 %s, %s)", job_id, apk_sha256, mime_type)
 
     tracker = _Tracker(db_session, job_id)
     tracker.job_started()
+    stages = STAGES if file_category == "apk" else CONTENT_STAGES
+    if file_category != "apk":
+        for name in APK_ONLY_STAGES:
+            tracker.engine(name, "skipped")
     config = engine_config()
     prior: dict[str, dict] = {}
     status: dict[str, str] = {}
     errors: dict[str, str] = {}
 
-    for name, fn in STAGES:
+    for name, fn in stages:
         tracker.engine(name, "running")
         start = time.perf_counter()
-        ctx = JobContext(apk_path=apk_path, workspace=workspace, prior=dict(prior), db=db_session, config=config)
+        ctx = JobContext(apk_path=apk_path, workspace=workspace, prior=dict(prior), db=db_session, config=config,
+                         mime_type=mime_type, file_category=file_category)
         try:
             report = fn(job_id, ctx)
             prior[name] = report
@@ -165,8 +193,8 @@ def run_job(apk_path: str, job_id: str | None = None, root: str | None = None, d
         log.info("job %s: %s %s (%d ms)", job_id, name, status[name], duration_ms)
 
     with open(os.path.join(workspace, "merged.json"), "w", encoding="utf-8") as fh:
-        json.dump({"job_id": job_id, "sha256": apk_sha256, "status": status, "errors": errors, "reports": prior},
-                  fh, indent=2, sort_keys=True)
+        json.dump({"job_id": job_id, "sha256": apk_sha256, "mime_type": mime_type, "file_category": file_category,
+                   "status": status, "errors": errors, "reports": prior}, fh, indent=2, sort_keys=True)
 
     score = prior.get("score") or {}
     complete = bool(score.get("analysis_complete"))

@@ -22,6 +22,10 @@ Turns the engine reports into three separate answers:
 
 If the core analysis (integrity/static) failed, risk is UNKNOWN and the verdict
 is ANALYSIS_FAILED — an unanalysable file is never reported as safe.
+
+Non-APK content (images, media, web pages, documents) is scored from the
+integrity and content reports with the same rules; its integrity status is
+NOT_APPLICABLE (no baseline), so the verdict is HIGH_RISK, REVIEW or CLEAN.
 """
 
 from __future__ import annotations
@@ -38,6 +42,8 @@ from core.findings import normalize
 LEVELS = [(70, "CRITICAL"), (45, "HIGH"), (20, "MEDIUM"), (0, "LOW")]
 LEVEL_ORDER = ["LOW", "MEDIUM", "HIGH", "CRITICAL"]
 REQUIRED_ENGINES = ("integrity", "static")
+CONTENT_REQUIRED_ENGINES = ("integrity", "content")
+CONTENT_INTEGRITY_STATUS = "NOT_APPLICABLE"   # no app baseline exists for images, media, pages, documents
 INTEGRITY_CHANGED = {"MODIFIED", "CERTIFICATE_CHANGED", "BASELINE_INVALID"}
 
 VERDICTS = {
@@ -54,6 +60,25 @@ VERDICTS = {
     "CLEAN": ("Clean",
               "The app matches its trusted version and no significant security concerns were found."),
 }
+
+
+# Non-APK content has no baseline, so the verdict rests on risk alone and the
+# wording speaks of a file rather than an app.
+CONTENT_VERDICTS = {
+    "ANALYSIS_FAILED": VERDICTS["ANALYSIS_FAILED"],
+    "HIGH_RISK": ("High risk",
+                  "The file shows serious security concerns, such as hidden data or code that runs when opened. "
+                  "Do not open or share it until they are explained."),
+    "REVIEW": ("Review recommended",
+               "The file's structure is intact, but it has some security or privacy concerns worth reviewing."),
+    "CLEAN": ("Clean",
+              "The file's structure is intact and no significant security concerns were found."),
+}
+
+
+def content_category(ctx: JobContext) -> str:
+    """The analysed file's category: from the integrity report when present, else the context."""
+    return (ctx.prior.get("integrity") or {}).get("file_category") or ctx.file_category
 
 
 def risk_level(score: int, findings: list[dict[str, Any]]) -> str:
@@ -105,13 +130,14 @@ def decide_verdict(analysis_complete: bool, integrity_status: str, level: str) -
 
 def run(job_id: str, ctx: JobContext) -> dict:
     prior = ctx.prior
-    missing = [e for e in REQUIRED_ENGINES if e not in prior]
+    is_apk = content_category(ctx) == "apk"
+    missing = [e for e in (REQUIRED_ENGINES if is_apk else CONTENT_REQUIRED_ENGINES) if e not in prior]
     analysis_complete = not missing
 
     findings = [normalize(f, engine) for engine, report in prior.items()
                 for f in report.get("findings", [])]
     integrity = (prior.get("tamper") or {}).get("integrity") or {}
-    integrity_status = integrity.get("status", "UNKNOWN")
+    integrity_status = integrity.get("status", "UNKNOWN" if is_apk else CONTENT_INTEGRITY_STATUS)
 
     if analysis_complete:
         risk = score_findings(findings)
@@ -119,14 +145,17 @@ def run(job_id: str, ctx: JobContext) -> dict:
         risk = {"score": None, "raw_points": None, "level": "UNKNOWN", "contributions": [],
                 "suppressed_duplicates": []}
     verdict = decide_verdict(analysis_complete, integrity_status, risk["level"])
-    headline, summary = VERDICTS[verdict]
+    headline, summary = (VERDICTS if is_apk else CONTENT_VERDICTS)[verdict]
 
     dynamic = prior.get("dynamic") or {}
     notes = []
     if missing:
         notes.append(f"Analysis stage(s) failed: {', '.join(missing)}.")
-    if dynamic.get("status") != "ok":
+    if is_apk and dynamic.get("status") != "ok":
         notes.append("Emulator-based (dynamic) analysis did not run; results are from static analysis only.")
+    if not is_apk:
+        notes.append("Non-APK content: integrity is the file's SHA-256 chunk Merkle root; there is no "
+                     "trusted-baseline comparison.")
 
     report = {
         "job_id": job_id,
@@ -143,7 +172,7 @@ def run(job_id: str, ctx: JobContext) -> dict:
         "notes": notes,
         "disclaimer": "The risk score is a heuristic indicator of security concerns, not a probability of malware.",
         # Provenance: hashes of the exact engine reports this assessment was derived from.
-        "inputs": {f"{e}_sha256": hash_payload(prior[e]) for e in ("integrity", "static", "tamper", "dynamic")
+        "inputs": {f"{e}_sha256": hash_payload(prior[e]) for e in ("integrity", "static", "tamper", "dynamic", "content")
                    if e in prior},
     }
     return emit(ctx, "score.json", report)
