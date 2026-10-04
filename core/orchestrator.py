@@ -128,6 +128,7 @@ def run_job(apk_path: str, job_id: str | None = None, root: str | None = None, d
         apk_sha256 = hashlib.sha256(fh.read()).hexdigest()
     log.info("job %s started (sha256 %s)", job_id, apk_sha256)
 
+    config = {**CONFIG, "dynamic_device_wait_s": get_settings().dynamic_device_wait_s}
     tracker = _Tracker(db_session, job_id)
     tracker.job_started()
     prior: dict[str, dict] = {}
@@ -137,7 +138,7 @@ def run_job(apk_path: str, job_id: str | None = None, root: str | None = None, d
     for name, fn in STAGES:
         tracker.engine(name, "running")
         start = time.perf_counter()
-        ctx = JobContext(apk_path=apk_path, workspace=workspace, prior=dict(prior), db=db_session, config=CONFIG)
+        ctx = JobContext(apk_path=apk_path, workspace=workspace, prior=dict(prior), db=db_session, config=config)
         try:
             report = fn(job_id, ctx)
             prior[name] = report

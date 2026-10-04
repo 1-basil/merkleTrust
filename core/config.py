@@ -21,6 +21,7 @@ All settings use the ``MERKLETRUST_`` prefix and may also be placed in a local
     MERKLETRUST_JOB_WORKERS           concurrent analysis jobs (default 2)
     MERKLETRUST_MAX_QUEUED_JOBS       queued jobs before uploads get HTTP 503 (default 20)
     MERKLETRUST_JOB_EXECUTION         "thread" (default) or "inline" (tests: run synchronously)
+    MERKLETRUST_DYNAMIC_DEVICE_WAIT_S seconds to wait for an emulator before the dynamic stage gives up (default 30; 0 = no wait)
     MERKLETRUST_ENABLE_DEMO           tamper/restore demo endpoints (default: on unless production)
     MERKLETRUST_AUTO_MIGRATE          apply database migrations at startup (default true)
     MERKLETRUST_LOG_LEVEL / MERKLETRUST_LOG_JSON
@@ -54,6 +55,7 @@ class Settings(BaseSettings):
     job_workers: int = 2
     max_queued_jobs: int = 20
     job_execution: Literal["thread", "inline"] = "thread"
+    dynamic_device_wait_s: int = 30
     enable_demo: bool | None = None
     auto_migrate: bool = True
     log_level: str = "INFO"

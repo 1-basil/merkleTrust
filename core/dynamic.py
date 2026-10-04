@@ -411,7 +411,7 @@ def run(job_id: str, ctx: JobContext) -> dict:
     # The emulator is expected to be already running (started by the user or
     # the orchestrator). We wait up to a fraction of the timeout for adb to
     # see a device.
-    device_wait = min(timeout_s // 3, 30)
+    device_wait = min(timeout_s // 3, ctx.config.get("dynamic_device_wait_s", 30))
     device_connected = _wait_for_device(device_wait)
 
     if not device_connected:
@@ -503,6 +503,7 @@ def run(job_id: str, ctx: JobContext) -> dict:
     # slow capture window can never make the pipeline hang.
     logcat_text, process_events, hooks = "", [], []
     frida_note = None
+    problems_before_capture = bool(findings)
     if launched:
         remaining = timeout_s - (time.time() - start_time)
         capture_s = max(0, min(6, int(remaining // 2)))
@@ -533,7 +534,7 @@ def run(job_id: str, ctx: JobContext) -> dict:
     # --- Build the report ---
     elapsed = int(time.time() - start_time)
 
-    status = "ok" if (installed and launched and not findings) else "partial"
+    status = "ok" if (installed and launched and not problems_before_capture and not frida_note) else "partial"
 
     report = {
         "job_id": job_id,
