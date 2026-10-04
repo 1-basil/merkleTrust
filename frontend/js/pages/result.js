@@ -30,6 +30,7 @@ export async function renderResult(main, { params, isCurrent }) {
     ['Overview', () => overview(r, data)],
     ['File changes', () => fileChanges(r, id)],
     ['Security findings', () => findings(score)],
+    ['Runtime', () => runtime(r.dynamic)],
     ['Certificate', () => certificate(r)],
     ['Verification', () => verification(r, id)],
     ['Technical details', () => technicalTab(data)],
@@ -186,6 +187,45 @@ function findings(score) {
       technical('Technical details', kv([['Technical description', f.technical], ['Finding ID', h('code', {}, f.id)],
         ['Reported by', `${f.source} engine`], ['Risk points', String(f.points)]])));
   }));
+}
+
+// ---------------------------------------------------------- runtime --
+function runtime(d) {
+  if (!d || !d.installed) {
+    const why = (d?.findings || []).find((f) => f.id.startsWith('DYN_'));
+    return card('Behaviour in the emulator', h('div', { class: 'alert tone-neutral' }, icon('help'),
+      h('div', {}, h('strong', {}, 'The app was not run. '), why ? `${why.title}. ${why.evidence}` : 'Emulator analysis did not run.',
+        h('p', { class: 'small muted' }, 'The results above come from static analysis of the file only.'))));
+  }
+  const obs = d.observation || {};
+  const emu = d.emulator || {};
+  const net = d.network || [];
+  return h('div', {},
+    card('Behaviour in the emulator',
+      h('p', {}, `The app was installed in an Android emulator, started, and observed for ${obs.window_s ?? '?'} seconds `
+        + 'without anyone touching it. Behaviour seen here is listed under Security findings as "Reported by dynamic engine".'),
+      kv([['Emulator', `${emu.serial || emu.avd} · Android API ${emu.api_level}${emu.rooted ? ' · rooted' : ''}`],
+        ['Started', d.launched ? 'Yes' : 'No'],
+        ['System events sent', (obs.triggers || []).map((t) => `${t.action} → ${t.component.split('.').pop()}`).join(', ') || 'none'],
+        ['Network capture', obs.capture ? 'Yes' : 'No'], ['API hooks (Frida)', obs.frida ? 'Yes' : 'No']]),
+      h('p', { class: 'muted small' }, 'Nothing suspicious during a short run does not prove an app is safe: '
+        + 'it may wait for a trigger the test did not provide.')),
+    card('Programs started by the app', (d.process_events || []).length ? table([
+      { label: 'Program', render: (p) => h('code', {}, p.name) },
+      { label: 'Command line', render: (p) => h('code', { class: 'path' }, p.args) },
+    ], d.process_events) : empty('The app did not start any other programs.')),
+    card('Internet connections', net.length ? table([
+      { label: 'Server', render: (n) => n.host || n.dst_ip },
+      { label: 'Address', class: 'hide-sm', render: (n) => h('code', {}, `${n.dst_ip}:${n.dst_port}`) },
+      { label: 'Protocol', render: (n) => (n.dst_port === 80 ? 'HTTP (unencrypted)' : n.dst_port === 443 ? 'HTTPS' : n.proto.toUpperCase()) },
+      { label: 'Traffic', class: 'num', render: (n) => (n.bytes ? bytes(n.bytes) : '—') },
+    ], net) : empty('The app made no internet connections during the test.'),
+    (d.dns || []).some((q) => q.attributed) ? technical('Name lookups by the app',
+      h('ul', { class: 'small' }, d.dns.filter((q) => q.attributed).map((q) => h('li', {}, `${q.query} → ${q.answers.join(', ')}`)))) : null),
+    card('Files the app created', (d.file_ops || []).length ? table([
+      { label: 'File', render: (f) => h('code', { class: 'path' }, f.path) },
+    ], d.file_ops) : empty(obs.root ? 'The app created no files.' : 'Not observed (the emulator is not rooted).')),
+    (d.logcat?.crashes || []).length ? card('Crashes', h('pre', { class: 'json' }, d.logcat.crashes.join('\n'))) : null);
 }
 
 // ------------------------------------------------------ certificate --

@@ -103,7 +103,7 @@ for (const [vp, metrics] of [['desktop', { width: 1366, height: 900, deviceScale
   await go(`${vp}-scan`, '#/scan', '.dropzone');
   for (const key of ['clean', 'resigned', 'patched', 'suspicious', 'update']) await go(`${vp}-result-${key}`, `#/scans/${IDS[key]}`, '.hero');
   if (vp === 'desktop') {
-    const tabs = ['File changes', 'Security findings', 'Certificate', 'Verification', 'Technical details'];
+    const tabs = ['File changes', 'Security findings', 'Runtime', 'Certificate', 'Verification', 'Technical details'];
     for (const [i, tab] of tabs.entries()) {
       await go(`desktop-patched-tab${i + 1}`, `#/scans/${IDS.patched}`, '.hero', async () => {
         await clickText('button.tab', tab);
@@ -112,6 +112,7 @@ for (const [vp, metrics] of [['desktop', { width: 1366, height: 900, deviceScale
       });
     }
     await go('desktop-resigned-cert', `#/scans/${IDS.resigned}`, '.hero', () => clickText('button.tab', 'Certificate'));
+    await go('desktop-suspicious-runtime', `#/scans/${IDS.suspicious}`, '.hero', () => clickText('button.tab', 'Runtime'));
   }
   await go(`${vp}-baselines`, '#/baselines', 'table');
   await go(`${vp}-audit`, '#/audit', 'table');
