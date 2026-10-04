@@ -110,6 +110,7 @@ export const ENGINE_LABELS = {
   static: 'Reading the app and its signature',
   tamper: 'Comparing with the trusted version',
   dynamic: 'Running in an emulator (optional)',
+  content: 'Checking the file structure',
   score: 'Assessing security risk',
   repository: 'Recording the result in the audit log',
 };

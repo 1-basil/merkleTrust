@@ -28,7 +28,7 @@ SEVERITIES = ("info", "low", "medium", "high", "critical")
 @dataclass(frozen=True)
 class FindingType:
     severity: str
-    category: str          # integrity | signature | manifest | code | network | archive | runtime | analysis
+    category: str          # integrity | signature | manifest | code | network | archive | runtime | content | analysis
     title: str             # plain language, for non-specialists
     technical: str         # precise technical statement
     explanation: str
@@ -338,6 +338,91 @@ _CATALOG_SPEC: dict[str, tuple] = {
         "These are the servers the app connected to during the test. Contacting servers is normal; the list helps "
         "a reviewer check that they belong to the app's developer.",
         "Check that the servers are expected for this app.", 0),
+
+    # -------------------------------------------------------- content --
+    # Images, audio/video, web pages and documents (core/analyzers/). They share
+    # the "hidden_payload" group: data smuggled past a container's end is one
+    # fact, however many parsers notice it.
+    "IMG_POLYGLOT_PAYLOAD": _t(
+        "high", "content", "Hidden data is attached to this image",
+        "Bytes present after the image's end marker (JPEG EOI / PNG IEND / GIF trailer / RIFF size)",
+        "Image viewers stop reading at the end marker, so anything appended after it is invisible. This is how "
+        "polyglot files smuggle archives, scripts or executables past filters that only look at the picture.",
+        "Do not trust the file. Extract and inspect the appended bytes, or re-encode the image to strip them.",
+        20, "hidden_payload"),
+    "IMG_CORRUPT_CHUNK": _t(
+        "medium", "content", "The image file is damaged or was edited by hand",
+        "Malformed image structure (PNG chunk CRC mismatch, truncated or out-of-bounds segment)",
+        "A broken internal checksum or structure means bytes were changed after the image was encoded. Malformed "
+        "images are also used to trigger bugs in image decoders.",
+        "Obtain the original image from a trusted source.", 8, "container_malformed"),
+    "IMG_PRIVACY_EXIF_GPS": _t(
+        "medium", "content", "The photo reveals where it was taken",
+        "EXIF GPSInfo with latitude/longitude present",
+        "The image metadata contains GPS coordinates. Anyone who receives the file can see the location.",
+        "Strip the metadata before sharing the image.", 5),
+    "IMG_PRIVACY_EXIF_SERIAL": _t(
+        "low", "content", "The photo identifies the camera that took it",
+        "EXIF camera/lens serial number present",
+        "A serial number links every photo taken with the same camera to one device and its owner.",
+        "Strip the metadata before sharing the image.", 2),
+    "MEDIA_CONTAINER_ANOMALY": _t(
+        "medium", "content", "The media file has an unusual internal structure",
+        "Container anomaly (unknown/orphan box or element, truncation, or data past the final atom)",
+        "Audio and video players skip structures they do not recognise and stop at the last atom, so unexpected "
+        "boxes or trailing bytes can carry data that nobody watching the video will ever see.",
+        "Inspect the reported region; re-mux the file to drop anything that is not media.", 10, "media_container"),
+    "AUDIO_TRAILING_PAYLOAD": _t(
+        "high", "content", "Hidden data is attached to this audio file",
+        "Bytes present beyond the declared RIFF/MPEG stream length",
+        "The file is longer than its own header says. Players ignore the extra bytes, which makes them a hiding "
+        "place for smuggled data.",
+        "Do not trust the file. Inspect or strip the trailing bytes.", 20, "hidden_payload"),
+    "WEB_MISSING_SRI": _t(
+        "medium", "content", "The page loads outside code without checking it",
+        "External <script>/<link> without a Subresource Integrity (integrity=) attribute",
+        "If the third-party server or CDN is compromised, it can serve altered code and the browser will run it. "
+        "An integrity hash makes the browser refuse anything but the expected file.",
+        "Add integrity=\"sha384-...\" and crossorigin attributes to every external resource.", 8),
+    "WEB_DANGEROUS_INLINE_SCRIPT": _t(
+        "medium", "content", "The page runs code in an unsafe way",
+        "eval() / new Function() / document.write() / innerHTML assignment in script",
+        "These functions turn text into code or markup. If any part of that text comes from the user or a URL, an "
+        "attacker can inject script (cross-site scripting). They are also typical of obfuscated malicious pages.",
+        "Replace them with safe DOM APIs (textContent, createElement) and avoid eval.", 10),
+    "WEB_INSECURE_FORM_ACTION": _t(
+        "high", "content", "A form sends your data somewhere unsafe",
+        "<form action> posts over cleartext HTTP or to a different domain",
+        "Data typed into this form is sent unencrypted, or to a site other than the page's own — the shape of a "
+        "phishing page collecting credentials for someone else.",
+        "Do not enter information. Forms must submit over HTTPS to the site's own domain.", 15),
+    "DOC_PDF_ACTIVE_CONTENT": _t(
+        "high", "content", "The document contains code that can run when opened",
+        "PDF /JavaScript, /JS or /Launch action present",
+        "Normal documents do not need to run code. Embedded JavaScript and launch actions are the main way "
+        "malicious PDFs exploit readers or start programs.",
+        "Open only in a sandboxed viewer with JavaScript disabled, or not at all.", 20),
+    "DOC_PDF_AUTO_ACTION": _t(
+        "medium", "content", "The document does something automatically when opened",
+        "PDF /OpenAction or /AA (additional actions) present",
+        "Automatic actions run without the reader clicking anything; combined with scripts or links they start "
+        "an attack as soon as the file is opened.",
+        "Review what the action does before opening the document normally.", 10),
+    "DOC_PDF_EMBEDDED_FILE": _t(
+        "medium", "content", "Another file is hidden inside the document",
+        "PDF /EmbeddedFile present",
+        "PDFs can carry attachments, including executables and macro documents, that the reader can extract.",
+        "Inspect the embedded files before extracting any of them.", 10),
+    "DOC_TRAILING_PAYLOAD": _t(
+        "medium", "content", "Hidden data is attached to the end of the document",
+        "Bytes present after the final %%EOF marker",
+        "PDF readers stop at the last end-of-file marker, so anything after it is invisible in the document.",
+        "Inspect or strip the trailing bytes.", 10, "hidden_payload"),
+    "CONTENT_ANALYZED": _t(
+        "info", "analysis", "File structure analysed",
+        "Format-specific structural analysis completed",
+        "The file's internal structure was parsed and checked for hidden data and unsafe content.",
+        "No action needed.", 0),
 
     # ------------------------------------------------------- analysis --
     "INTEGRITY_COMPUTED": _t("info", "analysis", "File fingerprints computed", "Per-file SHA-256 manifest and Merkle root computed",

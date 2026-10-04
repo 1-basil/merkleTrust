@@ -55,6 +55,7 @@ explicit in each test.
 | Merkle tree | `test_merkle.py::test_root_matches_rfc6962_reference` (36 sizes), `::test_no_duplicate_last_leaf_collision`, `::test_internal_node_cannot_pose_as_leaf` |
 | Merkle proofs | `test_merkle.py::test_every_proof_verifies`, `::test_proof_length_is_logarithmic`; `test_file_manifest.py::test_file_proof_valid_and_invalid` |
 | Blockchain simulation | `test_audit_chain.py::test_genesis_and_linking`, `::test_block_hash_depends_on_previous_hash`, `::test_inclusion_proof` |
+| Universal content | `test_universal_integrity.py::test_detects_by_magic_bytes`, `::test_non_apk_integrity_builds_chunk_merkle_tree`, `::test_png_polyglot_payload_detected`, `::test_risky_html_findings`, `::test_mp4_trailing_payload_detected`, `::test_wav_trailing_payload_detected`, `::test_pdf_javascript_inside_compressed_object_stream`, `::test_pipeline_seals_non_apk_content` |
 | Dynamic engine | `test_dynamic_engine.py::test_disabled_by_default`, `::test_physical_device_is_refused`, `::test_full_run_observes_malicious_behaviour`, `::test_hostile_names_never_reach_the_device_shell`, `::test_runtime_findings_are_not_double_counted_with_static`, `::test_pcap_reader_never_raises_on_garbage` (simulated emulator); real emulator: `scripts/run_dynamic_evaluation.py` |
 
 ### Integration tests
