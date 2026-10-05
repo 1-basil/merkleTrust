@@ -1,7 +1,11 @@
 """End-to-end pipeline (orchestrator) with an explicitly approved baseline."""
 
+import pytest
+
 from core.baselines import BaselineService
 from core.orchestrator import run_job
+
+pytestmark = pytest.mark.integration
 
 
 def test_pipeline_against_approved_baseline(db, fixture_apk, tmp_path):

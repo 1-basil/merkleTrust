@@ -6,25 +6,40 @@ __pycache__/
 # Testing and coverage
 .pytest_cache/
 .coverage
+.coverage.*
+coverage.xml
 htmlcov/
 
-# Job workspaces and quarantine
+# Job workspaces, temp and quarantine
 jobs/
 quarantine/
+data/jobs/
+data/quarantine/
 test_workspace/
 test_phase3/
 /apks/
+*.patch
+*.diff
+*.tmp
+*.temp
+scratch/
+scratchpad/
 
 # Local baseline database and persistent stores
 data/*.sqlite3
 data/*.db
+*.sqlite3
+*.db
+*.db-wal
+*.db-shm
+*.db-journal
 data/keys/
 data/repository_ledger.json
 data/tmp/
 
-# Binaries, archives and test artifacts (exclude tracked sample)
+# Binaries, archives and test artifacts (preserve tracked evaluation fixtures)
 *.apk
-!test_sample.apk
+!evaluation/dataset/*.apk
 !tests/fixtures/apks/*.apk
 *.dex
 *.jar
@@ -43,12 +58,15 @@ secrets/
 
 # Logs
 *.log
+server.log
 
 # Generated Engine outputs outside workspace
-dynamic.json
+/dynamic.json
 
 # IDE and OS metadata
 .vscode/
 .idea/
 .DS_Store
 Thumbs.db
+ehthumbs.db
+Desktop.ini

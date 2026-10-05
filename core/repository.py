@@ -17,10 +17,8 @@ from __future__ import annotations
 import json
 import sys
 import tempfile
-import time
 from typing import Any
 
-from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from core import audit
@@ -103,34 +101,29 @@ def verify_job_report(db: Session, job_id: str, reports: dict[str, Any]) -> dict
     }
 
 
-def _seal_with_retry(job_id: str, reports: dict[str, Any], attempts: int = 5) -> dict[str, Any]:
-    """Seal in a short, dedicated transaction.
+def _seal_with_retry(job_id: str, reports: dict[str, Any]) -> dict[str, Any]:
+    """Seal in a short, dedicated transaction under the audit append lock.
 
-    Concurrent jobs may race for the same block index; the PRIMARY KEY and
-    UNIQUE(previous_hash) constraints reject the loser, which then retries on
-    top of the new head. The chain therefore never forks.
+    Across processes, concurrent jobs may still race for the same block index; the
+    PRIMARY KEY and UNIQUE(previous_hash) constraints reject the loser, which then
+    retries on top of the new head. The chain therefore never forks.
     """
-    for attempt in range(1, attempts + 1):
-        try:
-            with session_scope() as db:
-                sealed = seal(db, job_id, reports)
-                block, alert = sealed["block"], sealed["alert"]
-                return {
-                    "report_sha256": sealed["payload"]["report_sha256"],
-                    "block_index": block.block_index,
-                    "block_hash": block.block_hash,
-                    "previous_hash": block.previous_hash,
-                    "payload_hash": block.payload_hash,
-                    "key_id": block.key_id,
-                    "signature": json.loads(block.signature_json),
-                    "timestamp": block.timestamp,
-                    "alert_block_index": alert.block_index if alert else None,
-                }
-        except IntegrityError:
-            if attempt == attempts:
-                raise
-            time.sleep(0.05 * attempt)
-    raise AssertionError("unreachable")
+    def write() -> dict[str, Any]:
+        with session_scope() as db:
+            sealed = seal(db, job_id, reports)
+            block, alert = sealed["block"], sealed["alert"]
+            return {
+                "report_sha256": sealed["payload"]["report_sha256"],
+                "block_index": block.block_index,
+                "block_hash": block.block_hash,
+                "previous_hash": block.previous_hash,
+                "payload_hash": block.payload_hash,
+                "key_id": block.key_id,
+                "signature": json.loads(block.signature_json),
+                "timestamp": block.timestamp,
+                "alert_block_index": alert.block_index if alert else None,
+            }
+    return audit.with_append_retry(write)
 
 
 def run(job_id: str, ctx: JobContext) -> dict:

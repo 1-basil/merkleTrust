@@ -13,6 +13,7 @@ from sqlalchemy.orm import Session
 from api.deps import CurrentUser, current_user, get_db, require_admin, settings_dep
 from api.errors import ApiError
 from api.uploads import receive_apk
+from core import audit
 from core.baselines import BaselineError, BaselineNotFound, BaselineService, to_dict
 from core.config import Settings
 from core.file_manifest import file_proof, verify_file_proof
@@ -66,12 +67,13 @@ def enroll(file: UploadFile = File(...), admin: CurrentUser = Depends(require_ad
     """Upload the official build of an app. It stays *pending* until an administrator approves it."""
     svc = BaselineService(db)
     with receive_apk(file, settings.max_upload_mb * 1024 * 1024, Path(settings.data_dir) / "tmp") as received:
-        try:
-            baseline, review = svc.enroll(str(received.path), admin.username)
-        except BaselineError as exc:
-            db.rollback()
-            raise ApiError(422, str(exc), code="baseline_rejected") from None
-    _commit(db)
+        with audit.APPEND_LOCK:  # the enrolment's audit event must commit atomically with it
+            try:
+                baseline, review = svc.enroll(str(received.path), admin.username)
+            except BaselineError as exc:
+                db.rollback()
+                raise ApiError(422, str(exc), code="baseline_rejected") from None
+            _commit(db)
     return {"baseline": to_dict(baseline), "review_against_active": review}
 
 
@@ -84,24 +86,27 @@ def get_baseline(baseline_id: int, include_files: bool = False,
 @router.post("/{baseline_id}/approve")
 def approve(baseline_id: int, body: ApproveRequest, admin: CurrentUser = Depends(require_admin),
             db: Session = Depends(get_db)):
-    b = _change(BaselineService(db).approve, baseline_id, admin.username, body.note)
-    _commit(db)
+    with audit.APPEND_LOCK:
+        b = _change(BaselineService(db).approve, baseline_id, admin.username, body.note)
+        _commit(db)
     return to_dict(b)
 
 
 @router.post("/{baseline_id}/reject")
 def reject(baseline_id: int, body: ReasonRequest, admin: CurrentUser = Depends(require_admin),
            db: Session = Depends(get_db)):
-    b = _change(BaselineService(db).reject, baseline_id, admin.username, body.reason)
-    _commit(db)
+    with audit.APPEND_LOCK:
+        b = _change(BaselineService(db).reject, baseline_id, admin.username, body.reason)
+        _commit(db)
     return to_dict(b)
 
 
 @router.post("/{baseline_id}/revoke")
 def revoke(baseline_id: int, body: ReasonRequest, admin: CurrentUser = Depends(require_admin),
            db: Session = Depends(get_db)):
-    b = _change(BaselineService(db).revoke, baseline_id, admin.username, body.reason)
-    _commit(db)
+    with audit.APPEND_LOCK:
+        b = _change(BaselineService(db).revoke, baseline_id, admin.username, body.reason)
+        _commit(db)
     return to_dict(b)
 
 

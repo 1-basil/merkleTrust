@@ -93,7 +93,7 @@ def emit(ctx: JobContext, name: str, payload: dict) -> dict:
 # reads ONLY this list plus a few named fields. If you find something bad and
 # don't put it in findings, it does not affect the score.
 #
-# Everything else in your dict is your own schema — see schemas/*.json.
+# Everything else in your dict is engine-specific — see docs/ARCHITECTURE.md §2.
 
 
 # ------------------------------------------------------- who reads what ----
@@ -122,14 +122,13 @@ def run_integrity(job_id: str, ctx: JobContext) -> dict:
     OUT: integrity.json
 
     {"job_id", "engine": "integrity", "status", "findings": [],
-     "sha256": str, "file_size": int,
+     "sha256": str, "file_size": int, "file_count": int,
+     "files": [{"path", "sha256", "size", "category"}],   <- authoritative
+     "merkle_root": str,                                  <- root over files[]
      "chunk_size": int, "chunk_count": int,
-     "chunks":   [{"index": int, "offset": int, "length": int, "hash": str}],
-     "merkle_root": str, "tree_depth": int,
-     "file_map": [{"path": str, "offset": int, "length": int, "sha256": str}]}
-
-    file_map = every ZIP entry's byte range, read from the central directory.
-    Ashwini needs it to turn "chunk 42 changed" into "classes.dex changed".
+     "chunks": [{"index", "offset", "length", "hash"}],   <- forensics only
+     "chunk_merkle_root": str, "tree_depth": int,
+     "file_map": [{"path", "offset", "length", "sha256"}]}
     """
     raise NotImplementedError
 
@@ -138,13 +137,15 @@ def run_static(job_id: str, ctx: JobContext) -> dict:
     """ASHWINI — core/static/__init__.py
 
     IN : ctx.apk_path, ctx.config["apktool"], ctx.config["jadx"]
-    OUT: static.json  (full field list in schemas/static.json)
+    OUT: static.json
 
-    Required keys beyond the common four:
-      package_name, version_name, version_code, min_sdk, target_sdk,
-      permissions[], components{}, certificate{}, native_libs[],
-      iocs{urls,ips,domains}, dangerous_apis[],
-      artifacts{"apktool_dir","jadx_dir"}   <- relative to ctx.workspace
+    Keys beyond the common four:
+      manifest_format, package_name, version_name, version_code, min_sdk, target_sdk,
+      permissions[], declared_permissions[], application{}, components{},
+      component_details[], certificate{}, signature{status, schemes_present, schemes,
+      certificate_verified, errors}, native_libs[], dex{files, class_count,
+      sensitive_classes}, iocs{urls, ips, domains, emails}, dangerous_apis[],
+      artifacts{}   <- only when the optional decompilers ran
 
     Decompile into ctx.subdir("static"). Do not write outside it.
     """
@@ -206,14 +207,17 @@ def run_dynamic(job_id: str, ctx: JobContext) -> dict:
 def run_score(job_id: str, ctx: JobContext) -> dict:
     """BASIL — core/scoring.py
 
-    IN : every findings[] in ctx.prior, plus:
-         tamper.certificate_changed, tamper.changed_files,
-         static.certificate.self_signed, static.permissions
+    IN : every findings[] in ctx.prior (normalised through core/findings.py),
+         tamper.integrity
     OUT: score.json
 
     {"job_id", "engine": "score", "status", "findings": [],
-     "score": int 0-100, "verdict": "trusted"|"suspicious"|"malicious",
-     "rules_fired": [{"rule_id", "weight", "source", "reason"}]}
+     "analysis_complete": bool, "missing_engines": [],
+     "integrity": {"status", "reasons"},
+     "risk": {"score": int 0-100 | None, "level": LOW|MEDIUM|HIGH|CRITICAL|UNKNOWN,
+              "contributions": [...], "suppressed_duplicates": [...]},
+     "verdict": {"code", "headline", "summary"},
+     "all_findings": [...], "notes": [...], "inputs": {...}}
     """
     raise NotImplementedError
 
@@ -250,5 +254,5 @@ def run_repository(job_id: str, ctx: JobContext) -> dict:
 #                        config={"chunk_size": 65536})
 #       print(json.dumps(run("local-test", ctx), indent=2))
 #
-# For tamper and dynamic, pass schemas/samples/prior.json as argv[2] so you
-# can develop before Ajay and Ashwini have finished.
+# For tamper and dynamic, pass a merged.json "reports" object from a previous
+# job (data/jobs/<id>/merged.json) as argv[2].

@@ -139,6 +139,48 @@ SENSITIVE_CLASS_FINDINGS = {"accessibility_service": "STATIC_ACCESSIBILITY",
                             "device_admin_receiver": "STATIC_DEVICE_ADMIN"}
 
 
+SENSITIVE_DATA_PERMISSIONS = {
+    "android.permission.READ_CONTACTS", "android.permission.ACCESS_FINE_LOCATION",
+    "android.permission.ACCESS_BACKGROUND_LOCATION", "android.permission.RECORD_AUDIO",
+    "android.permission.READ_SMS", "android.permission.READ_CALL_LOG", "android.permission.CAMERA",
+    "android.permission.READ_PHONE_STATE", "android.permission.READ_PHONE_NUMBERS",
+}
+
+
+def behaviour_patterns(manifest: dict[str, Any], dex: dict[str, Any],
+                       capabilities: dict[str, list[dict[str, Any]]]) -> list[dict[str, Any]]:
+    """Recognise capability combinations typical of malware families (see core/findings.py).
+
+    Only method-reference evidence counts here: a class name merely appearing as text
+    is too weak to accuse an app of a malware pattern.
+    """
+    def has(fid: str) -> bool:
+        return any(i.get("match") != "string" for i in capabilities.get(fid, []))
+
+    perms = set(manifest["permissions"])
+    network = "android.permission.INTERNET" in perms
+    out = []
+    if has("STATIC_DCL") and network:
+        out.append(finding("PATTERN_DROPPER", "Dynamic code loading + INTERNET permission"))
+
+    triggered = "android.permission.RECEIVE_BOOT_COMPLETED" in perms or any(
+        c["type"] == "receiver" and c["exported_effective"] and not c.get("permission")
+        for c in manifest["component_details"])
+    if has("STATIC_SMS_SEND") and "android.permission.SEND_SMS" in perms and triggered:
+        out.append(finding("PATTERN_SMS_FRAUD", "SmsManager send API + SEND_SMS + boot/exported receiver"))
+
+    sensitive = sorted(perms & SENSITIVE_DATA_PERMISSIONS)
+    collects = has("STATIC_DEVICE_HARVEST") or len(sensitive) >= 2
+    concealment = [name for name, present in (
+        ("command execution", has("STATIC_CMD_EXEC")), ("hard-coded IP address", bool(dex["iocs"]["ips"])),
+        ("icon hiding", has("STATIC_HIDE_ICON")), ("accessibility control", has("STATIC_ACCESSIBILITY")))
+        if present]
+    if collects and network and concealment:
+        out.append(finding("PATTERN_SPYWARE", f"data: {', '.join(sensitive) or 'device identifiers'}; "
+                                              f"network: INTERNET; indicator: {', '.join(concealment)}"))
+    return out
+
+
 def static_findings(manifest: dict[str, Any], classified: list[dict[str, Any]], signature: dict[str, Any],
                     dex: dict[str, Any], archive_warnings: list[str]) -> list[dict[str, Any]]:
     """Turn observed facts into catalogue findings (see core/findings.py)."""
@@ -213,6 +255,8 @@ def static_findings(manifest: dict[str, Any], classified: list[dict[str, Any]], 
             evidence += " (weak evidence: name found as text, not as a method call)"
         base = finding(fid, evidence)
         out.append(finding(fid, evidence, points=base["points"] // 2 if weak else None))
+
+    out.extend(behaviour_patterns(manifest, dex, grouped))
 
     # Network indicators
     if dex["iocs"]["ips"]:

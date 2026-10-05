@@ -507,7 +507,8 @@ def verify_apk(archive: ApkArchive, target_sdk: int | None = None) -> dict[str, 
                         if schemes[k].get("claimed_certificate")), None)
 
     if not present:
-        status = "unsigned"
+        # A corrupt signing block is not the same as "no signature at all".
+        status = "invalid" if errors else "unsigned"
     elif errors:
         unverifiable_only = all(schemes[k].get("unverifiable") for k in present if schemes[k]["errors"])
         status = "unverifiable" if unverifiable_only and not any("INVALID" in e or "mismatch" in e or

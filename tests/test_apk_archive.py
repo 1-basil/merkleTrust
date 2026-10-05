@@ -9,6 +9,8 @@ import pytest
 
 from core.apk_archive import ApkArchive, ApkValidationError, unsafe_name_reason
 
+pytestmark = [pytest.mark.unit, pytest.mark.security]
+
 
 def _zip(path, entries, compression=zipfile.ZIP_DEFLATED):
     with warnings.catch_warnings():

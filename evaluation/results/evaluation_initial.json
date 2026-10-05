@@ -1,0 +1,1686 @@
+{
+  "environment": {
+    "generated_at": "2026-10-02T23:39:53+00:00",
+    "platform": "Windows 11",
+    "python": "3.14.7",
+    "cpus": 22
+  },
+  "summary": {
+    "tasks": {
+      "change_detection": {
+        "question": "Does the app differ from its trusted version?",
+        "scope": "cases with a baseline",
+        "n": 20,
+        "tp": 15,
+        "fp": 0,
+        "tn": 5,
+        "fn": 0,
+        "accuracy": 1.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0,
+        "false_positive_rate": 0.0,
+        "false_negative_rate": 0.0
+      },
+      "unauthorized_modification": {
+        "question": "Was the app changed by someone other than the key holder (re-signed, unsigned or broken signature)?",
+        "scope": "cases with a baseline",
+        "n": 20,
+        "tp": 13,
+        "fp": 0,
+        "tn": 7,
+        "fn": 0,
+        "accuracy": 1.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0,
+        "false_positive_rate": 0.0,
+        "false_negative_rate": 0.0
+      },
+      "install_warning": {
+        "question": "Should the user be warned not to install it (risk HIGH/CRITICAL)?",
+        "scope": "all cases",
+        "n": 25,
+        "tp": 14,
+        "fp": 0,
+        "tn": 8,
+        "fn": 3,
+        "accuracy": 0.88,
+        "precision": 1.0,
+        "recall": 0.8235,
+        "f1": 0.9032,
+        "false_positive_rate": 0.0,
+        "false_negative_rate": 0.1765
+      },
+      "behavioural_risk_only": {
+        "question": "Same as above, apps without a baseline (risk from the app's own behaviour only)",
+        "scope": "R* cases",
+        "n": 5,
+        "tp": 1,
+        "fp": 0,
+        "tn": 1,
+        "fn": 3,
+        "accuracy": 0.4,
+        "precision": 1.0,
+        "recall": 0.25,
+        "f1": 0.4,
+        "false_positive_rate": 0.0,
+        "false_negative_rate": 0.75
+      },
+      "crypto_tamper_detection": {
+        "question": "Is tampering with stored reports, baselines or the audit chain detected (and untouched data accepted)?",
+        "scope": "tampering cases + untouched controls",
+        "n": 40,
+        "tp": 11,
+        "fp": 0,
+        "tn": 29,
+        "fn": 0,
+        "accuracy": 1.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0,
+        "false_positive_rate": 0.0,
+        "false_negative_rate": 0.0
+      }
+    },
+    "integrity_status_exact": {
+      "n": 25,
+      "correct": 25,
+      "accuracy": 1.0
+    },
+    "file_localisation": {
+      "n": 20,
+      "correct": 20,
+      "accuracy": 1.0
+    },
+    "processing_ms": {
+      "median": 148.0,
+      "max": 733.7,
+      "min": 105.9
+    },
+    "errors": []
+  },
+  "cases": [
+    {
+      "id": "D01",
+      "file": "demo_official_copy.apk",
+      "derive": "copy",
+      "description": "Byte-identical copy of the official build",
+      "baseline": "demo",
+      "truth": {
+        "integrity": "CLEAN",
+        "changed": false,
+        "unauthorized": false,
+        "risky": false,
+        "files": {}
+      },
+      "schemes": [],
+      "scan_id": "4923e7c6-bfe4-4a50-9135-0b86285395c9",
+      "processing_ms": 123.2,
+      "engine_ms": {
+        "integrity": 1,
+        "static": 3,
+        "tamper": 2,
+        "dynamic": 7,
+        "score": 0,
+        "repository": 3
+      },
+      "observed": {
+        "integrity": "CLEAN",
+        "verdict": "CLEAN",
+        "risk_level": "LOW",
+        "risk_score": 0,
+        "signature": "verified",
+        "certificate_changed": false,
+        "files": {
+          "modified": [],
+          "added": [],
+          "deleted": []
+        },
+        "contributions": []
+      },
+      "predicted": {
+        "changed": false,
+        "unauthorized": false,
+        "risky": false
+      }
+    },
+    {
+      "id": "D02",
+      "file": "demo_same_key_resign.apk",
+      "key": "A",
+      "schemes": [
+        "v2",
+        "v3"
+      ],
+      "description": "Rebuilt and re-signed by the developer with the same key (v2+v3)",
+      "baseline": "demo",
+      "truth": {
+        "integrity": "CLEAN",
+        "changed": false,
+        "unauthorized": false,
+        "risky": false,
+        "files": {}
+      },
+      "scan_id": "f470c748-0fec-4c4e-85eb-42da88f568ac",
+      "processing_ms": 105.9,
+      "engine_ms": {
+        "integrity": 1,
+        "static": 2,
+        "tamper": 1,
+        "dynamic": 5,
+        "score": 0,
+        "repository": 3
+      },
+      "observed": {
+        "integrity": "CLEAN",
+        "verdict": "CLEAN",
+        "risk_level": "LOW",
+        "risk_score": 0,
+        "signature": "verified",
+        "certificate_changed": false,
+        "files": {
+          "modified": [],
+          "added": [],
+          "deleted": []
+        },
+        "contributions": []
+      },
+      "predicted": {
+        "changed": false,
+        "unauthorized": false,
+        "risky": false
+      }
+    },
+    {
+      "id": "D03",
+      "file": "demo_legit_update.apk",
+      "key": "A",
+      "schemes": [
+        "v1",
+        "v2"
+      ],
+      "description": "Legitimate next release by the developer (+CAMERA, +1 service)",
+      "baseline": "demo",
+      "truth": {
+        "integrity": "MODIFIED",
+        "changed": true,
+        "unauthorized": false,
+        "risky": false,
+        "required": {
+          "modified": [
+            "AndroidManifest.xml",
+            "classes.dex"
+          ]
+        }
+      },
+      "scan_id": "fadba093-1517-45d5-8a8a-1d72b8c0218c",
+      "processing_ms": 128.4,
+      "engine_ms": {
+        "integrity": 2,
+        "static": 3,
+        "tamper": 3,
+        "dynamic": 7,
+        "score": 0,
+        "repository": 7
+      },
+      "observed": {
+        "integrity": "MODIFIED",
+        "verdict": "CHANGES_DETECTED",
+        "risk_level": "MEDIUM",
+        "risk_score": 26,
+        "signature": "verified",
+        "certificate_changed": false,
+        "files": {
+          "modified": [
+            "AndroidManifest.xml",
+            "classes.dex"
+          ],
+          "added": [],
+          "deleted": []
+        },
+        "contributions": [
+          "TAMPER_PERMISSIONS_ADDED+15",
+          "TAMPER_COMPONENTS_ADDED+8",
+          "STATIC_DANGEROUS_PERM+3"
+        ]
+      },
+      "predicted": {
+        "changed": true,
+        "unauthorized": false,
+        "risky": false
+      }
+    },
+    {
+      "id": "D04",
+      "file": "demo_manifest_mod.apk",
+      "key": "B",
+      "schemes": [
+        "v1",
+        "v2"
+      ],
+      "description": "Manifest modified (debuggable, backup) and re-signed",
+      "baseline": "demo",
+      "truth": {
+        "integrity": "CERTIFICATE_CHANGED",
+        "changed": true,
+        "unauthorized": true,
+        "risky": true,
+        "files": {
+          "modified": [
+            "AndroidManifest.xml"
+          ]
+        }
+      },
+      "scan_id": "a9efabb4-6377-4828-b34b-af2dc13d86d0",
+      "processing_ms": 131.6,
+      "engine_ms": {
+        "integrity": 1,
+        "static": 4,
+        "tamper": 2,
+        "dynamic": 7,
+        "score": 0,
+        "repository": 4
+      },
+      "observed": {
+        "integrity": "CERTIFICATE_CHANGED",
+        "verdict": "HIGH_RISK",
+        "risk_level": "HIGH",
+        "risk_score": 68,
+        "signature": "verified",
+        "certificate_changed": true,
+        "files": {
+          "modified": [
+            "AndroidManifest.xml"
+          ],
+          "added": [],
+          "deleted": []
+        },
+        "contributions": [
+          "TAMPER_CERT_CHANGED+40",
+          "STATIC_DEBUGGABLE+15",
+          "TAMPER_MANIFEST_MODIFIED+10",
+          "STATIC_ALLOW_BACKUP+3"
+        ]
+      },
+      "predicted": {
+        "changed": true,
+        "unauthorized": true,
+        "risky": true
+      }
+    },
+    {
+      "id": "D05",
+      "file": "demo_dex_mod.apk",
+      "key": "B",
+      "schemes": [
+        "v2"
+      ],
+      "description": "Program code (DEX) modified to run commands and re-signed",
+      "baseline": "demo",
+      "truth": {
+        "integrity": "CERTIFICATE_CHANGED",
+        "changed": true,
+        "unauthorized": true,
+        "risky": true,
+        "files": {
+          "modified": [
+            "classes.dex"
+          ]
+        }
+      },
+      "scan_id": "0d47aa4a-74d5-4460-b207-3ae693b2a44b",
+      "processing_ms": 119.5,
+      "engine_ms": {
+        "integrity": 2,
+        "static": 2,
+        "tamper": 1,
+        "dynamic": 6,
+        "score": 0,
+        "repository": 3
+      },
+      "observed": {
+        "integrity": "CERTIFICATE_CHANGED",
+        "verdict": "HIGH_RISK",
+        "risk_level": "CRITICAL",
+        "risk_score": 100,
+        "signature": "verified",
+        "certificate_changed": true,
+        "files": {
+          "modified": [
+            "classes.dex"
+          ],
+          "added": [],
+          "deleted": []
+        },
+        "contributions": [
+          "TAMPER_CERT_CHANGED+40",
+          "TAMPER_DEX_MODIFIED+35",
+          "STATIC_CMD_EXEC+15",
+          "TAMPER_DANGEROUS_API_ADDED+15"
+        ]
+      },
+      "predicted": {
+        "changed": true,
+        "unauthorized": true,
+        "risky": true
+      }
+    },
+    {
+      "id": "D06",
+      "file": "demo_cert_replaced.apk",
+      "key": "B",
+      "schemes": [
+        "v1",
+        "v2"
+      ],
+      "description": "Unchanged content re-signed with a look-alike certificate (same subject name)",
+      "baseline": "demo",
+      "truth": {
+        "integrity": "CERTIFICATE_CHANGED",
+        "changed": true,
+        "unauthorized": true,
+        "risky": true,
+        "files": {}
+      },
+      "scan_id": "ab3eba2e-dd41-45f5-8536-5b8c3c71ce50",
+      "processing_ms": 148.0,
+      "engine_ms": {
+        "integrity": 3,
+        "static": 4,
+        "tamper": 2,
+        "dynamic": 6,
+        "score": 0,
+        "repository": 6
+      },
+      "observed": {
+        "integrity": "CERTIFICATE_CHANGED",
+        "verdict": "HIGH_RISK",
+        "risk_level": "HIGH",
+        "risk_score": 40,
+        "signature": "verified",
+        "certificate_changed": true,
+        "files": {
+          "modified": [],
+          "added": [],
+          "deleted": []
+        },
+        "contributions": [
+          "TAMPER_CERT_CHANGED+40"
+        ]
+      },
+      "predicted": {
+        "changed": true,
+        "unauthorized": true,
+        "risky": true
+      }
+    },
+    {
+      "id": "D07",
+      "file": "demo_added_file.apk",
+      "key": "C",
+      "schemes": [
+        "v2"
+      ],
+      "description": "File injected (assets/payload.bin) and re-signed",
+      "baseline": "demo",
+      "truth": {
+        "integrity": "CERTIFICATE_CHANGED",
+        "changed": true,
+        "unauthorized": true,
+        "risky": true,
+        "files": {
+          "added": [
+            "assets/payload.bin"
+          ]
+        }
+      },
+      "scan_id": "1d105dd7-90f9-4467-b3e3-450b5b034603",
+      "processing_ms": 144.2,
+      "engine_ms": {
+        "integrity": 3,
+        "static": 4,
+        "tamper": 3,
+        "dynamic": 9,
+        "score": 1,
+        "repository": 4
+      },
+      "observed": {
+        "integrity": "CERTIFICATE_CHANGED",
+        "verdict": "HIGH_RISK",
+        "risk_level": "HIGH",
+        "risk_score": 50,
+        "signature": "verified",
+        "certificate_changed": true,
+        "files": {
+          "modified": [],
+          "added": [
+            "assets/payload.bin"
+          ],
+          "deleted": []
+        },
+        "contributions": [
+          "TAMPER_CERT_CHANGED+40",
+          "TAMPER_FILES_CHANGED+10"
+        ]
+      },
+      "predicted": {
+        "changed": true,
+        "unauthorized": true,
+        "risky": true
+      }
+    },
+    {
+      "id": "D08",
+      "file": "demo_deleted_file.apk",
+      "key": "B",
+      "schemes": [
+        "v2"
+      ],
+      "description": "File deleted (assets/config.json) and re-signed",
+      "baseline": "demo",
+      "truth": {
+        "integrity": "CERTIFICATE_CHANGED",
+        "changed": true,
+        "unauthorized": true,
+        "risky": true,
+        "files": {
+          "deleted": [
+            "assets/config.json"
+          ]
+        }
+      },
+      "scan_id": "71127df4-1b33-4ac9-b2a5-5a054e14d4ac",
+      "processing_ms": 132.5,
+      "engine_ms": {
+        "integrity": 1,
+        "static": 2,
+        "tamper": 2,
+        "dynamic": 7,
+        "score": 0,
+        "repository": 6
+      },
+      "observed": {
+        "integrity": "CERTIFICATE_CHANGED",
+        "verdict": "HIGH_RISK",
+        "risk_level": "HIGH",
+        "risk_score": 50,
+        "signature": "verified",
+        "certificate_changed": true,
+        "files": {
+          "modified": [],
+          "added": [],
+          "deleted": [
+            "assets/config.json"
+          ]
+        },
+        "contributions": [
+          "TAMPER_CERT_CHANGED+40",
+          "TAMPER_FILES_CHANGED+10"
+        ]
+      },
+      "predicted": {
+        "changed": true,
+        "unauthorized": true,
+        "risky": true
+      }
+    },
+    {
+      "id": "D09",
+      "file": "demo_repackaged.apk",
+      "key": "C",
+      "schemes": [
+        "v1",
+        "v2"
+      ],
+      "description": "Repackaged: injected loader + SMS code, new permission, extra native library",
+      "baseline": "demo",
+      "truth": {
+        "integrity": "CERTIFICATE_CHANGED",
+        "changed": true,
+        "unauthorized": true,
+        "risky": true,
+        "required": {
+          "modified": [
+            "AndroidManifest.xml",
+            "classes.dex"
+          ],
+          "added": [
+            "lib/x86_64/libpayload.so"
+          ]
+        }
+      },
+      "scan_id": "ef24f198-6367-460a-a4f0-ee70d1195115",
+      "processing_ms": 121.6,
+      "engine_ms": {
+        "integrity": 2,
+        "static": 4,
+        "tamper": 2,
+        "dynamic": 7,
+        "score": 1,
+        "repository": 4
+      },
+      "observed": {
+        "integrity": "CERTIFICATE_CHANGED",
+        "verdict": "HIGH_RISK",
+        "risk_level": "CRITICAL",
+        "risk_score": 100,
+        "signature": "verified",
+        "certificate_changed": true,
+        "files": {
+          "modified": [
+            "AndroidManifest.xml",
+            "classes.dex"
+          ],
+          "added": [
+            "lib/x86_64/libpayload.so"
+          ],
+          "deleted": []
+        },
+        "contributions": [
+          "TAMPER_CERT_CHANGED+40",
+          "TAMPER_DEX_MODIFIED+35",
+          "TAMPER_NATIVE_MODIFIED+25",
+          "STATIC_DCL+20",
+          "STATIC_SMS_SEND+20",
+          "TAMPER_PERMISSIONS_ADDED+15",
+          "TAMPER_DANGEROUS_API_ADDED+15",
+          "STATIC_DANGEROUS_PERM+8"
+        ]
+      },
+      "predicted": {
+        "changed": true,
+        "unauthorized": true,
+        "risky": true
+      }
+    },
+    {
+      "id": "D10",
+      "file": "demo_permission_mod.apk",
+      "key": "B",
+      "schemes": [
+        "v2"
+      ],
+      "description": "Permissions added (SEND_SMS, READ_CONTACTS) and re-signed",
+      "baseline": "demo",
+      "truth": {
+        "integrity": "CERTIFICATE_CHANGED",
+        "changed": true,
+        "unauthorized": true,
+        "risky": true,
+        "files": {
+          "modified": [
+            "AndroidManifest.xml"
+          ]
+        }
+      },
+      "scan_id": "66bd8180-f847-4864-b249-118ec15ea93d",
+      "processing_ms": 126.3,
+      "engine_ms": {
+        "integrity": 1,
+        "static": 3,
+        "tamper": 2,
+        "dynamic": 7,
+        "score": 1,
+        "repository": 4
+      },
+      "observed": {
+        "integrity": "CERTIFICATE_CHANGED",
+        "verdict": "HIGH_RISK",
+        "risk_level": "HIGH",
+        "risk_score": 66,
+        "signature": "verified",
+        "certificate_changed": true,
+        "files": {
+          "modified": [
+            "AndroidManifest.xml"
+          ],
+          "added": [],
+          "deleted": []
+        },
+        "contributions": [
+          "TAMPER_CERT_CHANGED+40",
+          "TAMPER_PERMISSIONS_ADDED+15",
+          "STATIC_DANGEROUS_PERM+11"
+        ]
+      },
+      "predicted": {
+        "changed": true,
+        "unauthorized": true,
+        "risky": true
+      }
+    },
+    {
+      "id": "D11",
+      "file": "demo_invalid_signature.apk",
+      "derive": "modify_config",
+      "description": "Asset modified after signing (signature now invalid)",
+      "baseline": "demo",
+      "truth": {
+        "integrity": "MODIFIED",
+        "changed": true,
+        "unauthorized": true,
+        "risky": true,
+        "files": {
+          "modified": [
+            "assets/config.json"
+          ]
+        }
+      },
+      "schemes": [],
+      "scan_id": "2bf4381c-283c-4db0-81e0-40dbdda8e699",
+      "processing_ms": 113.1,
+      "engine_ms": {
+        "integrity": 1,
+        "static": 2,
+        "tamper": 2,
+        "dynamic": 9,
+        "score": 1,
+        "repository": 5
+      },
+      "observed": {
+        "integrity": "MODIFIED",
+        "verdict": "HIGH_RISK",
+        "risk_level": "HIGH",
+        "risk_score": 45,
+        "signature": "invalid",
+        "certificate_changed": false,
+        "files": {
+          "modified": [
+            "assets/config.json"
+          ],
+          "added": [],
+          "deleted": []
+        },
+        "contributions": [
+          "STATIC_SIGNATURE_INVALID+35",
+          "TAMPER_FILES_CHANGED+10"
+        ]
+      },
+      "predicted": {
+        "changed": true,
+        "unauthorized": true,
+        "risky": true
+      }
+    },
+    {
+      "id": "D12",
+      "file": "demo_signature_stripped.apk",
+      "derive": "strip_v2",
+      "description": "v2 signature block stripped (downgrade to v1)",
+      "baseline": "demo",
+      "truth": {
+        "integrity": "MODIFIED",
+        "changed": true,
+        "unauthorized": true,
+        "risky": true,
+        "files": {}
+      },
+      "schemes": [],
+      "scan_id": "66399c8e-a49f-4d31-951c-17d4f1b2b341",
+      "processing_ms": 483.6,
+      "engine_ms": {
+        "integrity": 1,
+        "static": 14,
+        "tamper": 16,
+        "dynamic": 95,
+        "score": 0,
+        "repository": 8
+      },
+      "observed": {
+        "integrity": "MODIFIED",
+        "verdict": "HIGH_RISK",
+        "risk_level": "HIGH",
+        "risk_score": 35,
+        "signature": "invalid",
+        "certificate_changed": false,
+        "files": {
+          "modified": [],
+          "added": [],
+          "deleted": []
+        },
+        "contributions": [
+          "STATIC_SIGNATURE_INVALID+35"
+        ]
+      },
+      "predicted": {
+        "changed": true,
+        "unauthorized": true,
+        "risky": true
+      }
+    },
+    {
+      "id": "D13",
+      "file": "demo_janus_prefix.apk",
+      "derive": "janus",
+      "description": "DEX data prepended to the signed APK (Janus-style)",
+      "baseline": "demo",
+      "truth": {
+        "integrity": "MODIFIED",
+        "changed": true,
+        "unauthorized": true,
+        "risky": true,
+        "files": {}
+      },
+      "schemes": [],
+      "scan_id": "a82f1f5d-9b9c-4e45-a641-649849fd564b",
+      "processing_ms": 491.9,
+      "engine_ms": {
+        "integrity": 33,
+        "static": 7,
+        "tamper": 6,
+        "dynamic": 9,
+        "score": 0,
+        "repository": 7
+      },
+      "observed": {
+        "integrity": "MODIFIED",
+        "verdict": "HIGH_RISK",
+        "risk_level": "HIGH",
+        "risk_score": 65,
+        "signature": "invalid",
+        "certificate_changed": false,
+        "files": {
+          "modified": [],
+          "added": [],
+          "deleted": []
+        },
+        "contributions": [
+          "STATIC_SIGNATURE_INVALID+35",
+          "STATIC_ARCHIVE_PREFIX+30"
+        ]
+      },
+      "predicted": {
+        "changed": true,
+        "unauthorized": true,
+        "risky": true
+      }
+    },
+    {
+      "id": "N01",
+      "file": "notes_official_copy.apk",
+      "derive": "copy",
+      "description": "Byte-identical copy of the official build",
+      "baseline": "notes",
+      "truth": {
+        "integrity": "CLEAN",
+        "changed": false,
+        "unauthorized": false,
+        "risky": false,
+        "files": {}
+      },
+      "schemes": [],
+      "scan_id": "74ef82fe-4434-4ed8-a8d6-e653f016f3d8",
+      "processing_ms": 133.3,
+      "engine_ms": {
+        "integrity": 1,
+        "static": 3,
+        "tamper": 2,
+        "dynamic": 7,
+        "score": 1,
+        "repository": 4
+      },
+      "observed": {
+        "integrity": "CLEAN",
+        "verdict": "CLEAN",
+        "risk_level": "LOW",
+        "risk_score": 0,
+        "signature": "verified",
+        "certificate_changed": false,
+        "files": {
+          "modified": [],
+          "added": [],
+          "deleted": []
+        },
+        "contributions": []
+      },
+      "predicted": {
+        "changed": false,
+        "unauthorized": false,
+        "risky": false
+      }
+    },
+    {
+      "id": "N02",
+      "file": "notes_same_key_resign.apk",
+      "key": "A",
+      "schemes": [
+        "v2"
+      ],
+      "description": "Re-signed by the developer, v2 only",
+      "baseline": "notes",
+      "truth": {
+        "integrity": "CLEAN",
+        "changed": false,
+        "unauthorized": false,
+        "risky": false,
+        "files": {}
+      },
+      "scan_id": "19d6a75a-4ba8-4382-accc-89a8c1485ab2",
+      "processing_ms": 237.7,
+      "engine_ms": {
+        "integrity": 1,
+        "static": 1,
+        "tamper": 1,
+        "dynamic": 7,
+        "score": 1,
+        "repository": 3
+      },
+      "observed": {
+        "integrity": "CLEAN",
+        "verdict": "CLEAN",
+        "risk_level": "LOW",
+        "risk_score": 0,
+        "signature": "verified",
+        "certificate_changed": false,
+        "files": {
+          "modified": [],
+          "added": [],
+          "deleted": []
+        },
+        "contributions": []
+      },
+      "predicted": {
+        "changed": false,
+        "unauthorized": false,
+        "risky": false
+      }
+    },
+    {
+      "id": "N03",
+      "file": "notes_cert_replaced.apk",
+      "key": "C",
+      "schemes": [
+        "v2",
+        "v3"
+      ],
+      "description": "Re-signed with an attacker key (RSA)",
+      "baseline": "notes",
+      "truth": {
+        "integrity": "CERTIFICATE_CHANGED",
+        "changed": true,
+        "unauthorized": true,
+        "risky": true,
+        "files": {}
+      },
+      "scan_id": "9af1a4b5-dbdc-40bf-b348-edc093ea9b4e",
+      "processing_ms": 487.2,
+      "engine_ms": {
+        "integrity": 10,
+        "static": 7,
+        "tamper": 2,
+        "dynamic": 28,
+        "score": 0,
+        "repository": 5
+      },
+      "observed": {
+        "integrity": "CERTIFICATE_CHANGED",
+        "verdict": "HIGH_RISK",
+        "risk_level": "HIGH",
+        "risk_score": 40,
+        "signature": "verified",
+        "certificate_changed": true,
+        "files": {
+          "modified": [],
+          "added": [],
+          "deleted": []
+        },
+        "contributions": [
+          "TAMPER_CERT_CHANGED+40"
+        ]
+      },
+      "predicted": {
+        "changed": true,
+        "unauthorized": true,
+        "risky": true
+      }
+    },
+    {
+      "id": "N04",
+      "file": "notes_code_mod.apk",
+      "key": "B",
+      "schemes": [
+        "v2"
+      ],
+      "description": "Code modified (new network endpoint) and re-signed",
+      "baseline": "notes",
+      "truth": {
+        "integrity": "CERTIFICATE_CHANGED",
+        "changed": true,
+        "unauthorized": true,
+        "risky": true,
+        "files": {
+          "modified": [
+            "classes.dex"
+          ]
+        }
+      },
+      "scan_id": "d67cb300-c534-48d4-83d6-2682c4effc1f",
+      "processing_ms": 733.7,
+      "engine_ms": {
+        "integrity": 1,
+        "static": 17,
+        "tamper": 2,
+        "dynamic": 48,
+        "score": 0,
+        "repository": 23
+      },
+      "observed": {
+        "integrity": "CERTIFICATE_CHANGED",
+        "verdict": "HIGH_RISK",
+        "risk_level": "CRITICAL",
+        "risk_score": 79,
+        "signature": "verified",
+        "certificate_changed": true,
+        "files": {
+          "modified": [
+            "classes.dex"
+          ],
+          "added": [],
+          "deleted": []
+        },
+        "contributions": [
+          "TAMPER_CERT_CHANGED+40",
+          "TAMPER_DEX_MODIFIED+35",
+          "STATIC_HTTP_URLS+4"
+        ]
+      },
+      "predicted": {
+        "changed": true,
+        "unauthorized": true,
+        "risky": true
+      }
+    },
+    {
+      "id": "W01",
+      "file": "weather_official_copy.apk",
+      "derive": "copy",
+      "description": "Byte-identical copy of the official build",
+      "baseline": "weather",
+      "truth": {
+        "integrity": "CLEAN",
+        "changed": false,
+        "unauthorized": false,
+        "risky": false,
+        "files": {}
+      },
+      "schemes": [],
+      "scan_id": "32a27a16-7e74-48c7-82b0-c2810682b2d2",
+      "processing_ms": 236.5,
+      "engine_ms": {
+        "integrity": 8,
+        "static": 2,
+        "tamper": 1,
+        "dynamic": 8,
+        "score": 0,
+        "repository": 4
+      },
+      "observed": {
+        "integrity": "CLEAN",
+        "verdict": "CLEAN",
+        "risk_level": "LOW",
+        "risk_score": 3,
+        "signature": "verified",
+        "certificate_changed": false,
+        "files": {
+          "modified": [],
+          "added": [],
+          "deleted": []
+        },
+        "contributions": [
+          "STATIC_DANGEROUS_PERM+3"
+        ]
+      },
+      "predicted": {
+        "changed": false,
+        "unauthorized": false,
+        "risky": false
+      }
+    },
+    {
+      "id": "W02",
+      "file": "weather_legit_update.apk",
+      "key": "A",
+      "schemes": [
+        "v1",
+        "v2"
+      ],
+      "description": "Legitimate data-only update by the developer",
+      "baseline": "weather",
+      "truth": {
+        "integrity": "MODIFIED",
+        "changed": true,
+        "unauthorized": false,
+        "risky": false,
+        "files": {
+          "modified": [
+            "AndroidManifest.xml",
+            "assets/cities.json"
+          ]
+        }
+      },
+      "scan_id": "d8bcca01-d51b-4b02-8e50-83de03268649",
+      "processing_ms": 540.2,
+      "engine_ms": {
+        "integrity": 17,
+        "static": 14,
+        "tamper": 15,
+        "dynamic": 11,
+        "score": 0,
+        "repository": 9
+      },
+      "observed": {
+        "integrity": "MODIFIED",
+        "verdict": "CHANGES_DETECTED",
+        "risk_level": "LOW",
+        "risk_score": 3,
+        "signature": "verified",
+        "certificate_changed": false,
+        "files": {
+          "modified": [
+            "AndroidManifest.xml",
+            "assets/cities.json"
+          ],
+          "added": [],
+          "deleted": []
+        },
+        "contributions": [
+          "STATIC_DANGEROUS_PERM+3"
+        ]
+      },
+      "predicted": {
+        "changed": true,
+        "unauthorized": false,
+        "risky": false
+      }
+    },
+    {
+      "id": "W03",
+      "file": "weather_permission_mod.apk",
+      "key": "C",
+      "schemes": [
+        "v2"
+      ],
+      "description": "Location tracking permissions added and re-signed",
+      "baseline": "weather",
+      "truth": {
+        "integrity": "CERTIFICATE_CHANGED",
+        "changed": true,
+        "unauthorized": true,
+        "risky": true,
+        "files": {
+          "modified": [
+            "AndroidManifest.xml"
+          ]
+        }
+      },
+      "scan_id": "5b461441-5ebb-49e5-8d27-b413ac02d1d2",
+      "processing_ms": 203.3,
+      "engine_ms": {
+        "integrity": 1,
+        "static": 4,
+        "tamper": 4,
+        "dynamic": 13,
+        "score": 0,
+        "repository": 5
+      },
+      "observed": {
+        "integrity": "CERTIFICATE_CHANGED",
+        "verdict": "HIGH_RISK",
+        "risk_level": "HIGH",
+        "risk_score": 64,
+        "signature": "verified",
+        "certificate_changed": true,
+        "files": {
+          "modified": [
+            "AndroidManifest.xml"
+          ],
+          "added": [],
+          "deleted": []
+        },
+        "contributions": [
+          "TAMPER_CERT_CHANGED+40",
+          "TAMPER_PERMISSIONS_ADDED+15",
+          "STATIC_DANGEROUS_PERM+9"
+        ]
+      },
+      "predicted": {
+        "changed": true,
+        "unauthorized": true,
+        "risky": true
+      }
+    },
+    {
+      "id": "R01",
+      "file": "risk_suspicious.apk",
+      "key": "B",
+      "schemes": [
+        "v2"
+      ],
+      "description": "Debuggable app with command execution, code loading and SMS sending",
+      "baseline": null,
+      "truth": {
+        "integrity": "NO_BASELINE",
+        "risky": true
+      },
+      "scan_id": "be45bb0e-3cc4-4d62-a89b-98093ca54b37",
+      "processing_ms": 214.5,
+      "engine_ms": {
+        "integrity": 1,
+        "static": 4,
+        "tamper": 0,
+        "dynamic": 11,
+        "score": 1,
+        "repository": 16
+      },
+      "observed": {
+        "integrity": "NO_BASELINE",
+        "verdict": "HIGH_RISK",
+        "risk_level": "CRITICAL",
+        "risk_score": 100,
+        "signature": "verified",
+        "certificate_changed": false,
+        "files": {
+          "modified": [],
+          "added": [],
+          "deleted": []
+        },
+        "contributions": [
+          "STATIC_DCL+20",
+          "STATIC_SMS_SEND+20",
+          "STATIC_DEBUGGABLE+15",
+          "STATIC_CMD_EXEC+15",
+          "STATIC_DANGEROUS_PERM+11",
+          "STATIC_CLEARTEXT_TRAFFIC+8",
+          "STATIC_EXPORTED_UNPROTECTED+8",
+          "STATIC_ALLOW_BACKUP+3"
+        ]
+      },
+      "predicted": {
+        "changed": false,
+        "unauthorized": false,
+        "risky": true
+      }
+    },
+    {
+      "id": "R02",
+      "file": "risk_dropper.apk",
+      "key": "C",
+      "schemes": [
+        "v2"
+      ],
+      "description": "Dropper: downloads and loads extra code",
+      "baseline": null,
+      "truth": {
+        "integrity": "NO_BASELINE",
+        "risky": true
+      },
+      "scan_id": "4827c1c1-e3a2-4f23-94fd-2ff54953de73",
+      "processing_ms": 306.9,
+      "engine_ms": {
+        "integrity": 1,
+        "static": 1,
+        "tamper": 0,
+        "dynamic": 56,
+        "score": 0,
+        "repository": 7
+      },
+      "observed": {
+        "integrity": "NO_BASELINE",
+        "verdict": "NO_BASELINE",
+        "risk_level": "MEDIUM",
+        "risk_score": 20,
+        "signature": "verified",
+        "certificate_changed": false,
+        "files": {
+          "modified": [],
+          "added": [],
+          "deleted": []
+        },
+        "contributions": [
+          "STATIC_DCL+20"
+        ]
+      },
+      "predicted": {
+        "changed": false,
+        "unauthorized": false,
+        "risky": false
+      }
+    },
+    {
+      "id": "R03",
+      "file": "risk_smsfraud.apk",
+      "key": "C",
+      "schemes": [
+        "v2"
+      ],
+      "description": "Premium-SMS fraud on boot",
+      "baseline": null,
+      "truth": {
+        "integrity": "NO_BASELINE",
+        "risky": true
+      },
+      "scan_id": "2cba9d11-19c2-4de8-8ef8-b9d8b93d4e68",
+      "processing_ms": 460.1,
+      "engine_ms": {
+        "integrity": 18,
+        "static": 3,
+        "tamper": 0,
+        "dynamic": 7,
+        "score": 1,
+        "repository": 49
+      },
+      "observed": {
+        "integrity": "NO_BASELINE",
+        "verdict": "NO_BASELINE",
+        "risk_level": "MEDIUM",
+        "risk_score": 36,
+        "signature": "verified",
+        "certificate_changed": false,
+        "files": {
+          "modified": [],
+          "added": [],
+          "deleted": []
+        },
+        "contributions": [
+          "STATIC_SMS_SEND+20",
+          "STATIC_EXPORTED_UNPROTECTED+8",
+          "STATIC_DANGEROUS_PERM+8"
+        ]
+      },
+      "predicted": {
+        "changed": false,
+        "unauthorized": false,
+        "risky": false
+      }
+    },
+    {
+      "id": "R04",
+      "file": "risk_spyware.apk",
+      "key": "B",
+      "schemes": [
+        "v2"
+      ],
+      "description": "Spyware: identifiers, contacts, location, audio, command execution",
+      "baseline": null,
+      "truth": {
+        "integrity": "NO_BASELINE",
+        "risky": true
+      },
+      "scan_id": "5dcd4ae4-cef8-4671-b437-102eb80240ac",
+      "processing_ms": 309.0,
+      "engine_ms": {
+        "integrity": 1,
+        "static": 5,
+        "tamper": 0,
+        "dynamic": 11,
+        "score": 23,
+        "repository": 19
+      },
+      "observed": {
+        "integrity": "NO_BASELINE",
+        "verdict": "NO_BASELINE",
+        "risk_level": "MEDIUM",
+        "risk_score": 35,
+        "signature": "verified",
+        "certificate_changed": false,
+        "files": {
+          "modified": [],
+          "added": [],
+          "deleted": []
+        },
+        "contributions": [
+          "STATIC_CMD_EXEC+15",
+          "STATIC_DANGEROUS_PERM+12",
+          "STATIC_DEVICE_HARVEST+8"
+        ]
+      },
+      "predicted": {
+        "changed": false,
+        "unauthorized": false,
+        "risky": false
+      }
+    },
+    {
+      "id": "R05",
+      "file": "risk_misconfigured.apk",
+      "key": "A",
+      "schemes": [
+        "v2"
+      ],
+      "description": "Benign app with debuggable/cleartext/backup enabled (should be review, not high risk)",
+      "baseline": null,
+      "truth": {
+        "integrity": "NO_BASELINE",
+        "risky": false
+      },
+      "scan_id": "da22716a-7eaf-4b77-b209-4c36e6b12fa9",
+      "processing_ms": 123.4,
+      "engine_ms": {
+        "integrity": 1,
+        "static": 1,
+        "tamper": 0,
+        "dynamic": 10,
+        "score": 0,
+        "repository": 3
+      },
+      "observed": {
+        "integrity": "NO_BASELINE",
+        "verdict": "NO_BASELINE",
+        "risk_level": "MEDIUM",
+        "risk_score": 26,
+        "signature": "verified",
+        "certificate_changed": false,
+        "files": {
+          "modified": [],
+          "added": [],
+          "deleted": []
+        },
+        "contributions": [
+          "STATIC_DEBUGGABLE+15",
+          "STATIC_CLEARTEXT_TRAFFIC+8",
+          "STATIC_ALLOW_BACKUP+3"
+        ]
+      },
+      "predicted": {
+        "changed": false,
+        "unauthorized": false,
+        "risky": false
+      }
+    }
+  ],
+  "crypto": [
+    {
+      "id": "C-report-D01",
+      "description": "Untouched report of D01",
+      "tampered": false,
+      "detected": false,
+      "detail": ""
+    },
+    {
+      "id": "C-report-D02",
+      "description": "Untouched report of D02",
+      "tampered": false,
+      "detected": false,
+      "detail": ""
+    },
+    {
+      "id": "C-report-D03",
+      "description": "Untouched report of D03",
+      "tampered": false,
+      "detected": false,
+      "detail": ""
+    },
+    {
+      "id": "C-report-D04",
+      "description": "Untouched report of D04",
+      "tampered": false,
+      "detected": false,
+      "detail": ""
+    },
+    {
+      "id": "C-report-D05",
+      "description": "Untouched report of D05",
+      "tampered": false,
+      "detected": false,
+      "detail": ""
+    },
+    {
+      "id": "C-report-D06",
+      "description": "Untouched report of D06",
+      "tampered": false,
+      "detected": false,
+      "detail": ""
+    },
+    {
+      "id": "C-report-D07",
+      "description": "Untouched report of D07",
+      "tampered": false,
+      "detected": false,
+      "detail": ""
+    },
+    {
+      "id": "C-report-D08",
+      "description": "Untouched report of D08",
+      "tampered": false,
+      "detected": false,
+      "detail": ""
+    },
+    {
+      "id": "C-report-D09",
+      "description": "Untouched report of D09",
+      "tampered": false,
+      "detected": false,
+      "detail": ""
+    },
+    {
+      "id": "C-report-D10",
+      "description": "Untouched report of D10",
+      "tampered": false,
+      "detected": false,
+      "detail": ""
+    },
+    {
+      "id": "C-report-D11",
+      "description": "Untouched report of D11",
+      "tampered": false,
+      "detected": false,
+      "detail": ""
+    },
+    {
+      "id": "C-report-D12",
+      "description": "Untouched report of D12",
+      "tampered": false,
+      "detected": false,
+      "detail": ""
+    },
+    {
+      "id": "C-report-D13",
+      "description": "Untouched report of D13",
+      "tampered": false,
+      "detected": false,
+      "detail": ""
+    },
+    {
+      "id": "C-report-N01",
+      "description": "Untouched report of N01",
+      "tampered": false,
+      "detected": false,
+      "detail": ""
+    },
+    {
+      "id": "C-report-N02",
+      "description": "Untouched report of N02",
+      "tampered": false,
+      "detected": false,
+      "detail": ""
+    },
+    {
+      "id": "C-report-N03",
+      "description": "Untouched report of N03",
+      "tampered": false,
+      "detected": false,
+      "detail": ""
+    },
+    {
+      "id": "C-report-N04",
+      "description": "Untouched report of N04",
+      "tampered": false,
+      "detected": false,
+      "detail": ""
+    },
+    {
+      "id": "C-report-W01",
+      "description": "Untouched report of W01",
+      "tampered": false,
+      "detected": false,
+      "detail": ""
+    },
+    {
+      "id": "C-report-W02",
+      "description": "Untouched report of W02",
+      "tampered": false,
+      "detected": false,
+      "detail": ""
+    },
+    {
+      "id": "C-report-W03",
+      "description": "Untouched report of W03",
+      "tampered": false,
+      "detected": false,
+      "detail": ""
+    },
+    {
+      "id": "C-report-R01",
+      "description": "Untouched report of R01",
+      "tampered": false,
+      "detected": false,
+      "detail": ""
+    },
+    {
+      "id": "C-report-R02",
+      "description": "Untouched report of R02",
+      "tampered": false,
+      "detected": false,
+      "detail": ""
+    },
+    {
+      "id": "C-report-R03",
+      "description": "Untouched report of R03",
+      "tampered": false,
+      "detected": false,
+      "detail": ""
+    },
+    {
+      "id": "C-report-R04",
+      "description": "Untouched report of R04",
+      "tampered": false,
+      "detected": false,
+      "detail": ""
+    },
+    {
+      "id": "C-report-R05",
+      "description": "Untouched report of R05",
+      "tampered": false,
+      "detected": false,
+      "detail": ""
+    },
+    {
+      "id": "C-baseline-demo",
+      "description": "Untouched baseline demo",
+      "tampered": false,
+      "detected": false,
+      "detail": ""
+    },
+    {
+      "id": "C-baseline-notes",
+      "description": "Untouched baseline notes",
+      "tampered": false,
+      "detected": false,
+      "detail": ""
+    },
+    {
+      "id": "C-baseline-weather",
+      "description": "Untouched baseline weather",
+      "tampered": false,
+      "detected": false,
+      "detail": ""
+    },
+    {
+      "id": "C-chain",
+      "description": "Untouched audit chain",
+      "tampered": false,
+      "detected": false,
+      "detail": "99 blocks"
+    },
+    {
+      "id": "K01",
+      "description": "Audit block event data edited",
+      "tampered": true,
+      "detected": true,
+      "detail": "Integrity failure at block #50: Its recorded event data was changed after the block was written."
+    },
+    {
+      "id": "K02",
+      "description": "Audit block edited and its hash recomputed",
+      "tampered": true,
+      "detected": true,
+      "detail": "Integrity failure at block #50: Its digital signature is not valid (signature does not match the signed data)."
+    },
+    {
+      "id": "K03",
+      "description": "Stored report: verdict changed to CLEAN",
+      "tampered": true,
+      "detected": true,
+      "detail": "The stored report was changed after it was sealed (its hash no longer matches)."
+    },
+    {
+      "id": "K04",
+      "description": "Stored report: one file fingerprint altered",
+      "tampered": true,
+      "detected": true,
+      "detail": "The stored report was changed after it was sealed (its hash no longer matches)."
+    },
+    {
+      "id": "K05",
+      "description": "Baseline: one stored file fingerprint altered",
+      "tampered": true,
+      "detected": true,
+      "detail": "stored file list does not reproduce the recorded Merkle root"
+    },
+    {
+      "id": "K06",
+      "description": "Baseline: file list and Merkle root forged consistently",
+      "tampered": true,
+      "detected": true,
+      "detail": "approval signature invalid: signature does not match the signed data"
+    },
+    {
+      "id": "K07",
+      "description": "Baseline: re-signed with a rogue key claiming the trusted key id",
+      "tampered": true,
+      "detected": true,
+      "detail": "approval signature invalid: signature does not match the signed data"
+    },
+    {
+      "id": "K08",
+      "description": "Baseline: certificate fingerprint swapped for an attacker's",
+      "tampered": true,
+      "detected": true,
+      "detail": "approval signature invalid: signature does not match the signed data"
+    },
+    {
+      "id": "K09",
+      "description": "Baseline: revocation undone by editing the status column",
+      "tampered": true,
+      "detected": true,
+      "detail": "status 'approved' contradicts the audit trail (last recorded: revoked)"
+    },
+    {
+      "id": "K10",
+      "description": "Audit block appended with an untrusted signing key",
+      "tampered": true,
+      "detected": true,
+      "detail": "Integrity failure at block #108: Its digital signature is not valid (unknown or untrusted signing key 'mt-fe7960a8ed4b713a')."
+    },
+    {
+      "id": "K11",
+      "description": "Newest audit block deleted (checked against a saved signed head)",
+      "tampered": true,
+      "detected": true,
+      "detail": "The chain is shorter than, or different from, a previously recorded head: blocks were deleted or replaced."
+    }
+  ],
+  "baseline_timings": {
+    "enroll_ms": [
+      92.18079999982365,
+      24.39219999996567,
+      23.13589999994292
+    ],
+    "approve_ms": [
+      11.402199999793083,
+      8.885100000043167,
+      9.096699999645352
+    ]
+  }
+}

@@ -264,6 +264,7 @@ def _build(events, fmt: str) -> dict[str, Any]:
                 "exported": _as_bool(attrs.get("exported")),
                 "permission": str(attrs["permission"]) if "permission" in attrs else None,
                 "has_intent_filter": False,
+                "intent_actions": [],
             }
             if tag == "provider":
                 current_component["authorities"] = str(attrs.get("authorities", ""))
@@ -274,6 +275,10 @@ def _build(events, fmt: str) -> dict[str, Any]:
                 bucket.append(name)
         elif tag == "intent-filter" and current_component is not None:
             current_component["has_intent_filter"] = True
+        elif tag == "action" and parent == "intent-filter" and current_component is not None:
+            action = str(attrs.get("name", ""))
+            if action and action not in current_component["intent_actions"]:
+                current_component["intent_actions"].append(action)
 
     # Effective export state: explicit flag wins; otherwise (pre-Android 12
     # semantics) a component with an intent filter is exported.

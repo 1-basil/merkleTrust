@@ -10,6 +10,8 @@ from core.baselines import BaselineError, BaselineNotFound, BaselineService, ver
 from core.crypto import KeyRing, Signer
 from db.models import TrustedBaseline
 
+pytestmark = [pytest.mark.integration, pytest.mark.security]
+
 
 @pytest.fixture
 def svc(db):

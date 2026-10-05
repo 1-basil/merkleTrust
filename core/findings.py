@@ -28,7 +28,7 @@ SEVERITIES = ("info", "low", "medium", "high", "critical")
 @dataclass(frozen=True)
 class FindingType:
     severity: str
-    category: str          # integrity | signature | manifest | code | network | archive | analysis
+    category: str          # integrity | signature | manifest | code | network | archive | runtime | analysis
     title: str             # plain language, for non-specialists
     technical: str         # precise technical statement
     explanation: str
@@ -248,7 +248,7 @@ _CATALOG_SPEC: dict[str, tuple] = {
         "medium", "code", "Can hide itself",
         "PackageManager.setComponentEnabledSetting referenced",
         "Disabling components is often used to remove the app's launcher icon so users cannot find it.",
-        "Check whether the app hides its icon.", 8),
+        "Check whether the app hides its icon.", 8, "hide_icon"),
     "STATIC_WEBVIEW_JS_BRIDGE": _t(
         "low", "code", "Web pages can call into the app",
         "WebView.addJavascriptInterface referenced",
@@ -269,6 +269,75 @@ _CATALOG_SPEC: dict[str, tuple] = {
         "http:// URL literals in code",
         "Traffic to http:// addresses is not encrypted.",
         "Use https:// endpoints.", 4, "cleartext"),
+
+    # ------------------------------------------------ behaviour patterns --
+    # Combinations of capabilities that characterise well-known Android malware
+    # families. Each adds to (does not replace) the individual capability findings.
+    "PATTERN_DROPPER": _t(
+        "high", "code", "Can download and run code from the internet",
+        "Dynamic code loading in an app with network access (dropper pattern)",
+        "Loading executable code at runtime in an app that can reach the internet is how 'dropper' malware "
+        "installs its real payload after passing review: what was checked is not what will run.",
+        "Find out what code is loaded and where it comes from before trusting the app.", 25, "pattern_dropper"),
+    "PATTERN_SMS_FRAUD": _t(
+        "critical", "code", "Can send paid text messages without the user",
+        "SMS sending + SEND_SMS permission + triggered by the system (boot or exported receiver)",
+        "Sending SMS automatically when the phone starts or when a broadcast arrives, without the user pressing "
+        "anything, is the pattern of premium-rate SMS fraud.",
+        "Do not install unless the app is a messaging app you trust.", 30, "pattern_sms_fraud"),
+    "PATTERN_SPYWARE": _t(
+        "high", "code", "Collects personal data and can secretly send it away",
+        "Sensitive data access + network access + concealment/exfiltration indicator",
+        "The app can read personal data (identifiers, contacts, location, microphone, call logs), can reach "
+        "the internet, and shows a sign of hiding or exfiltration (command execution, hard-coded IP address, "
+        "hiding its icon, accessibility control) — the profile of spyware.",
+        "Do not install unless every permission is clearly justified by the app's purpose.", 25,
+        "pattern_spyware"),
+
+    # -------------------------------------------------------- runtime --
+    # Behaviour observed while the app ran in the emulator (core/dynamic.py).
+    # Each shares its group with the static finding for the same capability, so
+    # "can do X" (static) and "did X" (runtime) are never counted twice.
+    "RUNTIME_PRIV_ESC": _t(
+        "critical", "runtime", "Tried to take full control of the device (root)",
+        "App process attempted to execute su (superuser)",
+        "While it ran, the app tried to start the superuser program. Normal apps never need root; rooting tools "
+        "and malware use it to disable Android's protections and act outside the app sandbox.",
+        "Do not install.", 30, "privilege_escalation"),
+    "RUNTIME_CMD_EXEC": _t(
+        "high", "runtime", "Ran system commands while running",
+        "App process started a child process (shell command)",
+        "The app was seen starting other programs on the device, not just referencing the ability to do so.",
+        "Find out which commands are run and why.", 15, "command_execution"),
+    "RUNTIME_CODE_LOADED": _t(
+        "high", "runtime", "Loaded code that was not part of the app",
+        "Executable code (DEX/JAR/native library) written to app storage or loaded at runtime",
+        "The app wrote or loaded program code at runtime. Code obtained this way was never part of the reviewed "
+        "package, so the app's behaviour can change after installation.",
+        "Find out where the code comes from before trusting the app.", 20, "dynamic_code"),
+    "RUNTIME_SMS_SENT": _t(
+        "critical", "runtime", "Sent a text message by itself",
+        "Outgoing SMS recorded during the automated run (no user interaction)",
+        "During the test nobody touched the app, yet it sent a text message. This is how premium-rate SMS fraud "
+        "charges the victim.",
+        "Do not install.", 30, "pattern_sms_fraud"),
+    "RUNTIME_HIDES_ICON": _t(
+        "medium", "runtime", "Hid itself from the home screen",
+        "Launcher activity disabled at runtime",
+        "After it started, the app removed its own icon from the launcher, so the user can no longer find or "
+        "easily uninstall it.",
+        "Treat as stalkerware or malware unless this is clearly intended.", 12, "hide_icon"),
+    "RUNTIME_CLEARTEXT": _t(
+        "medium", "runtime", "Sent unencrypted internet traffic",
+        "Plain-text HTTP connection observed",
+        "The app was seen talking to a server over unencrypted HTTP; anyone on the network can read or alter it.",
+        "Use HTTPS only.", 8, "cleartext"),
+    "RUNTIME_NETWORK": _t(
+        "info", "runtime", "Internet servers contacted while running",
+        "Outgoing connections observed from the app",
+        "These are the servers the app connected to during the test. Contacting servers is normal; the list helps "
+        "a reviewer check that they belong to the app's developer.",
+        "Check that the servers are expected for this app.", 0),
 
     # ------------------------------------------------------- analysis --
     "INTEGRITY_COMPUTED": _t("info", "analysis", "File fingerprints computed", "Per-file SHA-256 manifest and Merkle root computed",

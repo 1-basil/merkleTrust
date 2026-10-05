@@ -116,10 +116,11 @@ def demo_tamper(body: TamperRequest, admin: CurrentUser = Depends(require_admin)
         raise ApiError(404, "Block not found.")
     # Record the demonstration first, so the tampered block is never the head and
     # restore_tampered() returns the chain to an exactly valid state.
-    audit.append_event(db, "AUDIT_TAMPER_DEMO", admin.username,
-                       {"block_index": body.block_index, "mode": body.mode})
-    audit.simulate_tamper(db, body.block_index, body.mode)
-    db.commit()
+    with audit.APPEND_LOCK:
+        audit.append_event(db, "AUDIT_TAMPER_DEMO", admin.username,
+                           {"block_index": body.block_index, "mode": body.mode})
+        audit.simulate_tamper(db, body.block_index, body.mode)
+        db.commit()
     return {"tampered_block": body.block_index, "mode": body.mode, **_verification(db)}
 
 

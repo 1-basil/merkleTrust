@@ -10,6 +10,8 @@ from core.apk_archive import ApkArchive
 from core.apk_signature import locate_signing_block, verify_apk
 from scripts.apk_mutations import flip_byte, local_header_offset, rewrite_zip
 
+pytestmark = [pytest.mark.unit, pytest.mark.security]
+
 
 def _verify(path):
     with ApkArchive(str(path)) as apk:

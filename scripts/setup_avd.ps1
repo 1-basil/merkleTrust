@@ -183,6 +183,13 @@ if ($avdList -match $AVD_NAME) {
         Write-Error "Failed to create AVD '$AVD_NAME'"
         exit 1
     }
+    # Two cores / 2 GB are not enough: Google Play services optimising after the
+    # first boot can overload the guest until its watchdog restarts system_server.
+    $avdConfig = Join-Path $env:USERPROFILE ".android\avd\$AVD_NAME.avd\config.ini"
+    (Get-Content $avdConfig) -replace '^hw\.cpu\.ncore\s*=.*', 'hw.cpu.ncore=4' `
+                             -replace '^hw\.ramSize\s*=.*', 'hw.ramSize=4096' | Set-Content $avdConfig
+    if (-not (Select-String -Path $avdConfig -Pattern '^hw\.cpu\.ncore' -Quiet)) { Add-Content $avdConfig 'hw.cpu.ncore=4' }
+    if (-not (Select-String -Path $avdConfig -Pattern '^hw\.ramSize' -Quiet)) { Add-Content $avdConfig 'hw.ramSize=4096' }
     Write-Host "[OK] AVD '$AVD_NAME' created successfully." -ForegroundColor Green
 }
 

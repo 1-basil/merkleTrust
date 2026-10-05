@@ -2,9 +2,13 @@
 
 import hashlib
 
+import pytest
+
 from core.apk_archive import ApkArchive
 from core.file_manifest import (build_file_manifest, categorize, compare_manifests, file_proof, manifest_root,
                                 verify_file_proof)
+
+pytestmark = pytest.mark.unit
 
 
 def _f(path, content):

@@ -25,6 +25,14 @@ All settings use the ``MERKLETRUST_`` prefix and may also be placed in a local
     MERKLETRUST_ENABLE_DEMO           tamper/restore demo endpoints (default: on unless production)
     MERKLETRUST_AUTO_MIGRATE          apply database migrations at startup (default true)
     MERKLETRUST_LOG_LEVEL / MERKLETRUST_LOG_JSON
+
+  Dynamic (emulator) analysis — runs the uploaded app, so it is off by default
+    MERKLETRUST_DYNAMIC_ENABLED       observe the app in a running emulator (default false)
+    MERKLETRUST_DYNAMIC_TIMEOUT_S     time budget for the whole stage (default 120)
+    MERKLETRUST_DYNAMIC_OBSERVE_S     observation window after launch (default 20)
+    MERKLETRUST_ADB_PATH              adb executable (default: PATH, then the Android SDK)
+    MERKLETRUST_ADB_SERIAL            device to use when several are connected
+    MERKLETRUST_FRIDA_PATH            frida CLI for API hooks (optional; needs frida-server on the emulator)
 """
 
 from __future__ import annotations
@@ -62,6 +70,13 @@ class Settings(BaseSettings):
     log_json: bool = True
     login_rate_per_minute: int = 10
     upload_rate_per_minute: int = 20
+
+    dynamic_enabled: bool = False
+    dynamic_timeout_s: int = 120
+    dynamic_observe_s: int = 20
+    adb_path: str | None = None
+    adb_serial: str | None = None
+    frida_path: str | None = None
 
     @property
     def resolved_database_url(self) -> str:

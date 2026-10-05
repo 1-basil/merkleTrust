@@ -5,7 +5,7 @@ Runs the analysis pipeline for one APK:
   1. integrity   per-file SHA-256 manifest + Merkle root (and chunk forensics)
   2. static      manifest, signature/certificate, DEX analysis
   3. tamper      comparison with the approved trusted baseline
-  4. dynamic     optional emulator run (degrades gracefully without one)
+  4. dynamic     optional emulator run (off by default; degrades gracefully without one)
   5. score       integrity status, risk score, verdict
   6. repository  seal the reports into the audit chain
 
@@ -41,8 +41,15 @@ CONFIG = {
     "apktool": "apktool",
     "jadx": "jadx",
     "emulator_avd": "mt_api30_root",
-    "dynamic_timeout_s": 90,
 }
+
+
+def engine_config() -> dict[str, Any]:
+    """Static tool settings plus the environment-driven dynamic-analysis settings."""
+    s = get_settings()
+    return {**CONFIG, "dynamic_enabled": s.dynamic_enabled, "dynamic_timeout_s": s.dynamic_timeout_s,
+            "dynamic_observe_s": s.dynamic_observe_s, "adb": s.adb_path, "adb_serial": s.adb_serial,
+            "frida": s.frida_path}
 
 STAGES = [
     ("integrity", integrity.run),
@@ -131,6 +138,7 @@ def run_job(apk_path: str, job_id: str | None = None, root: str | None = None, d
     config = {**CONFIG, "dynamic_device_wait_s": get_settings().dynamic_device_wait_s}
     tracker = _Tracker(db_session, job_id)
     tracker.job_started()
+    config = engine_config()
     prior: dict[str, dict] = {}
     status: dict[str, str] = {}
     errors: dict[str, str] = {}

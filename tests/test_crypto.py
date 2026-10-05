@@ -12,6 +12,8 @@ from core.config import Settings
 from core.crypto import (ALGORITHM, P256_ORDER, KeyConfigurationError, KeyRing, Signer, canonical_json,
                          hash_payload, key_id_for, load_keyring, load_signer, write_private_key)
 
+pytestmark = pytest.mark.unit
+
 PAYLOAD = {"baseline_id": 7, "package": "com.merkletrust.demo", "files": [{"path": "classes.dex", "sha256": "ab" * 32}]}
 
 
