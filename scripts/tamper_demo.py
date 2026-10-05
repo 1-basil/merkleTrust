@@ -3,7 +3,7 @@
     python -m scripts.tamper_demo [--ledger PATH]   (default: the configured data directory's ledger)
 
 1. verify the chain (valid)
-2. change one character of one entry's canonical_report_sha256 in the file
+2. change one character of one entry's sealed_sha256 in the file
 3. verify again: the chain reports the exact entry and why
 4. restore the file byte-for-byte and verify once more
 """
@@ -27,11 +27,11 @@ def _say(text: str = "") -> None:
 def _flip_digest(line: str) -> tuple[str, str, str]:
     """Return (new_line, old_digest, new_digest) with one hex character changed."""
     entry = json.loads(line)
-    old = entry["canonical_report_sha256"]
+    old = entry["sealed_sha256"]
     new_char = "1" if old[0] != "1" else "2"
-    entry["canonical_report_sha256"] = new_char + old[1:]
+    entry["sealed_sha256"] = new_char + old[1:]
     new_line = json.dumps(entry, sort_keys=True, separators=(",", ":"))
-    return new_line, old, entry["canonical_report_sha256"]
+    return new_line, old, entry["sealed_sha256"]
 
 
 def run(ledger: str) -> int:
@@ -59,7 +59,7 @@ def run(ledger: str) -> int:
 
     try:
         _say()
-        _say(f"[2] Changing one character of entry #{target}'s canonical_report_sha256")
+        _say(f"[2] Changing one character of entry #{target}'s sealed_sha256")
         new_line, old, new = _flip_digest(lines[target])
         lines[target] = new_line
         with open(ledger, "w", encoding="utf-8", newline="\n") as fh:
