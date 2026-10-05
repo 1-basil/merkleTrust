@@ -70,3 +70,7 @@ server.log
 Thumbs.db
 ehthumbs.db
 Desktop.ini
+
+# Frontend dependencies and builds
+node_modules/
+dist/
