@@ -70,3 +70,6 @@ server.log
 Thumbs.db
 ehthumbs.db
 Desktop.ini
+
+# Append-only audit ledger (generated locally)
+ledger/
