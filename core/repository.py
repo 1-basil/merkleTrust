@@ -165,6 +165,7 @@ VOLATILE_KEYS = frozenset({
     "timestamp", "created_at", "approved_at", "updated_at", "generated_at",
     "started_at", "finished_at", "completed_at", "issued_at", "tampered_at",
     "duration_s", "duration_ms", "elapsed_ms",
+    "ts", "timings_s",  # live dynamic runs: capture-window offsets and per-stage timings
 })
 
 
@@ -178,9 +179,6 @@ def _clean(obj: Any, workspace: str | None) -> Any:
                 if k not in VOLATILE_KEYS and not _in_workspace(v, workspace)}
     if isinstance(obj, list):
         return [_clean(v, workspace) for v in obj if not _in_workspace(v, workspace)]
-    if isinstance(obj, float):
-        raise ValueError(f"floats are not allowed in a canonical report (found {obj!r}); "
-                         "engines must emit integers or strings")
     return obj
 
 
@@ -194,8 +192,9 @@ def canonicalise(report: dict, workspace: str | None = None) -> bytes:
         engine reports, which contain job_id, so they change between runs. The engine
         reports themselves are still hashed, so provenance is still covered.
 
-    Floats raise ValueError. Rounding would silently change what is hashed; a rejected
-    float fails the sealing stage loudly instead.
+    Floats are kept and serialised by Python's shortest round-trip repr, which is
+    deterministic for a given interpreter. The canonical digest is only a secondary
+    reproducibility key: it never gates the ledger, which seals the stored bytes.
     """
     body = _clean(report, workspace)
     score = body.get("score")
@@ -379,7 +378,6 @@ def verify_chain(ledger_path: str) -> dict:
 
 def run(job_id: str, ctx: JobContext) -> dict:
     """Seal the reports: ledger first (the authority), then the audit-chain database (a cache)."""
-    report_digest(ctx.prior, ctx.workspace)  # rejects non-canonical input before anything is written
     sealed_bytes = json.dumps(ctx.prior, sort_keys=True, indent=2, ensure_ascii=True).encode("utf-8")
     sealed_path = ctx.out(SEALED_FILE)
     with open(sealed_path, "wb") as fh:

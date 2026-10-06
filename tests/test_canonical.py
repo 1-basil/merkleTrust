@@ -62,9 +62,17 @@ def test_workspace_paths_are_stripped():
     assert stripped["dynamic"]["artifacts"]["logcat"] == "dynamic/logcat.txt"
 
 
-def test_floats_are_rejected():
-    with pytest.raises(ValueError, match="floats are not allowed"):
-        canonicalise({"static": {"ratio": 0.5}})
+def test_floats_are_serialised_deterministically_and_never_raise():
+    a = canonicalise({"dynamic": {"network": [{"dst_port": 443, "bytes": 1.1}]}})
+    b = canonicalise({"dynamic": {"network": [{"bytes": 1.1, "dst_port": 443}]}})
+    assert a == b and b'"bytes":1.1' in a
+
+
+def test_live_dynamic_time_fields_do_not_change_the_digest():
+    """Capture-window offsets and per-stage timings differ between runs of the same APK."""
+    a = {"dynamic": {"network": [{"ts": 4.8, "dst_port": 443}], "timings_s": {"install": 6.8}, "launched": True}}
+    b = {"dynamic": {"network": [{"ts": 9.1, "dst_port": 443}], "timings_s": {"install": 7.9}, "launched": True}}
+    assert report_digest(a) == report_digest(b)
 
 
 def test_output_is_compact_sorted_ascii():
