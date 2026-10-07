@@ -23,17 +23,17 @@ import os
 class JobContext:
     """This is the ONLY input your engine receives (besides job_id)."""
 
-    apk_path: str
+    apk_path: str | None = None
     # Absolute path to the APK on disk, already validated and quarantined.
     # Example: "/srv/merkletrust/quarantine/a3f9...c1.apk"
     # It is read-only. Never move, rename or delete it.
 
-    workspace: str
+    workspace: str | None = None
     # Absolute path to THIS job's folder. Already created by the orchestrator.
     # Example: "/srv/merkletrust/jobs/8d2c1e40-.../"
     # Write your JSON and all your scratch files inside here, nowhere else.
 
-    prior: dict[str, dict]
+    prior: dict[str, dict] = field(default_factory=dict)
     # Reports from engines that already finished, keyed by engine name:
     #   "integrity" | "static" | "tamper" | "dynamic" | "score"
     # These are plain dicts loaded from the JSON files. Read-only.
@@ -49,6 +49,24 @@ class JobContext:
     #    "chunk_size": 65536, "emulator_avd": "mt_api30_root",
     #    "dynamic_timeout_s": 90}
     # Never hardcode a tool path. Read it from here.
+
+    target_path: str | None = None
+    # Content-neutral name for apk_path: the analysed file, whatever its type.
+    # Pass either one; the other is filled in so APK engines keep working.
+
+    mime_type: str = "application/octet-stream"
+    file_category: str = "apk"
+    # Set by the orchestrator from core.detector (magic bytes, not the extension):
+    #   "apk" | "image" | "video" | "audio" | "web" | "doc"
+    # The default keeps every existing caller on the APK pipeline.
+
+    def __post_init__(self) -> None:
+        if self.workspace is None:
+            raise TypeError("JobContext requires a workspace")
+        if self.target_path is None:
+            self.target_path = self.apk_path
+        elif self.apk_path is None:
+            self.apk_path = self.target_path
 
     def out(self, name: str) -> str:
         """Path for your output file: ctx.out('static.json')"""

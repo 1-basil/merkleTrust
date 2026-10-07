@@ -13,12 +13,17 @@ Supplementary forensics — fixed-size chunks:
   inserted byte shifts every later chunk, so they are never used as the verdict.
 
 Also records each ZIP entry's byte span (file_map) for chunk-to-file localisation.
+
+Non-APK content (images, audio/video, web pages, PDFs — ctx.file_category other
+than "apk") has no inner files: the chunk tree over the raw bytes is its
+commitment, and the manifest holds the single file.
 """
 
 from __future__ import annotations
 
 import hashlib
 import json
+import os
 import sys
 import tempfile
 from typing import Any
@@ -93,8 +98,60 @@ def compute_integrity(apk_path: str, chunk_size: int = DEFAULT_CHUNK_SIZE,
     }
 
 
+def compute_content_integrity(path: str, chunk_size: int = DEFAULT_CHUNK_SIZE, *,
+                              mime_type: str = "application/octet-stream",
+                              file_category: str = "other") -> dict[str, Any]:
+    """Integrity for a single non-archive file (image, media, web page, document).
+
+    The chunk tree is the primary commitment here: there are no inner files, so
+    the "manifest" is one entry binding the file name to its SHA-256, keeping the
+    integrity.json schema (and every reader of merkle_root) unchanged.
+    """
+    with open(path, "rb") as fh:
+        data = fh.read()
+    sha256 = hashlib.sha256(data).hexdigest()
+    files = [{"path": os.path.basename(path) or "content", "sha256": sha256, "size": len(data),
+              "category": file_category}]
+    chunks = compute_chunks(data, chunk_size)
+    chunk_tree = build_tree([c["hash"] for c in chunks])
+    return {
+        "sha256": sha256,
+        "file_size": len(data),
+        "file_count": 1,
+        "files": files,
+        "merkle_root": manifest_root(files),
+        "chunk_size": chunk_size,
+        "chunk_count": len(chunks),
+        "chunks": chunks,
+        "chunk_merkle_root": root(chunk_tree),
+        "tree_depth": len(chunk_tree),
+        "file_map": [{"path": files[0]["path"], "offset": 0, "length": len(data), "sha256": sha256}],
+        "mime_type": mime_type,
+        "file_category": file_category,
+    }
+
+
+def _run_content(job_id: str, ctx: JobContext, chunk_size: int) -> dict:
+    try:
+        result = compute_content_integrity(ctx.target_path, chunk_size, mime_type=ctx.mime_type,
+                                           file_category=ctx.file_category)
+    except OSError as exc:
+        raise EngineError(f"Cannot read file: {exc.strerror or exc}") from None
+    findings = [{
+        "id": "INTEGRITY_COMPUTED",
+        "severity": "info",
+        "title": "Content fingerprint and Merkle commitment computed",
+        "evidence": f"{result['chunk_count']} chunk(s) of {chunk_size} bytes hashed with SHA-256; "
+                    f"chunk root {result['chunk_merkle_root'][:16]}...",
+    }]
+    report = {"job_id": job_id, "engine": "integrity", "status": "ok", "findings": findings, **result}
+    return emit(ctx, "integrity.json", report)
+
+
 def run(job_id: str, ctx: JobContext) -> dict:
     chunk_size = int(ctx.config.get("chunk_size", DEFAULT_CHUNK_SIZE))
+    if ctx.file_category != "apk":
+        return _run_content(job_id, ctx, chunk_size)
     try:
         result = compute_integrity(ctx.apk_path, chunk_size, ctx.config.get("apk_limits"))
     except ApkValidationError as exc:

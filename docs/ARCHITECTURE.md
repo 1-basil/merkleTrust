@@ -114,6 +114,32 @@ time-boxed and the stage respects `dynamic_timeout_s`.
   apply the targetSdk ≥ 30 v2 requirement. Verdicts agree with Google's `apksigner` on
   13/13 genuine and tampered cases (`scripts/crosscheck_apksigner.py`).
 
+### 2.3 Universal content (images, media, web pages, documents)
+
+The pipeline also accepts non-APK content. `core/detector.py::detect_content_type`
+classifies the file by **magic bytes**, never by extension (PNG, JPEG, GIF, WebP,
+MP4/M4A, Matroska/WebM, WAV, MP3, PDF, HTML; JavaScript is the one text format that
+needs its extension as a tie-breaker). An unrecognised file takes the APK path and is
+rejected there as before; every ZIP is handed to the APK engine.
+
+For content, the orchestrator runs integrity → content → score → repository and
+records `static`, `tamper` and `dynamic` as `skipped`:
+
+| Stage | Module | Output |
+|---|---|---|
+| integrity | `core/integrity.py::compute_content_integrity` | 64 KB chunk hashes and their RFC 6962 chunk Merkle root (the primary commitment here), whole-file SHA-256, a one-entry manifest so `merkle_root` keeps its schema, `mime_type`, `file_category` |
+| content | `core/analyzers/` (`image.py`, `media.py`, `web.py`, `document.py`) | `content.json`: structural findings — appended payloads after the format's real end (JPEG EOI, PNG IEND, GIF trailer, RIFF length, last MP4 atom / Matroska element / MPEG frame, final `%%EOF`), PNG CRC and truncation errors, EXIF GPS and serial numbers, unknown container boxes, missing SRI, `eval`/`document.write`/`innerHTML` sinks, cleartext or off-domain form actions, PDF JavaScript/launch/auto-actions/embedded files |
+| score | `core/scoring.py` | Same rules and catalogue; integrity status `NOT_APPLICABLE` (no baseline), so the verdict is HIGH_RISK, REVIEW or CLEAN |
+| repository | `core/repository.py` | Seals the reports; the block payload adds `file_category`, `mime_type` and `chunk_merkle_root` |
+
+All parsers are pure Python (`struct`, `zlib`, `wave`, `html.parser`) and walk each
+format's declared structure rather than searching for end markers, because those bytes
+legitimately occur inside compressed data and EXIF thumbnails. Appended bytes that start
+with a known archive/executable/script signature raise the finding to critical.
+`JobContext` gains `target_path` (an alias kept in sync with `apk_path`), `mime_type`
+and `file_category` (default `"apk"`, so existing callers are unchanged). Baselines
+remain APK-only.
+
 ## 3. Trusted baselines
 
 ```mermaid
@@ -156,7 +182,7 @@ These are separate questions with separate answers (`core/comparison.py`, `core/
 | BASELINE_INVALID | The stored baseline failed verification |
 
 **Risk** — "does it have dangerous characteristics?" Every finding comes from one
-catalogue (`core/findings.py`, 54 entries) with a plain title, technical title,
+catalogue (`core/findings.py`, 68 entries) with a plain title, technical title,
 severity, explanation, recommendation, points and a *group*. The score is the sum of
 the highest-scoring finding per group (no double counting), capped at 100.
 Level: LOW < 20 ≤ MEDIUM < 45 ≤ HIGH < 70 ≤ CRITICAL; a critical-severity finding
@@ -311,7 +337,7 @@ without echoing input). Interactive docs at `/api/docs` outside production.
 | POST | `/api/v1/auth/login` | public, rate-limited | Sign in; returns a bearer token |
 | POST | `/api/v1/auth/logout` | user | Revoke the current session |
 | GET | `/api/v1/auth/me` | user | Current user and role |
-| POST | `/api/v1/scans` | user, rate-limited | Upload an APK (202 + scan id) |
+| POST | `/api/v1/scans` | user, rate-limited | Upload an APK, image, audio/video, web page or PDF (202 + scan id) |
 | GET | `/api/v1/scans` | user | Scan history (paginated, filter by package) |
 | GET | `/api/v1/scans/{scan_id}` | user | Status, engine progress, result summary |
 | GET | `/api/v1/scans/{scan_id}/report` | user | Full engine reports |

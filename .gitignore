@@ -71,10 +71,13 @@ Thumbs.db
 ehthumbs.db
 Desktop.ini
 
+# Append-only audit ledger (generated locally)
+ledger/
+
 # Frontend dependencies and builds
 node_modules/
 **/node_modules/
 dist/
 **/dist/
 .env.local
-.github/
+.github/

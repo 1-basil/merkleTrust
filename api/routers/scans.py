@@ -78,8 +78,9 @@ def _load_reports(job: Job, settings: Settings) -> dict[str, Any]:
 def create_scan(request: Request, file: UploadFile = File(...), user: CurrentUser = Depends(current_user),
                 db: Session = Depends(get_db), settings: Settings = Depends(settings_dep),
                 _rl: None = Depends(rate_limited("upload", lambda s: s.upload_rate_per_minute, by="user"))):
-    """Upload an APK. Returns immediately with a scan id; poll GET /scans/{id}."""
-    with receive_apk(file, settings.max_upload_mb * 1024 * 1024, Path(settings.data_dir) / "tmp") as received:
+    """Upload an APK, image, audio/video, web page or PDF. Returns immediately with a scan id; poll GET /scans/{id}."""
+    with receive_apk(file, settings.max_upload_mb * 1024 * 1024, Path(settings.data_dir) / "tmp",
+                     allow_content=True) as received:
         stored = quarantine(received, Path(settings.quarantine_dir))
     if db.get(ApkFile, received.sha256) is None:
         db.add(ApkFile(sha256=received.sha256, filename=received.display_name, file_size=received.size,
@@ -90,9 +91,11 @@ def create_scan(request: Request, file: UploadFile = File(...), user: CurrentUse
     for name, _ in STAGES:
         db.add(EngineStatus(job_id=job_id, engine_name=name, status="pending"))
     db.commit()
-    audit.record_event("APK_UPLOADED", user.username, {"scan_id": job_id, "apk_sha256": received.sha256,
-                                                        "size": received.size, "filename": received.display_name},
-                       subject=job_id)
+    event = {"scan_id": job_id, "apk_sha256": received.sha256, "size": received.size,
+             "filename": received.display_name}
+    if received.file_category != "apk":
+        event.update(file_category=received.file_category, mime_type=received.mime_type)
+    audit.record_event("APK_UPLOADED", user.username, event, subject=job_id)
     try:
         request.app.state.job_runner.submit(job_id, str(stored))
     except QueueFull:
