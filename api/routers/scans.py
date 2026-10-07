@@ -19,6 +19,7 @@ from api.uploads import quarantine, receive_apk
 from core import audit
 from core.baselines import BaselineService
 from core.config import Settings
+from core.crypto import get_signer, public_key_pem
 from core.file_manifest import file_proof, verify_file_proof
 from core.repository import verify_job_report
 from core.orchestrator import STAGES
@@ -177,4 +178,53 @@ def file_proof_against_baseline(scan_id: str, path: str = Query(..., min_length=
                         "This file was removed from the app." if current is None else
                         "This file differs from the trusted version: its fingerprint does not lead to the "
                         "trusted root."),
+    }
+
+
+@router.get("/{scan_id}/bundle")
+def get_verification_bundle(scan_id: str, _user: CurrentUser = Depends(current_user), db: Session = Depends(get_db),
+                            settings: Settings = Depends(settings_dep)):
+    """Export self-contained verification bundle for zero-trust offline verification."""
+    job = _job_or_404(db, scan_id)
+    reports = _load_reports(job, settings).get("reports", {})
+    blocks = audit.events_for_subject(db, job.id, ("ANALYSIS_COMPLETED",))
+    if not blocks:
+        raise ApiError(404, "No sealed audit record found for this scan.")
+    block = blocks[-1]
+    signer = get_signer()
+    pubkey_pem = public_key_pem(signer.public_key)
+    block_dict = {
+        "block_index": block.block_index,
+        "block_hash": block.block_hash,
+        "previous_hash": block.previous_hash,
+        "timestamp": block.timestamp,
+        "event_type": block.event_type,
+        "actor": block.actor,
+        "subject": block.subject,
+        "payload_hash": block.payload_hash,
+        "key_id": block.key_id,
+        "signature": json.loads(block.signature_json),
+        "payload": json.loads(block.payload_json),
+    }
+    from core.offline_verifier import create_verification_bundle
+    return create_verification_bundle(summarize(job), reports, block_dict, pubkey_pem)
+
+
+@router.get("/{scan_id}/attestation")
+def get_slsa_attestation(scan_id: str, _user: CurrentUser = Depends(current_user), db: Session = Depends(get_db),
+                         settings: Settings = Depends(settings_dep)):
+    """Export signed in-toto Statement v1 with SLSA Provenance v1.0 predicate wrapped in DSSE envelope."""
+    job = _job_or_404(db, scan_id)
+    reports = _load_reports(job, settings).get("reports", {})
+    from core.attestation import create_intoto_statement, create_slsa_predicate, sign_dsse
+    predicate = create_slsa_predicate(summarize(job), reports)
+    statement = create_intoto_statement(job.filename or "unknown", job.apk_sha256 or "", predicate)
+    signer = get_signer()
+    envelope = sign_dsse(statement, signer)
+    return {
+        "scan_id": job.id,
+        "envelope": envelope,
+        "statement": statement,
+        "key_id": signer.key_id,
+        "public_key_pem": public_key_pem(signer.public_key),
     }

@@ -278,17 +278,60 @@ def analyze_apk(apk_path: str, limits: dict | None = None) -> dict[str, Any]:
         dex_files = [(n, apk.read(n)) for n in apk.names()
                      if n.endswith(".dex") and "/" not in n]
         dex = analyze_dex_files(dex_files)
+
+        from core.native_analyzer import analyze_native_library
+        from core.yara_scanner import scan_files
+
         native_libs = []
+        native_findings = []
         for entry in apk.files():
             if entry.name.startswith("lib/") and entry.name.endswith(".so"):
                 parts = entry.name.split("/")
-                native_libs.append({"path": entry.name, "arch": parts[1] if len(parts) > 2 else "unknown",
-                                    "sha256": hashlib.sha256(apk.read(entry.name)).hexdigest()})
+                raw_so = apk.read(entry.name)
+                so_info = analyze_native_library(entry.name, raw_so)
+                arch = parts[1] if len(parts) > 2 else "unknown"
+                native_libs.append({
+                    "path": entry.name,
+                    "arch": arch,
+                    "sha256": hashlib.sha256(raw_so).hexdigest(),
+                    "elf_architecture": so_info["elf_header"].get("architecture"),
+                    "bitness": so_info["elf_header"].get("bitness"),
+                    "capabilities": so_info["capabilities"],
+                })
+                caps = so_info["capabilities"]
+                if caps.get("root_detection"):
+                    native_findings.append(finding("STATIC_NATIVE_ROOT_DETECT",
+                                                   f"{entry.name}: {', '.join(caps['root_detection'][:3])}"))
+                if caps.get("anti_debugging"):
+                    native_findings.append(finding("STATIC_NATIVE_PTRACE",
+                                                   f"{entry.name}: {', '.join(caps['anti_debugging'][:3])}"))
+                if caps.get("command_execution"):
+                    native_findings.append(finding("STATIC_NATIVE_EXEC",
+                                                   f"{entry.name}: {', '.join(caps['command_execution'][:3])}"))
+                if caps.get("packer_signatures"):
+                    native_findings.append(finding("STATIC_NATIVE_PACKER",
+                                                   f"{entry.name}: {', '.join(caps['packer_signatures'][:3])}"))
+
         archive_warnings = list(apk.report.warnings)
+
+        # YARA threat scanning across code and bundled assets
+        scan_candidates = [(n, apk.read(n)) for n in apk.names()
+                           if n.endswith(".dex") or n.startswith("lib/") or n.startswith("assets/")]
+        yara_matches = scan_files(scan_candidates)
+        yara_findings = []
+        for ym in yara_matches:
+            yara_findings.append(finding("STATIC_YARA_MATCH",
+                                         f"[{ym.rule_name}] matched in {ym.file_path}: {', '.join(ym.matched_strings[:3])}"))
 
     classified = [classify_permission(p) for p in manifest["permissions"]]
     cert = signature["certificate"]
     findings = static_findings(manifest, classified, signature, dex, archive_warnings)
+
+    if len(dex_files) > 1:
+        findings.append(finding("STATIC_MULTIDEX",
+                                f"Package contains {len(dex_files)} DEX files: {', '.join(n for n, _ in dex_files)}"))
+    findings.extend(native_findings)
+    findings.extend(yara_findings)
 
     return {
         "findings": findings,
@@ -307,9 +350,13 @@ def analyze_apk(apk_path: str, limits: dict | None = None) -> dict[str, Any]:
         "signature": _signature_summary(signature),
         "native_libs": native_libs,
         "dex": {"files": dex["dex_files"], "class_count": dex["class_count"],
-                "sensitive_classes": dex["sensitive_classes"]},
+                "sensitive_classes": dex["sensitive_classes"],
+                "multidex": len(dex_files) > 1,
+                "dex_count": len(dex_files)},
         "iocs": dex["iocs"],
         "dangerous_apis": dex["dangerous_apis"],
+        "yara_matches": [{"rule": ym.rule_name, "file": ym.file_path, "strings": ym.matched_strings}
+                         for ym in yara_matches],
     }
 
 

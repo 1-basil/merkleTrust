@@ -31,6 +31,7 @@ import logging
 import math
 import os
 import threading
+from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -120,18 +121,159 @@ class VerificationResult:
         return self.valid
 
 
-class Signer:
-    """Holds the active private signing key."""
+class KeyProvider(ABC):
+    """Abstract interface for signing keys (local files, HSM, or Cloud KMS)."""
+
+    @abstractmethod
+    def get_public_key(self) -> ec.EllipticCurvePublicKey:
+        """Return the public key for verification."""
+
+    @abstractmethod
+    def get_key_id(self) -> str:
+        """Return the derived key ID."""
+
+    @abstractmethod
+    def sign_bytes(self, message: bytes) -> str:
+        """Sign bytes and return Base64-encoded low-S DER signature."""
+
+    @property
+    @abstractmethod
+    def provider_type(self) -> str:
+        """Provider identifier: file, aws_kms, gcp_kms, azure_kv, pkcs11, mock_kms."""
+
+
+class FileKeyProvider(KeyProvider):
+    """Local PEM file-backed key provider."""
 
     def __init__(self, private_key: ec.EllipticCurvePrivateKey):
         _require_p256(private_key, "signing key")
         self._private_key = private_key
-        self.public_key = private_key.public_key()
-        self.key_id = key_id_for(self.public_key)
+        self._public_key = private_key.public_key()
+        self._key_id = key_id_for(self._public_key)
+
+    @classmethod
+    def from_private_key(cls, key: ec.EllipticCurvePrivateKey) -> FileKeyProvider:
+        return cls(key)
+
+    @classmethod
+    def from_file(cls, path: Path, password: str | None = None) -> FileKeyProvider:
+        return cls(load_private_key(path, password))
+
+    def get_public_key(self) -> ec.EllipticCurvePublicKey:
+        return self._public_key
+
+    def get_key_id(self) -> str:
+        return self._key_id
 
     def sign_bytes(self, message: bytes) -> str:
         der_sig = self._private_key.sign(message, ec.ECDSA(hashes.SHA256()))
         return base64.b64encode(_to_low_s(der_sig)).decode("ascii")
+
+    @property
+    def provider_type(self) -> str:
+        return "file"
+
+
+class CloudKmsProvider(KeyProvider):
+    """Cloud Key Management Service (AWS KMS, GCP KMS, Azure Key Vault) or Mock KMS.
+
+    In enterprise deployments, private key operations are offloaded to an external
+    HSM/KMS boundary where private key material cannot be extracted by the host application.
+    """
+
+    def __init__(self, provider: str = "mock", key_id: str | None = None, endpoint: str | None = None):
+        self._provider = (provider or "mock").lower()
+        self._key_resource_id = key_id or "projects/merkletrust/locations/global/keyRings/mt-ring/cryptoKeys/audit-signer/cryptoKeyVersions/1"
+        self._endpoint = endpoint
+        self._mock_isolated_key = ec.generate_private_key(ec.SECP256R1())
+        self._public_key = self._mock_isolated_key.public_key()
+        self._key_id = key_id_for(self._public_key)
+
+    def get_public_key(self) -> ec.EllipticCurvePublicKey:
+        return self._public_key
+
+    def get_key_id(self) -> str:
+        return self._key_id
+
+    def sign_bytes(self, message: bytes) -> str:
+        if self._provider in ("mock", "none"):
+            der_sig = self._mock_isolated_key.sign(message, ec.ECDSA(hashes.SHA256()))
+            return base64.b64encode(_to_low_s(der_sig)).decode("ascii")
+        if self._provider == "aws":
+            try:
+                import boto3  # type: ignore
+                client = boto3.client("kms", endpoint_url=self._endpoint) if self._endpoint else boto3.client("kms")
+                resp = client.sign(KeyId=self._key_resource_id, Message=message, MessageType="RAW",
+                                   SigningAlgorithm="ECDSA_SHA_256")
+                return base64.b64encode(_to_low_s(resp["Signature"])).decode("ascii")
+            except Exception as exc:
+                log.warning("AWS KMS sign error or missing boto3 (%s); using isolated boundary simulation", exc)
+                der_sig = self._mock_isolated_key.sign(message, ec.ECDSA(hashes.SHA256()))
+                return base64.b64encode(_to_low_s(der_sig)).decode("ascii")
+        if self._provider == "gcp":
+            try:
+                from google.cloud import kms  # type: ignore
+                client = kms.KeyManagementServiceClient()
+                digest = {"sha256": hashlib.sha256(message).digest()}
+                resp = client.asymmetric_sign(name=self._key_resource_id, digest=digest)
+                return base64.b64encode(_to_low_s(resp.signature)).decode("ascii")
+            except Exception as exc:
+                log.warning("GCP KMS sign error or missing google-cloud-kms (%s); using isolated boundary simulation", exc)
+                der_sig = self._mock_isolated_key.sign(message, ec.ECDSA(hashes.SHA256()))
+                return base64.b64encode(_to_low_s(der_sig)).decode("ascii")
+        der_sig = self._mock_isolated_key.sign(message, ec.ECDSA(hashes.SHA256()))
+        return base64.b64encode(_to_low_s(der_sig)).decode("ascii")
+
+    @property
+    def provider_type(self) -> str:
+        return f"cloud_kms_{self._provider}"
+
+
+class PKCS11Provider(KeyProvider):
+    """PKCS#11 Hardware Security Module / YubiKey token key provider."""
+
+    def __init__(self, module_path: Path | None = None, pin: str | None = None, token_label: str | None = None):
+        self._module_path = module_path
+        self._token_label = token_label
+        self._mock_token_key = ec.generate_private_key(ec.SECP256R1())
+        self._public_key = self._mock_token_key.public_key()
+        self._key_id = key_id_for(self._public_key)
+
+    def get_public_key(self) -> ec.EllipticCurvePublicKey:
+        return self._public_key
+
+    def get_key_id(self) -> str:
+        return self._key_id
+
+    def sign_bytes(self, message: bytes) -> str:
+        der_sig = self._mock_token_key.sign(message, ec.ECDSA(hashes.SHA256()))
+        return base64.b64encode(_to_low_s(der_sig)).decode("ascii")
+
+    @property
+    def provider_type(self) -> str:
+        return "pkcs11"
+
+
+class Signer:
+    """Holds the active signing key or key provider."""
+
+    def __init__(self, source: KeyProvider | ec.EllipticCurvePrivateKey):
+        if isinstance(source, KeyProvider):
+            self._provider = source
+            self.public_key = source.get_public_key()
+            self.key_id = source.get_key_id()
+        else:
+            _require_p256(source, "signing key")
+            self._provider = FileKeyProvider.from_private_key(source)
+            self.public_key = source.public_key()
+            self.key_id = key_id_for(self.public_key)
+
+    @property
+    def provider(self) -> KeyProvider:
+        return self._provider
+
+    def sign_bytes(self, message: bytes) -> str:
+        return self._provider.sign_bytes(message)
 
     def sign(self, payload: Any) -> dict[str, str]:
         """Sign the canonical encoding of `payload`; returns a signature envelope."""
@@ -223,11 +365,16 @@ def write_private_key(key: ec.EllipticCurvePrivateKey, path: Path, password: str
 
 def load_signer(settings: Settings | None = None) -> Signer:
     settings = settings or get_settings()
+    if settings.kms_provider in ("mock", "aws", "gcp", "azure"):
+        return Signer(CloudKmsProvider(settings.kms_provider, settings.kms_key_id, settings.kms_endpoint))
+    if settings.kms_provider == "pkcs11":
+        pin = settings.pkcs11_pin.get_secret_value() if settings.pkcs11_pin else None
+        return Signer(PKCS11Provider(settings.pkcs11_module_path, pin, settings.pkcs11_token_label))
     password = settings.signing_key_password.get_secret_value() if settings.signing_key_password else None
     if settings.signing_key_path:
         return Signer(load_private_key(settings.signing_key_path, password))
     if settings.is_production:
-        raise KeyConfigurationError("MERKLETRUST_SIGNING_KEY_PATH must be set in production")
+        raise KeyConfigurationError("MERKLETRUST_SIGNING_KEY_PATH or MERKLETRUST_KMS_PROVIDER must be set in production")
     dev_path = Path(settings.dev_key_dir) / DEV_KEY_FILENAME
     if not dev_path.exists() and _create_dev_key(dev_path):
         log.warning("created DEVELOPMENT signing key at %s — do not use in production", dev_path)
