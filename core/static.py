@@ -31,6 +31,8 @@ from core.axml import AxmlError, parse_manifest
 from core.contracts import EngineError, JobContext, emit
 from core.dex import analyze_dex_files
 from core.findings import finding
+from core.fuzzy_hash import fuzzy_hash_bytes, fuzzy_hash_file
+from core.threat_intel import scan_iocs
 
 # Known Android dangerous permissions (Android runtime permissions)
 DANGEROUS_PERMISSIONS = {
@@ -323,6 +325,18 @@ def analyze_apk(apk_path: str, limits: dict | None = None) -> dict[str, Any]:
             yara_findings.append(finding("STATIC_YARA_MATCH",
                                          f"[{ym.rule_name}] matched in {ym.file_path}: {', '.join(ym.matched_strings[:3])}"))
 
+        # Context Triggered Piecewise Hashing (CTPH / ssdeep fuzzy hashing)
+        apk_fuzzy_hash = fuzzy_hash_file(apk_path)
+        dex_fuzzy_hashes = {n: fuzzy_hash_bytes(raw) for n, raw in dex_files}
+
+        # Threat Intelligence scanning against curated C2 indicator feed
+        iocs = dex.get("iocs") or {}
+        threat_matches = scan_iocs(iocs.get("urls", []), iocs.get("ips", []))
+        threat_findings = []
+        for tm in threat_matches:
+            fid = "STATIC_THREAT_INTEL_C2" if tm["severity"] == "critical" else "STATIC_THREAT_INTEL_SUSPICIOUS"
+            threat_findings.append(finding(fid, f"{tm['threat_family']} ({tm['indicator']}): {tm['description']}"))
+
     classified = [classify_permission(p) for p in manifest["permissions"]]
     cert = signature["certificate"]
     findings = static_findings(manifest, classified, signature, dex, archive_warnings)
@@ -332,6 +346,7 @@ def analyze_apk(apk_path: str, limits: dict | None = None) -> dict[str, Any]:
                                 f"Package contains {len(dex_files)} DEX files: {', '.join(n for n, _ in dex_files)}"))
     findings.extend(native_findings)
     findings.extend(yara_findings)
+    findings.extend(threat_findings)
 
     return {
         "findings": findings,
@@ -353,6 +368,13 @@ def analyze_apk(apk_path: str, limits: dict | None = None) -> dict[str, Any]:
                 "sensitive_classes": dex["sensitive_classes"],
                 "multidex": len(dex_files) > 1,
                 "dex_count": len(dex_files)},
+        "fuzzy_hash": apk_fuzzy_hash,
+        "dex_fuzzy_hashes": dex_fuzzy_hashes,
+        "threat_intel": {
+            "matches": threat_matches,
+            "c2_detected": any(tm["severity"] == "critical" for tm in threat_matches),
+            "match_count": len(threat_matches),
+        },
         "iocs": dex["iocs"],
         "dangerous_apis": dex["dangerous_apis"],
         "yara_matches": [{"rule": ym.rule_name, "file": ym.file_path, "strings": ym.matched_strings}

@@ -419,6 +419,22 @@ def test_dashboard_is_served_with_strict_csp(client):
     assert client.get("/static/css/app.css").status_code == 200
 
 
+def test_react_app_is_served_under_app(make_client, tmp_path, monkeypatch):
+    import api.main
+    (tmp_path / "assets").mkdir()
+    (tmp_path / "index.html").write_text("<!doctype html><div id=root></div>", encoding="utf-8")
+    (tmp_path / "assets" / "app.js").write_text("console.log(1)", encoding="utf-8")
+    (tmp_path.parent / "secret.txt").write_text("secret", encoding="utf-8")
+    monkeypatch.setattr(api.main, "WEBAPP_DIST", tmp_path)
+    client = make_client()
+    assert "id=root" in client.get("/app").text
+    assert "id=root" in client.get("/app/chain").text           # client-side route -> index.html
+    js = client.get("/app/assets/app.js")
+    assert js.status_code == 200 and "javascript" in js.headers["content-type"]
+    assert "secret" not in client.get("/app/..%2fsecret.txt").text  # no escape from the build folder
+    assert client.get("/app").headers["Content-Security-Policy"].startswith("default-src 'self'")
+
+
 def test_frontend_never_injects_html():
     """Data from APKs is attacker-controlled: the UI must build DOM nodes, not HTML strings."""
     from pathlib import Path

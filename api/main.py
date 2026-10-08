@@ -42,6 +42,7 @@ from db.database import init_db
 log = logging.getLogger("merkletrust.api")
 REPO_ROOT = Path(__file__).resolve().parent.parent
 FRONTEND_DIR = REPO_ROOT / "frontend"
+WEBAPP_DIST = REPO_ROOT / "webapp" / "dist"  # React app, built with `npm run build` in webapp/
 
 CSP = ("default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
        "font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self'; object-src 'none'; "
@@ -155,6 +156,19 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         @app.get("/", include_in_schema=False)
         def index():
             return FileResponse(FRONTEND_DIR / "index.html")
+
+    if WEBAPP_DIST.is_dir():
+        dist = WEBAPP_DIST.resolve()
+
+        @app.get("/app", include_in_schema=False)
+        @app.get("/app/{path:path}", include_in_schema=False)
+        def webapp(path: str = ""):
+            # Real files (hashed JS/CSS bundles) are served as-is; every other path is a
+            # client-side route, so it gets index.html.
+            target = (dist / path).resolve()
+            if path and target.is_file() and target.is_relative_to(dist):
+                return FileResponse(target)
+            return FileResponse(dist / "index.html")
 
     return app
 

@@ -16,7 +16,7 @@ export default function Login() {
   const [error, setError] = useState(null);
   const [busy, setBusy] = useState(false);
 
-  if (user) return <Navigate to={location.state?.from || '/scan'} replace />;
+  if (user) return <Navigate to={location.state?.from || '/'} replace />;
 
   const submit = async (e) => {
     e.preventDefault();
@@ -24,7 +24,7 @@ export default function Login() {
     setError(null);
     try {
       await login(username, password);
-      navigate(location.state?.from || '/scan', { replace: true });
+      navigate(location.state?.from || '/', { replace: true });
     } catch (err) {
       setError(err);
     } finally {
@@ -33,13 +33,18 @@ export default function Login() {
   };
 
   return (
-    <div className="mx-auto mt-12 max-w-sm animate-fade-in sm:mt-20">
+    <div className="mx-auto mt-10 max-w-md animate-fade-in sm:mt-16">
       <div className="mb-8 flex flex-col items-center text-center">
-        <span className="mb-4 grid size-12 place-items-center rounded-2xl bg-emerald-500/15 ring-1 ring-emerald-500/30">
-          <ShieldCheck className="size-6 text-emerald-400" aria-hidden="true" />
+        <span className="mb-5 grid size-16 animate-float place-items-center rounded-3xl bg-gradient-to-br from-emerald-400 to-sky-500 shadow-2xl shadow-emerald-500/30">
+          <ShieldCheck className="size-8 text-zinc-950" aria-hidden="true" />
         </span>
-        <h1 className="text-2xl font-semibold tracking-tight text-zinc-50">MerkleTrust</h1>
-        <p className="mt-1.5 text-sm text-zinc-400">Prove any file is authentic and untampered.</p>
+        <h1 className="text-4xl font-bold tracking-tight text-zinc-50">Merkle<span className="text-gradient">Trust</span></h1>
+        <p className="mt-2 text-base text-zinc-400">Prove any file is genuine, and that nobody changed it.</p>
+        <div className="mt-5 flex flex-wrap justify-center gap-2 text-xs text-zinc-400">
+          {['Merkle tree fingerprints', 'Signed results', 'Tamper-proof blockchain'].map((t) => (
+            <span key={t} className="rounded-full bg-white/[0.05] px-3 py-1 ring-1 ring-white/10">{t}</span>
+          ))}
+        </div>
       </div>
       <Card className="p-6">
         <form onSubmit={submit} className="space-y-4">

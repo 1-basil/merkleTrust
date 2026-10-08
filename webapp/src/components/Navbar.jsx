@@ -1,16 +1,29 @@
 import { useEffect, useState } from 'react';
 import { NavLink } from 'react-router-dom';
-import { Database, History, Link2, LogOut, Menu, ShieldCheck, Upload, X } from 'lucide-react';
+import { Blocks, History, Home, LogOut, Menu, MonitorPlay, Network, ShieldCheck, Stamp, Upload, X } from 'lucide-react';
 import { api } from '../lib/api.js';
 import { useAuth } from '../lib/auth.jsx';
 import { cx } from './ui.jsx';
 
 const LINKS = [
-  { to: '/scan', label: 'Upload & Scan', icon: Upload },
-  { to: '/history', label: 'Scan History', icon: History },
-  { to: '/chain', label: 'Audit Ledger', icon: Link2 },
-  { to: '/baselines', label: 'Baselines', icon: Database },
+  { to: '/', label: 'Home', icon: Home, end: true },
+  { to: '/scan', label: 'Scan', icon: Upload },
+  { to: '/history', label: 'History', icon: History },
+  { to: '/merkle', label: 'Merkle Tree', icon: Network },
+  { to: '/chain', label: 'Blockchain', icon: Blocks },
+  { to: '/baselines', label: 'Trusted Apps', icon: Stamp },
 ];
+
+// Projector mode scales the whole UI up (every size is in rem).
+const PRESENT_KEY = 'merkletrust.present';
+function usePresentMode() {
+  const [on, setOn] = useState(() => { try { return localStorage.getItem(PRESENT_KEY) === '1'; } catch { return false; } });
+  useEffect(() => {
+    document.documentElement.classList.toggle('present', on);
+    try { localStorage.setItem(PRESENT_KEY, on ? '1' : '0'); } catch { /* storage unavailable */ }
+  }, [on]);
+  return [on, setOn];
+}
 
 function useBackendStatus() {
   const [status, setStatus] = useState('checking');
@@ -34,8 +47,8 @@ function useBackendStatus() {
 function StatusPill() {
   const status = useBackendStatus();
   const [dot, text, label] = {
-    online: ['bg-emerald-400', 'text-emerald-300', 'Backend online'],
-    offline: ['bg-red-400', 'text-red-300', 'Backend offline'],
+    online: ['bg-emerald-400', 'text-emerald-300', 'Server online'],
+    offline: ['bg-red-400', 'text-red-300', 'Server offline'],
     checking: ['bg-zinc-400', 'text-zinc-400', 'Connecting…'],
   }[status];
   return (
@@ -50,13 +63,14 @@ function StatusPill() {
   );
 }
 
-function Link({ to, label, icon: Icon, onClick }) {
+function Link({ to, label, icon: Icon, onClick, end }) {
   return (
     <NavLink
       to={to}
+      end={end}
       onClick={onClick}
       className={({ isActive }) => cx(
-        'relative flex items-center gap-2 rounded-lg px-3 py-2 text-sm transition',
+        'relative flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition',
         isActive ? 'bg-white/[0.07] text-zinc-50' : 'text-zinc-400 hover:bg-white/[0.04] hover:text-zinc-100',
       )}
     >
@@ -64,7 +78,7 @@ function Link({ to, label, icon: Icon, onClick }) {
         <>
           <Icon className="size-4" aria-hidden="true" />
           {label}
-          {isActive && <span className="absolute inset-x-3 -bottom-[11px] hidden h-px bg-emerald-400 md:block" />}
+          {isActive && <span className="absolute inset-x-3 -bottom-[13px] hidden h-0.5 rounded-full bg-gradient-to-r from-emerald-400 to-sky-400 lg:block" />}
         </>
       )}
     </NavLink>
@@ -74,33 +88,40 @@ function Link({ to, label, icon: Icon, onClick }) {
 export default function Navbar() {
   const { user, logout } = useAuth();
   const [open, setOpen] = useState(false);
+  const [present, setPresent] = usePresentMode();
   return (
-    <header className="sticky top-0 z-30 border-b border-white/[0.06] bg-zinc-950/80 backdrop-blur-lg">
-      <div className="mx-auto flex h-14 max-w-6xl items-center gap-4 px-4 sm:px-6">
-        <NavLink to="/scan" className="flex items-center gap-2 font-semibold text-zinc-50">
-          <span className="grid size-7 place-items-center rounded-lg bg-emerald-500/15 ring-1 ring-emerald-500/30">
-            <ShieldCheck className="size-4 text-emerald-400" aria-hidden="true" />
+    <header className="sticky top-0 z-30 border-b border-white/[0.06] bg-[#060910]/80 backdrop-blur-xl">
+      <div className="mx-auto flex h-16 max-w-7xl items-center gap-4 px-4 sm:px-6">
+        <NavLink to="/" className="flex items-center gap-2.5 text-lg font-bold tracking-tight text-zinc-50">
+          <span className="grid size-8 place-items-center rounded-xl bg-gradient-to-br from-emerald-400 to-sky-500 shadow-lg shadow-emerald-500/25">
+            <ShieldCheck className="size-4 text-zinc-950" aria-hidden="true" />
           </span>
-          MerkleTrust
+          <span>Merkle<span className="text-gradient">Trust</span></span>
         </NavLink>
-        <nav className="hidden flex-1 items-center gap-1 md:flex" aria-label="Main">
+        <nav className="hidden flex-1 items-center gap-0.5 lg:flex" aria-label="Main">
           {LINKS.map((l) => <Link key={l.to} {...l} />)}
         </nav>
         <div className="ml-auto flex items-center gap-2">
           <StatusPill />
-          <span className="hidden text-xs text-zinc-500 lg:inline">{user?.username} · {user?.role}</span>
+          <button type="button" onClick={() => setPresent((v) => !v)} aria-pressed={present}
+            title={present ? 'Projector mode is on (bigger text)' : 'Projector mode: bigger text for presenting'}
+            className={cx('rounded-lg p-2 transition', present ? 'bg-emerald-500/15 text-emerald-300' : 'text-zinc-400 hover:bg-white/[0.06] hover:text-zinc-100')}>
+            <MonitorPlay className="size-4" aria-hidden="true" />
+            <span className="sr-only">Projector mode</span>
+          </button>
+          <span className="hidden text-xs text-zinc-500 xl:inline">{user?.username} · {user?.role}</span>
           <button type="button" onClick={logout} title="Sign out" aria-label="Sign out"
             className="rounded-lg p-2 text-zinc-400 hover:bg-white/[0.06] hover:text-zinc-100">
             <LogOut className="size-4" aria-hidden="true" />
           </button>
           <button type="button" onClick={() => setOpen((v) => !v)} aria-expanded={open} aria-label="Menu"
-            className="rounded-lg p-2 text-zinc-300 hover:bg-white/[0.06] md:hidden">
+            className="rounded-lg p-2 text-zinc-300 hover:bg-white/[0.06] lg:hidden">
             {open ? <X className="size-5" aria-hidden="true" /> : <Menu className="size-5" aria-hidden="true" />}
           </button>
         </div>
       </div>
       {open && (
-        <nav className="grid gap-1 border-t border-white/[0.06] px-4 py-3 md:hidden" aria-label="Main mobile">
+        <nav className="grid gap-1 border-t border-white/[0.06] px-4 py-3 lg:hidden" aria-label="Main mobile">
           {LINKS.map((l) => <Link key={l.to} {...l} onClick={() => setOpen(false)} />)}
         </nav>
       )}

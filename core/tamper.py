@@ -19,6 +19,7 @@ Integrity status: NO_BASELINE | BASELINE_INVALID | CLEAN | MODIFIED | CERTIFICAT
 from __future__ import annotations
 
 import json
+import os
 import sys
 import tempfile
 from contextlib import nullcontext
@@ -30,6 +31,7 @@ from core.comparison import compare_with_baseline
 from core.contracts import JobContext, emit
 from core.file_manifest import file_proof, verify_file_proof
 from core.findings import finding
+from core.fuzzy_hash import detect_near_duplicate, fuzzy_hash_file
 from db.database import session_scope
 
 MAX_PROOFS = 25
@@ -156,9 +158,32 @@ def compare_reports(job_id: str, integrity: dict[str, Any], static: dict[str, An
     cmp = compare_with_baseline(base_snap, snapshot_from_reports(integrity, static))
     files = cmp["files"]
     changed_files = files["modified"] + files["added"] + files["deleted"] + files["signature_files_changed"]
+
+    # CTPH Near-duplicate evaluation
+    cur_fuzzy = static.get("fuzzy_hash")
+    base_fuzzy = None
+    try:
+        from db.models import ApkFile
+        apk_row = db.query(ApkFile).filter(ApkFile.sha256 == row.apk_sha256).first()
+        if apk_row and os.path.isfile(apk_row.quarantine_path):
+            base_fuzzy = fuzzy_hash_file(apk_row.quarantine_path)
+    except Exception:
+        pass
+
+    fuzzy_cmp = None
+    tamper_findings = _findings(cmp, baseline)
+    if cur_fuzzy and base_fuzzy:
+        fuzzy_cmp = detect_near_duplicate(cur_fuzzy, base_fuzzy)
+        if fuzzy_cmp["is_near_duplicate"] and changed_files:
+            tamper_findings.append(finding(
+                "TAMPER_FUZZY_NEAR_DUPLICATE",
+                f"CTPH fuzzy similarity is {fuzzy_cmp['similarity']}% ({fuzzy_cmp['classification']}) to baseline: "
+                f"repackaged near-duplicate with modified code segments."
+            ))
+
     return {
         "job_id": job_id, "engine": "tamper", "status": "ok",
-        "findings": _findings(cmp, baseline),
+        "findings": tamper_findings,
         "role": "comparison",
         "baseline_found": True,
         "baseline_id": row.id,
@@ -169,6 +194,13 @@ def compare_reports(job_id: str, integrity: dict[str, Any], static: dict[str, An
         "changed_chunks": cmp["chunks"].get("changed_indices", []),
         "manifest_diff": cmp["manifest_diff"],
         "certificate_changed": cmp["certificate"]["changed"],
+        "fuzzy_comparison": fuzzy_cmp or {
+            "current_fuzzy_hash": cur_fuzzy,
+            "baseline_fuzzy_hash": base_fuzzy,
+            "similarity": None,
+            "classification": "NO_BASELINE_FUZZY" if not base_fuzzy else "NOT_COMPARED",
+            "is_near_duplicate": False,
+        },
         "proofs": _proofs(base_snap["files"], cmp, row.merkle_root),
         "suspicious_targets": _suspicious_targets(cmp, static),
     }

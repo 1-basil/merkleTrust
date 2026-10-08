@@ -80,4 +80,9 @@ node_modules/
 dist/
 **/dist/
 .env.local
-.github/
+.github/
+
+# Documentation, presentations, and report PDFs
+docs/
+*.pdf
+*.docx

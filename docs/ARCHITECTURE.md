@@ -182,7 +182,7 @@ These are separate questions with separate answers (`core/comparison.py`, `core/
 | BASELINE_INVALID | The stored baseline failed verification |
 
 **Risk** — "does it have dangerous characteristics?" Every finding comes from one
-catalogue (`core/findings.py`, 74 entries) with a plain title, technical title,
+catalogue (`core/findings.py`, 77 entries) with a plain title, technical title,
 severity, explanation, recommendation, points and a *group*. The score is the sum of
 the highest-scoring finding per group (no double counting), capped at 100.
 Level: LOW < 20 ≤ MEDIUM < 45 ≤ HIGH < 70 ≤ CRITICAL; a critical-severity finding

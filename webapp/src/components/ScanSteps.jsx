@@ -3,11 +3,11 @@ import { cx } from './ui.jsx';
 
 // The four user-facing steps, each backed by one or more pipeline engines.
 const STEPS = [
-  { label: 'Calculating cryptographic Merkle root', hint: 'Fingerprinting every byte of the file', engines: ['integrity'] },
-  { label: 'Inspecting file structure & code', hint: 'Looking for hidden data, tampering and risky code',
+  { label: 'Fingerprinting the file', hint: 'Building a Merkle tree from every byte', engines: ['integrity'] },
+  { label: 'Looking inside', hint: 'Checking for changes, hidden data and risky code',
     engines: ['static', 'tamper', 'dynamic', 'content'] },
-  { label: 'Generating security score', hint: 'Turning findings into a trust score', engines: ['score'] },
-  { label: 'Signing audit block', hint: 'Sealing the result in the tamper-evident ledger', engines: ['repository'] },
+  { label: 'Scoring', hint: 'Turning what we found into a trust score', engines: ['score'] },
+  { label: 'Sealing the result', hint: 'Signing it and adding it to the blockchain', engines: ['repository'] },
 ];
 
 const FINISHED = new Set(['ok', 'partial', 'failed', 'skipped']);

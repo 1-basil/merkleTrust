@@ -16,9 +16,9 @@ const SUPPORTED = [
 ];
 
 const HOW = [
-  { icon: Fingerprint, title: 'Fingerprint', text: 'The file is split into 64 KB pieces. Each piece gets a SHA-256 fingerprint, and all of them combine into one Merkle root — change one byte and it changes completely.' },
-  { icon: ScanSearch, title: 'Inspect', text: 'Apps are checked against their trusted master copy and their signature. Images, media, pages and PDFs are checked for hidden attachments, unsafe scripts and leaked metadata.' },
-  { icon: Link2, title: 'Seal', text: 'The result is signed with the server’s private key and chained to every earlier result, so nobody can quietly edit history.' },
+  { icon: Fingerprint, title: '1. Fingerprint', text: 'The file is cut into pieces and every piece is hashed. The hashes combine into one fingerprint (a Merkle root). Change one byte and it changes completely.' },
+  { icon: ScanSearch, title: '2. Inspect', text: 'Apps are compared with their trusted original and their developer signature. Photos, media, pages and PDFs are checked for hidden attachments, unsafe scripts and leaked personal data.' },
+  { icon: Link2, title: '3. Seal', text: 'The result is signed and added to the blockchain, so nobody can quietly change it later.' },
 ];
 
 export default function Scan() {
@@ -87,8 +87,9 @@ export default function Scan() {
   return (
     <div className="animate-fade-in">
       <PageHeader
-        title="Universal File Scanner"
-        description="Drop any app, image, video, audio file, web page or PDF. MerkleTrust fingerprints it, checks it for tampering and hidden threats, and records a signed result you can verify later."
+        eyebrow="Scanner"
+        title="Scan a file"
+        description="Drop an Android app, photo, video, audio file, web page or PDF. We fingerprint it, check it for tampering and hidden threats, and seal the result so it can be proven later."
       />
       <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
         <Card className="overflow-hidden">
@@ -98,7 +99,7 @@ export default function Scan() {
               onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
               onDragLeave={() => setDragging(false)}
               onDrop={(e) => { e.preventDefault(); setDragging(false); choose(e.dataTransfer.files[0]); }}
-              className={cx('m-4 flex cursor-pointer flex-col items-center justify-center gap-3 rounded-xl border-2 border-dashed px-6 py-14 text-center transition-all duration-200',
+              className={cx('m-4 flex cursor-pointer flex-col items-center justify-center gap-3 rounded-xl border-2 border-dashed px-6 py-20 text-center transition-all duration-200',
                 dragging ? 'scale-[1.01] border-emerald-400 bg-emerald-500/[0.07]' : 'border-white/10 hover:border-white/20 hover:bg-white/[0.02]')}
             >
               <input ref={inputRef} id="file-input" type="file" accept={ACCEPT} className="sr-only"
@@ -108,7 +109,7 @@ export default function Scan() {
                 <UploadCloud className={cx('size-7 transition', dragging ? 'text-emerald-300 -translate-y-0.5' : 'text-zinc-400')} aria-hidden="true" />
               </span>
               <div>
-                <p className="text-base font-medium text-zinc-100">{dragging ? 'Release to add the file' : 'Drag & drop a file here'}</p>
+                <p className="text-lg font-semibold text-zinc-100">{dragging ? 'Release to add the file' : 'Drag & drop a file here'}</p>
                 <p className="mt-1 text-sm text-zinc-500">or <span className="text-emerald-400 underline-offset-2 hover:underline">browse your computer</span></p>
               </div>
             </label>
@@ -148,7 +149,7 @@ export default function Scan() {
               )}
               {phase === 'idle' && (
                 <Button className="mt-4 w-full sm:w-auto" onClick={analyse} disabled={!detected || blocked}>
-                  <ShieldCheck className="size-4" aria-hidden="true" /> Analyze File
+                  <ShieldCheck className="size-4" aria-hidden="true" /> Check this file
                 </Button>
               )}
               {phase === 'uploading' && (
@@ -173,7 +174,7 @@ export default function Scan() {
 
         <div className="space-y-6">
           <Card>
-            <CardHeader title="Supported files" subtitle="The type is detected from the file’s contents, not just its name." />
+            <CardHeader title="What you can scan" subtitle="We look at what is inside the file, not just its name, so renamed files can’t fool us." />
             <ul className="divide-y divide-white/[0.05] px-5 py-2 text-sm">
               {SUPPORTED.map(([k, v]) => (
                 <li key={k} className="flex justify-between gap-3 py-2">

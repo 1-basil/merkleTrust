@@ -27,6 +27,10 @@ python -m scripts.manage_users create admin --role admin
 uvicorn api.main:app --port 8000                    # open http://127.0.0.1:8000
 ```
 
+For the new demo dashboard (Merkle Tree Lab, visual blockchain with a tamper demo,
+built-in demo guide), build it once with `cd webapp && npm install && npm run build`
+and open http://127.0.0.1:8000/app. See [webapp/README.md](webapp/README.md).
+
 Upload `evaluation/dataset/baseline_demo.apk` as a trusted version (admin → *Trusted
 versions*), approve it, then scan `evaluation/dataset/demo_repackaged.apk`. The full
 walk-through is in [docs/DEMO.md](docs/DEMO.md).

@@ -160,7 +160,7 @@ decentralisation, and the documentation and UI say so.
 
 ## 14. Risk analysis
 
-Integrity and risk are separate outputs. Risk is computed from a catalogue of 74 finding
+Integrity and risk are separate outputs. Risk is computed from a catalogue of 77 finding
 types, each with a plain-language title, explanation, evidence and recommendation, and
 documented points. Findings describing the same fact share a group and are counted once;
 self-signed certificates are not penalised (normal on Android); operational messages

@@ -124,6 +124,12 @@ _CATALOG_SPEC: dict[str, tuple] = {
         "Resource/asset files differ from the trusted baseline",
         "Resources and assets can contain configuration, web content or hidden payloads.",
         "Review the list of changed files.", 10, "files_tamper"),
+    "TAMPER_FUZZY_NEAR_DUPLICATE": _t(
+        "high", "integrity", "Near-duplicate repackaged code detected (Fuzzy Hashing)",
+        "Context Triggered Piecewise Hash (CTPH) indicates high similarity to baseline with modified bytecode",
+        "CTPH fuzzy hashing detected that the program bytecode is closely derived from the approved baseline (near-duplicate) "
+        "with localized payload injection or alterations.",
+        "Inspect modified bytecode segments and compare CTPH chunks against the baseline build.", 25, "code_tamper"),
     "TAMPER_MISSING_INPUT": _t(
         "info", "analysis", "Comparison could not run",
         "Tamper analysis skipped because earlier stages failed",
@@ -299,6 +305,18 @@ _CATALOG_SPEC: dict[str, tuple] = {
         "http:// URL literals in code",
         "Traffic to http:// addresses is not encrypted.",
         "Use https:// endpoints.", 4, "cleartext"),
+    "STATIC_THREAT_INTEL_C2": _t(
+        "critical", "network", "Known Command & Control (C2) server or malware feed match",
+        "Domain or IP matched active Threat Intelligence indicator feed",
+        "A network address or domain discovered in the application matches known malicious Command & Control (C2) "
+        "infrastructure or malware distribution hosts.",
+        "Block all network communication to this destination immediately and treat the app as hostile malware.", 35,
+        "c2_match"),
+    "STATIC_THREAT_INTEL_SUSPICIOUS": _t(
+        "high", "network", "Suspicious domain reputation or dynamic DNS abuse",
+        "Target domain flagged in Threat Intelligence reputation records",
+        "The host utilizes volatile dynamic DNS services or high-abuse domains commonly used for malware C2 rotation.",
+        "Investigate communication endpoints and restrict outbound network access.", 15, "c2_match"),
 
     # ------------------------------------------------ behaviour patterns --
     # Combinations of capabilities that characterise well-known Android malware
