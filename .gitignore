@@ -88,3 +88,6 @@ docs/
 *.docx
 # Downloaded threat intelligence feeds (scripts/update_threat_feed.py)
 data/threat_feeds/
+
+# Real-world evaluation downloads and variants (scripts/run_realworld_evaluation.py)
+data/realworld/

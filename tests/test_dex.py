@@ -82,3 +82,22 @@ def test_truncated_and_fuzzed_dex_only_raise_dex_error(fixture_apk):
             parse_dex(bytes(mutated))
         except DexError:
             pass
+
+
+def test_object_identifiers_are_not_ip_addresses():
+    """Found in a real app (AntennaPod): ASN.1 OIDs from a crypto library were reported as hard-coded IPs.
+
+    A standalone four-part OID such as "2.5.29.37" cannot be told apart from an IP and is still reported.
+    """
+    from core.dex import extract_iocs
+    iocs = extract_iocs(["1.3.6.1.5.5.7.3.1", "2.16.840.1.101.3.4.2.1", "version 1.2.3.4.5"])
+    assert iocs["ips"] == []
+    iocs = extract_iocs(["connect to 8.8.8.8.", "ip=1.1.1.1;", "host 93.184.216.34:443"])
+    assert iocs["ips"] == ["1.1.1.1", "8.8.8.8", "93.184.216.34"]
+
+
+def test_xml_namespace_names_are_not_network_addresses():
+    """Found in a real app (Fossify Notes): the XMP namespace was reported as an unencrypted web address."""
+    from core.dex import extract_iocs
+    assert extract_iocs(["http://ns.adobe.com/xap/1.0/", "http://purl.org/dc/elements/1.1/"])["urls"] == []
+    assert extract_iocs(["http://evil.test/payload.apk"])["urls"] == ["http://evil.test/payload.apk"]

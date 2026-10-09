@@ -233,11 +233,14 @@ disclosure: [../evaluation/README.md](../evaluation/README.md).
 | Cryptographic tamper detection | 47 | 1.000 | 1.000 | 1.000 | 0.000 | 0.000 |
 
 Exact integrity status 32/32; exact changed-file localisation 20/20; median
-upload-to-result time 187 ms per dataset APK. Performance on a machine in interactive use
-(median, 9 runs, 8 October 2026): about 0.19 s end-to-end for a 9 KB APK, 0.5 s for 5 MB and
-about 3 s for a 52 MB APK; full verification of a 538-block audit chain about 0.23 s
-(see evaluation/README.md for why these are slower than the first run). The test suite
-has 476 automated tests at 90.5 % line coverage, plus headless-browser end-to-end tests
+upload-to-result time 78 ms per dataset APK. Performance on a quiet machine (median, 9 runs,
+9 October 2026): about 0.07 s end-to-end for a 9 KB APK, 0.2 s for 5 MB and about 1.4 s for a
+52 MB APK; full verification of a 538-block audit chain about 57 ms (timings are 2–3× higher
+on a busy machine). On three real F-Droid apps repackaged as an attacker would, 15/15 variants
+were handled as expected (exact changed files, re-signing detected, 96–97 % ssdeep similarity
+for a one-string code change), but the untouched apps were rated MEDIUM to CRITICAL for risk —
+false positives of the heuristics (evaluation/results/realworld.md). The test suite
+has 478 automated tests (90.5 % line coverage, measured 8 October), plus headless-browser end-to-end tests
 of both front ends, an
 `apksigner` cross-check and a concurrency stress test. Details:
 [../evaluation/results/evaluation.md](../evaluation/results/evaluation.md),

@@ -1,6 +1,6 @@
 {
   "environment": {
-    "generated_at": "2026-10-08T09:45:01+00:00",
+    "generated_at": "2026-10-09T01:37:54+00:00",
     "platform": "Windows 11",
     "python": "3.14.7",
     "cpus": 22
@@ -109,9 +109,9 @@
       "accuracy": 1.0
     },
     "processing_ms": {
-      "median": 187.4,
-      "max": 455.1,
-      "min": 142.4
+      "median": 78.3,
+      "max": 116.7,
+      "min": 49.3
     },
     "errors": []
   },
@@ -131,15 +131,15 @@
       },
       "schemes": [],
       "set": "development",
-      "scan_id": "835e47b3-8f8c-46b1-972b-620f06cc51df",
-      "processing_ms": 144.9,
+      "scan_id": "850b1679-14b2-487e-8543-29943931a59f",
+      "processing_ms": 101.0,
       "engine_ms": {
         "integrity": 3,
-        "static": 5,
-        "tamper": 5,
-        "dynamic": 2,
-        "score": 1,
-        "repository": 8
+        "static": 3,
+        "tamper": 2,
+        "dynamic": 0,
+        "score": 0,
+        "repository": 5
       },
       "observed": {
         "integrity": "CLEAN",
@@ -179,15 +179,15 @@
         "files": {}
       },
       "set": "development",
-      "scan_id": "fcf9616f-cfd8-4ea1-86d0-2a8aece02beb",
-      "processing_ms": 146.5,
+      "scan_id": "7a3d57af-b223-465f-a9d4-885def092cd2",
+      "processing_ms": 74.8,
       "engine_ms": {
-        "integrity": 3,
-        "static": 7,
-        "tamper": 3,
-        "dynamic": 2,
-        "score": 1,
-        "repository": 19
+        "integrity": 1,
+        "static": 3,
+        "tamper": 1,
+        "dynamic": 0,
+        "score": 0,
+        "repository": 9
       },
       "observed": {
         "integrity": "CLEAN",
@@ -232,15 +232,15 @@
         }
       },
       "set": "development",
-      "scan_id": "f5bd86c9-725b-40da-8b94-ee1fcc4aad29",
-      "processing_ms": 144.4,
+      "scan_id": "5f0d96e4-53ff-41e1-b10d-a2a6d16366bf",
+      "processing_ms": 89.4,
       "engine_ms": {
-        "integrity": 4,
-        "static": 8,
-        "tamper": 4,
+        "integrity": 1,
+        "static": 3,
+        "tamper": 2,
         "dynamic": 1,
-        "score": 1,
-        "repository": 27
+        "score": 0,
+        "repository": 14
       },
       "observed": {
         "integrity": "MODIFIED",
@@ -291,15 +291,15 @@
         }
       },
       "set": "development",
-      "scan_id": "2afd9594-c2f0-4db3-bfc4-5d222bb089f0",
-      "processing_ms": 178.9,
+      "scan_id": "5f413c72-8284-4077-a0bd-f637a574e145",
+      "processing_ms": 83.2,
       "engine_ms": {
-        "integrity": 3,
-        "static": 10,
-        "tamper": 6,
-        "dynamic": 7,
-        "score": 3,
-        "repository": 33
+        "integrity": 1,
+        "static": 4,
+        "tamper": 2,
+        "dynamic": 0,
+        "score": 0,
+        "repository": 16
       },
       "observed": {
         "integrity": "CERTIFICATE_CHANGED",
@@ -349,15 +349,15 @@
         }
       },
       "set": "development",
-      "scan_id": "a53946b0-ab26-49e1-b081-20d0865b7ec2",
-      "processing_ms": 256.2,
+      "scan_id": "c85456d8-f430-437a-9172-79582ea03e39",
+      "processing_ms": 81.7,
       "engine_ms": {
-        "integrity": 4,
-        "static": 9,
-        "tamper": 8,
-        "dynamic": 5,
-        "score": 2,
-        "repository": 42
+        "integrity": 2,
+        "static": 3,
+        "tamper": 2,
+        "dynamic": 0,
+        "score": 0,
+        "repository": 11
       },
       "observed": {
         "integrity": "CERTIFICATE_CHANGED",
@@ -404,15 +404,15 @@
         "files": {}
       },
       "set": "development",
-      "scan_id": "84df8334-fbb6-4f11-9dc9-2a5e42dd7024",
-      "processing_ms": 223.7,
+      "scan_id": "d38688a6-d7d2-4adf-8f2e-735e89c23b9b",
+      "processing_ms": 74.6,
       "engine_ms": {
-        "integrity": 4,
-        "static": 18,
-        "tamper": 6,
-        "dynamic": 3,
-        "score": 3,
-        "repository": 38
+        "integrity": 1,
+        "static": 3,
+        "tamper": 1,
+        "dynamic": 0,
+        "score": 0,
+        "repository": 16
       },
       "observed": {
         "integrity": "CERTIFICATE_CHANGED",
@@ -457,15 +457,15 @@
         }
       },
       "set": "development",
-      "scan_id": "d19e70d9-2cfa-4386-903e-48031aa8782a",
-      "processing_ms": 193.4,
+      "scan_id": "bd8c87ac-bf72-422a-93ad-fd87a9aa137e",
+      "processing_ms": 90.5,
       "engine_ms": {
-        "integrity": 3,
-        "static": 9,
-        "tamper": 6,
-        "dynamic": 2,
-        "score": 1,
-        "repository": 35
+        "integrity": 1,
+        "static": 2,
+        "tamper": 1,
+        "dynamic": 0,
+        "score": 0,
+        "repository": 20
       },
       "observed": {
         "integrity": "CERTIFICATE_CHANGED",
@@ -513,15 +513,15 @@
         }
       },
       "set": "development",
-      "scan_id": "58b4473f-17f2-4d60-a494-e08fa80d1fcb",
-      "processing_ms": 205.8,
+      "scan_id": "e03026b9-1163-41a2-946e-da441bcb2227",
+      "processing_ms": 88.5,
       "engine_ms": {
-        "integrity": 4,
-        "static": 13,
-        "tamper": 6,
-        "dynamic": 2,
-        "score": 12,
-        "repository": 31
+        "integrity": 1,
+        "static": 2,
+        "tamper": 1,
+        "dynamic": 0,
+        "score": 0,
+        "repository": 20
       },
       "observed": {
         "integrity": "CERTIFICATE_CHANGED",
@@ -574,15 +574,15 @@
         }
       },
       "set": "development",
-      "scan_id": "87e70694-926a-4029-8f27-3c81efb84319",
-      "processing_ms": 194.2,
+      "scan_id": "6c987933-cc02-4baf-899f-69bb590ddf0a",
+      "processing_ms": 107.6,
       "engine_ms": {
-        "integrity": 5,
-        "static": 17,
-        "tamper": 5,
+        "integrity": 3,
+        "static": 11,
+        "tamper": 3,
         "dynamic": 2,
-        "score": 4,
-        "repository": 37
+        "score": 1,
+        "repository": 18
       },
       "observed": {
         "integrity": "CERTIFICATE_CHANGED",
@@ -642,15 +642,15 @@
         }
       },
       "set": "development",
-      "scan_id": "00ef5980-a1de-474d-bf5a-08cb7d134597",
-      "processing_ms": 186.3,
+      "scan_id": "5f01d9e5-b094-4d6c-b863-e3b6e5817d09",
+      "processing_ms": 116.7,
       "engine_ms": {
-        "integrity": 4,
-        "static": 9,
-        "tamper": 6,
-        "dynamic": 2,
-        "score": 1,
-        "repository": 35
+        "integrity": 2,
+        "static": 3,
+        "tamper": 1,
+        "dynamic": 0,
+        "score": 0,
+        "repository": 41
       },
       "observed": {
         "integrity": "CERTIFICATE_CHANGED",
@@ -697,15 +697,15 @@
       },
       "schemes": [],
       "set": "development",
-      "scan_id": "f400b8df-4ca4-4483-8500-52fd0ea43511",
-      "processing_ms": 142.4,
+      "scan_id": "6ceeb200-e825-4bca-8560-c22d528b3255",
+      "processing_ms": 49.3,
       "engine_ms": {
-        "integrity": 4,
-        "static": 9,
-        "tamper": 6,
-        "dynamic": 2,
-        "score": 1,
-        "repository": 32
+        "integrity": 1,
+        "static": 2,
+        "tamper": 1,
+        "dynamic": 0,
+        "score": 0,
+        "repository": 13
       },
       "observed": {
         "integrity": "MODIFIED",
@@ -747,15 +747,15 @@
       },
       "schemes": [],
       "set": "development",
-      "scan_id": "7487f6bf-10a4-416f-b5c9-dcf634066132",
-      "processing_ms": 151.1,
+      "scan_id": "01d8d088-479c-456b-8f34-e116fb5bf98c",
+      "processing_ms": 64.0,
       "engine_ms": {
-        "integrity": 5,
-        "static": 10,
-        "tamper": 6,
-        "dynamic": 1,
-        "score": 2,
-        "repository": 44
+        "integrity": 1,
+        "static": 3,
+        "tamper": 1,
+        "dynamic": 0,
+        "score": 0,
+        "repository": 16
       },
       "observed": {
         "integrity": "MODIFIED",
@@ -794,15 +794,15 @@
       },
       "schemes": [],
       "set": "development",
-      "scan_id": "3f6673ef-aa7a-47c2-a55e-3d67a46f3d2f",
-      "processing_ms": 170.5,
+      "scan_id": "1e23cec3-6860-4363-9fcc-581a74fbbda2",
+      "processing_ms": 92.1,
       "engine_ms": {
-        "integrity": 5,
-        "static": 10,
-        "tamper": 6,
-        "dynamic": 2,
-        "score": 2,
-        "repository": 33
+        "integrity": 2,
+        "static": 4,
+        "tamper": 1,
+        "dynamic": 0,
+        "score": 0,
+        "repository": 13
       },
       "observed": {
         "integrity": "MODIFIED",
@@ -842,15 +842,15 @@
       },
       "schemes": [],
       "set": "development",
-      "scan_id": "9b3cd70a-f6f3-4e85-b715-c87d3061d3ad",
-      "processing_ms": 214.0,
+      "scan_id": "a555045e-b36e-4d0e-a74f-30d7df82480f",
+      "processing_ms": 85.5,
       "engine_ms": {
-        "integrity": 8,
-        "static": 12,
-        "tamper": 5,
-        "dynamic": 3,
-        "score": 3,
-        "repository": 31
+        "integrity": 2,
+        "static": 4,
+        "tamper": 1,
+        "dynamic": 0,
+        "score": 0,
+        "repository": 13
       },
       "observed": {
         "integrity": "CLEAN",
@@ -889,15 +889,15 @@
         "files": {}
       },
       "set": "development",
-      "scan_id": "aeafa63f-a3c4-465e-a82d-248cfa05020a",
-      "processing_ms": 251.3,
+      "scan_id": "340a4f02-adc7-43b3-a5d8-4493230e8c65",
+      "processing_ms": 96.3,
       "engine_ms": {
-        "integrity": 4,
-        "static": 16,
-        "tamper": 21,
-        "dynamic": 3,
-        "score": 2,
-        "repository": 28
+        "integrity": 3,
+        "static": 4,
+        "tamper": 2,
+        "dynamic": 0,
+        "score": 1,
+        "repository": 17
       },
       "observed": {
         "integrity": "CLEAN",
@@ -937,15 +937,15 @@
         "files": {}
       },
       "set": "development",
-      "scan_id": "1c11e2e4-9ea0-4ee5-93ef-7f54e9ad01f3",
-      "processing_ms": 172.6,
+      "scan_id": "984ff2e5-6eaf-43ef-96c3-c20bfc86602d",
+      "processing_ms": 73.5,
       "engine_ms": {
-        "integrity": 8,
-        "static": 8,
-        "tamper": 5,
-        "dynamic": 2,
-        "score": 2,
-        "repository": 30
+        "integrity": 1,
+        "static": 6,
+        "tamper": 1,
+        "dynamic": 0,
+        "score": 0,
+        "repository": 14
       },
       "observed": {
         "integrity": "CERTIFICATE_CHANGED",
@@ -990,15 +990,15 @@
         }
       },
       "set": "development",
-      "scan_id": "a034550c-740f-4be9-b846-5719b6a65c1e",
-      "processing_ms": 178.4,
+      "scan_id": "0d8076e6-5575-4a84-a98d-4062c12c1a41",
+      "processing_ms": 72.7,
       "engine_ms": {
-        "integrity": 4,
-        "static": 7,
-        "tamper": 7,
-        "dynamic": 2,
-        "score": 2,
-        "repository": 32
+        "integrity": 2,
+        "static": 3,
+        "tamper": 2,
+        "dynamic": 1,
+        "score": 0,
+        "repository": 10
       },
       "observed": {
         "integrity": "CERTIFICATE_CHANGED",
@@ -1041,15 +1041,15 @@
       },
       "schemes": [],
       "set": "development",
-      "scan_id": "c36b763c-9266-41e3-abcf-183654abb728",
-      "processing_ms": 240.0,
+      "scan_id": "47ca9fc3-87e2-41c5-a610-2817708b5851",
+      "processing_ms": 70.9,
       "engine_ms": {
-        "integrity": 3,
-        "static": 20,
-        "tamper": 4,
-        "dynamic": 7,
-        "score": 2,
-        "repository": 31
+        "integrity": 1,
+        "static": 3,
+        "tamper": 1,
+        "dynamic": 0,
+        "score": 0,
+        "repository": 12
       },
       "observed": {
         "integrity": "CLEAN",
@@ -1096,15 +1096,15 @@
         }
       },
       "set": "development",
-      "scan_id": "e5a787f0-662c-4ef1-a353-da48ddff260d",
-      "processing_ms": 313.2,
+      "scan_id": "cfa3538f-d3ad-4327-bfd8-f0ce9278835a",
+      "processing_ms": 80.7,
       "engine_ms": {
-        "integrity": 5,
-        "static": 19,
-        "tamper": 23,
-        "dynamic": 8,
-        "score": 2,
-        "repository": 58
+        "integrity": 2,
+        "static": 3,
+        "tamper": 1,
+        "dynamic": 0,
+        "score": 0,
+        "repository": 14
       },
       "observed": {
         "integrity": "MODIFIED",
@@ -1152,15 +1152,15 @@
         }
       },
       "set": "development",
-      "scan_id": "1b65ef62-e39a-4505-a0f1-ace030b8f925",
-      "processing_ms": 189.4,
+      "scan_id": "da574ed0-839c-4bf9-8aa2-5a94d9f05ee3",
+      "processing_ms": 79.8,
       "engine_ms": {
-        "integrity": 4,
-        "static": 8,
-        "tamper": 6,
-        "dynamic": 2,
-        "score": 1,
-        "repository": 33
+        "integrity": 1,
+        "static": 2,
+        "tamper": 1,
+        "dynamic": 0,
+        "score": 0,
+        "repository": 15
       },
       "observed": {
         "integrity": "CERTIFICATE_CHANGED",
@@ -1202,15 +1202,15 @@
         "risky": true
       },
       "set": "development",
-      "scan_id": "a3a8a6c0-1ac6-48a3-aa93-253666403a00",
-      "processing_ms": 214.4,
+      "scan_id": "fe4b8e90-ad4a-461d-962a-55cdda5f01b9",
+      "processing_ms": 75.4,
       "engine_ms": {
-        "integrity": 7,
-        "static": 11,
-        "tamper": 2,
-        "dynamic": 6,
-        "score": 2,
-        "repository": 48
+        "integrity": 1,
+        "static": 3,
+        "tamper": 0,
+        "dynamic": 0,
+        "score": 0,
+        "repository": 12
       },
       "observed": {
         "integrity": "NO_BASELINE",
@@ -1257,15 +1257,15 @@
         "risky": true
       },
       "set": "development",
-      "scan_id": "e6cd8ece-01c2-484a-b551-ba292b2e0268",
-      "processing_ms": 168.8,
+      "scan_id": "1737b6c9-fdf5-420d-b61d-21398a77ce07",
+      "processing_ms": 75.3,
       "engine_ms": {
-        "integrity": 4,
-        "static": 8,
-        "tamper": 2,
-        "dynamic": 2,
-        "score": 2,
-        "repository": 32
+        "integrity": 1,
+        "static": 4,
+        "tamper": 0,
+        "dynamic": 0,
+        "score": 0,
+        "repository": 12
       },
       "observed": {
         "integrity": "NO_BASELINE",
@@ -1306,15 +1306,15 @@
         "risky": true
       },
       "set": "development",
-      "scan_id": "5d5e2b37-26d4-4466-8446-fb434b06ff9d",
-      "processing_ms": 184.0,
+      "scan_id": "8fb35044-5f84-414a-98a6-f30a266895a2",
+      "processing_ms": 70.2,
       "engine_ms": {
-        "integrity": 3,
-        "static": 6,
-        "tamper": 4,
-        "dynamic": 6,
-        "score": 2,
-        "repository": 30
+        "integrity": 1,
+        "static": 2,
+        "tamper": 0,
+        "dynamic": 0,
+        "score": 0,
+        "repository": 16
       },
       "observed": {
         "integrity": "NO_BASELINE",
@@ -1355,15 +1355,15 @@
         "risky": true
       },
       "set": "development",
-      "scan_id": "797e078b-b609-4692-a45e-210209bd9467",
-      "processing_ms": 175.7,
+      "scan_id": "a0ff74ab-574a-49c5-a7f7-ca740807bbb6",
+      "processing_ms": 74.9,
       "engine_ms": {
-        "integrity": 3,
-        "static": 10,
-        "tamper": 1,
-        "dynamic": 2,
-        "score": 2,
-        "repository": 26
+        "integrity": 1,
+        "static": 3,
+        "tamper": 0,
+        "dynamic": 0,
+        "score": 0,
+        "repository": 17
       },
       "observed": {
         "integrity": "NO_BASELINE",
@@ -1405,15 +1405,15 @@
         "risky": false
       },
       "set": "development",
-      "scan_id": "1ec91102-dfd1-4b79-8c7c-3d9b1e618ec9",
-      "processing_ms": 202.4,
+      "scan_id": "fc8bfb40-ba3a-429e-b0bc-ba1745bea45e",
+      "processing_ms": 72.1,
       "engine_ms": {
-        "integrity": 4,
-        "static": 10,
-        "tamper": 2,
-        "dynamic": 3,
-        "score": 1,
-        "repository": 40
+        "integrity": 1,
+        "static": 3,
+        "tamper": 0,
+        "dynamic": 0,
+        "score": 0,
+        "repository": 10
       },
       "observed": {
         "integrity": "NO_BASELINE",
@@ -1453,15 +1453,15 @@
         "integrity": "NO_BASELINE",
         "risky": true
       },
-      "scan_id": "e1d9b31c-1d8a-40e3-841a-42605affb165",
-      "processing_ms": 195.7,
+      "scan_id": "932ceeb8-3cc9-4902-b89e-4c89d0151cb8",
+      "processing_ms": 87.1,
       "engine_ms": {
-        "integrity": 4,
-        "static": 8,
-        "tamper": 3,
-        "dynamic": 3,
-        "score": 2,
-        "repository": 38
+        "integrity": 2,
+        "static": 4,
+        "tamper": 0,
+        "dynamic": 0,
+        "score": 0,
+        "repository": 15
       },
       "observed": {
         "integrity": "NO_BASELINE",
@@ -1500,15 +1500,15 @@
         "integrity": "NO_BASELINE",
         "risky": true
       },
-      "scan_id": "ab374207-5088-4068-8b00-5512dec4595a",
-      "processing_ms": 203.2,
+      "scan_id": "b23c4267-cf05-492d-ab09-bb7a4eaad940",
+      "processing_ms": 90.7,
       "engine_ms": {
-        "integrity": 3,
-        "static": 10,
-        "tamper": 3,
-        "dynamic": 3,
-        "score": 2,
-        "repository": 35
+        "integrity": 2,
+        "static": 4,
+        "tamper": 1,
+        "dynamic": 1,
+        "score": 0,
+        "repository": 14
       },
       "observed": {
         "integrity": "NO_BASELINE",
@@ -1549,15 +1549,15 @@
         "integrity": "NO_BASELINE",
         "risky": true
       },
-      "scan_id": "7489c911-a22f-488e-a050-15eaf541de5a",
-      "processing_ms": 188.4,
+      "scan_id": "6d079653-152a-43c1-a847-603a1bd50b69",
+      "processing_ms": 76.6,
       "engine_ms": {
-        "integrity": 3,
-        "static": 7,
-        "tamper": 2,
-        "dynamic": 7,
-        "score": 2,
-        "repository": 28
+        "integrity": 1,
+        "static": 4,
+        "tamper": 0,
+        "dynamic": 0,
+        "score": 0,
+        "repository": 12
       },
       "observed": {
         "integrity": "NO_BASELINE",
@@ -1598,15 +1598,15 @@
         "integrity": "NO_BASELINE",
         "risky": true
       },
-      "scan_id": "a5f2a881-e541-42cf-a217-d402973cc9d7",
-      "processing_ms": 455.1,
+      "scan_id": "69320128-9f17-407b-87be-9ef87e01ab5d",
+      "processing_ms": 75.7,
       "engine_ms": {
-        "integrity": 3,
-        "static": 8,
-        "tamper": 13,
-        "dynamic": 15,
-        "score": 30,
-        "repository": 56
+        "integrity": 1,
+        "static": 3,
+        "tamper": 2,
+        "dynamic": 0,
+        "score": 0,
+        "repository": 9
       },
       "observed": {
         "integrity": "NO_BASELINE",
@@ -1645,15 +1645,15 @@
         "integrity": "NO_BASELINE",
         "risky": false
       },
-      "scan_id": "57d88b04-1423-4f39-a421-bf64ff9b7291",
-      "processing_ms": 172.8,
+      "scan_id": "3faa357a-4ae7-4112-9ec6-5fbbc3f7dbc7",
+      "processing_ms": 88.9,
       "engine_ms": {
-        "integrity": 4,
-        "static": 7,
-        "tamper": 2,
-        "dynamic": 2,
-        "score": 2,
-        "repository": 27
+        "integrity": 2,
+        "static": 5,
+        "tamper": 0,
+        "dynamic": 1,
+        "score": 1,
+        "repository": 14
       },
       "observed": {
         "integrity": "NO_BASELINE",
@@ -1692,15 +1692,15 @@
         "integrity": "NO_BASELINE",
         "risky": false
       },
-      "scan_id": "ff7dd904-ccb3-4b9c-b238-99f685cf06df",
-      "processing_ms": 184.5,
+      "scan_id": "11f22e31-026e-44bc-ab71-6083f4a686d1",
+      "processing_ms": 76.9,
       "engine_ms": {
-        "integrity": 8,
-        "static": 8,
-        "tamper": 3,
-        "dynamic": 4,
-        "score": 1,
-        "repository": 28
+        "integrity": 1,
+        "static": 2,
+        "tamper": 0,
+        "dynamic": 0,
+        "score": 0,
+        "repository": 12
       },
       "observed": {
         "integrity": "NO_BASELINE",
@@ -1739,15 +1739,15 @@
         "integrity": "NO_BASELINE",
         "risky": false
       },
-      "scan_id": "7867b9cc-5aa5-4da3-ac0a-88cc719f4d4a",
-      "processing_ms": 177.5,
+      "scan_id": "2f10ad2b-dfdf-4660-a652-90e3dfe18633",
+      "processing_ms": 64.7,
       "engine_ms": {
-        "integrity": 4,
-        "static": 8,
-        "tamper": 2,
-        "dynamic": 3,
-        "score": 2,
-        "repository": 32
+        "integrity": 1,
+        "static": 2,
+        "tamper": 0,
+        "dynamic": 0,
+        "score": 0,
+        "repository": 14
       },
       "observed": {
         "integrity": "NO_BASELINE",
@@ -2093,7 +2093,7 @@
       "description": "Audit block appended with an untrusted signing key",
       "tampered": true,
       "detected": true,
-      "detail": "Integrity failure at block #129: Its digital signature is not valid (unknown or untrusted signing key 'mt-65fb5ed3ec2a23ba')."
+      "detail": "Integrity failure at block #129: Its digital signature is not valid (unknown or untrusted signing key 'mt-c07cd8310ec97e3f')."
     },
     {
       "id": "K11",
@@ -2105,14 +2105,14 @@
   ],
   "baseline_timings": {
     "enroll_ms": [
-      138.4003000021039,
-      38.795200001914054,
-      47.3615000009886
+      81.3151000002108,
+      29.06249999978172,
+      30.022200000075827
     ],
     "approve_ms": [
-      13.348500000574859,
-      9.419699999853037,
-      14.905500000168104
+      12.41200000004028,
+      7.380200000170589,
+      9.220100000220555
     ]
   }
 }

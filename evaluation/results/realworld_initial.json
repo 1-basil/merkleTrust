@@ -1,0 +1,563 @@
+{
+  "environment": {
+    "generated": "2026-10-09T01:32:14+00:00",
+    "python": "3.14.7",
+    "fuzzy_limit_mb": 16,
+    "c2_indicator": {
+      "address": "151.243.126.22:9443",
+      "family": "CraxsRAT",
+      "record_id": "1956999",
+      "first_seen": "2026-10-08 06:26:07",
+      "feed_updated": "2026-10-08 07:40:22 UTC"
+    }
+  },
+  "apps": [
+    {
+      "package": "net.gsantner.markor",
+      "name": "Markor (notes editor)",
+      "version": "2.16.1",
+      "file": "net.gsantner.markor_163.apk",
+      "sha256": "3f9f260dc3e32a1281cb8803eea6f926eef897579f68a5d35f922523974b84b9",
+      "signer": "9c70033237dc46fe5052e420c665708de8b3105b89842843818981826b7eec9c"
+    },
+    {
+      "package": "org.fossify.notes",
+      "name": "Fossify Notes",
+      "version": "1.7.0",
+      "file": "org.fossify.notes_13.apk",
+      "sha256": "5a56e0e39cc488e1f3b947d3801006d3b7450ec73c67f03195c64c5fd3b6bced",
+      "signer": "affdb124d3f4720c2f98dbca9eacba0514fba4306e20a2786c861c3c0d6ff292"
+    },
+    {
+      "package": "de.danoeh.antennapod",
+      "name": "AntennaPod (podcast player)",
+      "version": "3.12.2",
+      "file": "de.danoeh.antennapod_3120295.apk",
+      "sha256": "3f43a4337a693cdb49141afe06cb596e88c796009ed77bff51e9444ce2d1ebfc",
+      "signer": "179430565a4a04bfe7827483243099bd10870410800cd7c4c7b48d8d3226df55"
+    }
+  ],
+  "results": [
+    {
+      "app": "net.gsantner.markor",
+      "variant": "official_copy",
+      "what": "Byte-identical copy of the F-Droid download",
+      "detail": null,
+      "size_mb": 12.1,
+      "ms": 14002,
+      "observed": {
+        "integrity": "CLEAN",
+        "verdict": "HIGH_RISK",
+        "risk": "CRITICAL",
+        "risk_score": 96,
+        "signature": "verified",
+        "certificate_changed": false,
+        "files": {},
+        "dex_similarity": [],
+        "near_duplicate_finding": false,
+        "threat_feed_matches": []
+      },
+      "checks": {
+        "changed": true,
+        "unauthorized": true,
+        "files_exact": true
+      },
+      "correct": true
+    },
+    {
+      "app": "net.gsantner.markor",
+      "variant": "payload_resigned",
+      "what": "Extra file added (harmless marker), re-signed with an attacker key",
+      "detail": null,
+      "size_mb": 12.3,
+      "ms": 9078,
+      "observed": {
+        "integrity": "CERTIFICATE_CHANGED",
+        "verdict": "HIGH_RISK",
+        "risk": "CRITICAL",
+        "risk_score": 100,
+        "signature": "verified",
+        "certificate_changed": true,
+        "files": {
+          "added": [
+            "assets/merkletrust_eval_payload.bin"
+          ]
+        },
+        "dex_similarity": [],
+        "near_duplicate_finding": false,
+        "threat_feed_matches": []
+      },
+      "checks": {
+        "changed": true,
+        "unauthorized": true,
+        "files_exact": true
+      },
+      "correct": true
+    },
+    {
+      "app": "net.gsantner.markor",
+      "variant": "code_endpoint_swap",
+      "what": "One URL in the program code replaced (documentation address), re-signed",
+      "detail": "classes.dex: 'http://apache.org/xml/features/nonvalidating/load-dtd-grammar' -> 'http://203.0.113.9:8080/xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'",
+      "size_mb": 12.3,
+      "ms": 7261,
+      "observed": {
+        "integrity": "CERTIFICATE_CHANGED",
+        "verdict": "HIGH_RISK",
+        "risk": "CRITICAL",
+        "risk_score": 100,
+        "signature": "verified",
+        "certificate_changed": true,
+        "files": {
+          "modified": [
+            "classes.dex"
+          ]
+        },
+        "dex_similarity": [
+          {
+            "file": "classes.dex",
+            "similarity": 96,
+            "class": "NEAR_DUPLICATE"
+          }
+        ],
+        "near_duplicate_finding": true,
+        "threat_feed_matches": []
+      },
+      "checks": {
+        "changed": true,
+        "unauthorized": true,
+        "files_exact": true
+      },
+      "correct": true
+    },
+    {
+      "app": "net.gsantner.markor",
+      "variant": "code_c2_swap",
+      "what": "One URL in the program code replaced by a current ThreatFox C2 address, re-signed",
+      "detail": "classes.dex: 'http://apache.org/xml/features/nonvalidating/load-dtd-grammar' -> 'http://151.243.126.22:9443/xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx' (ThreatFox #1956999, CraxsRAT)",
+      "size_mb": 12.3,
+      "ms": 7038,
+      "observed": {
+        "integrity": "CERTIFICATE_CHANGED",
+        "verdict": "HIGH_RISK",
+        "risk": "CRITICAL",
+        "risk_score": 100,
+        "signature": "verified",
+        "certificate_changed": true,
+        "files": {
+          "modified": [
+            "classes.dex"
+          ]
+        },
+        "dex_similarity": [
+          {
+            "file": "classes.dex",
+            "similarity": 96,
+            "class": "NEAR_DUPLICATE"
+          }
+        ],
+        "near_duplicate_finding": true,
+        "threat_feed_matches": [
+          "151.243.126.22:9443 (#1956999 CraxsRAT)",
+          "151.243.126.22 (#1956999 CraxsRAT)"
+        ]
+      },
+      "checks": {
+        "changed": true,
+        "unauthorized": true,
+        "files_exact": true,
+        "threat_feed_match": true
+      },
+      "correct": true
+    },
+    {
+      "app": "net.gsantner.markor",
+      "variant": "signature_stripped",
+      "what": "All signatures removed (zip rebuilt, not re-signed)",
+      "detail": null,
+      "size_mb": 12.1,
+      "ms": 7054,
+      "observed": {
+        "integrity": "CERTIFICATE_CHANGED",
+        "verdict": "HIGH_RISK",
+        "risk": "CRITICAL",
+        "risk_score": 100,
+        "signature": "unsigned",
+        "certificate_changed": true,
+        "files": {},
+        "dex_similarity": [],
+        "near_duplicate_finding": false,
+        "threat_feed_matches": []
+      },
+      "checks": {
+        "changed": true,
+        "unauthorized": true,
+        "files_exact": true
+      },
+      "correct": true
+    },
+    {
+      "app": "net.gsantner.markor",
+      "variant": "_baseline",
+      "enrol_ms": 9959,
+      "signer_matches_fdroid": true,
+      "baseline_sha256": "3f9f260dc3e32a1281cb8803eea6f926eef897579f68a5d35f922523974b84b9"
+    },
+    {
+      "app": "org.fossify.notes",
+      "variant": "official_copy",
+      "what": "Byte-identical copy of the F-Droid download",
+      "detail": null,
+      "size_mb": 9.5,
+      "ms": 3463,
+      "observed": {
+        "integrity": "CLEAN",
+        "verdict": "REVIEW",
+        "risk": "MEDIUM",
+        "risk_score": 34,
+        "signature": "verified",
+        "certificate_changed": false,
+        "files": {},
+        "dex_similarity": [],
+        "near_duplicate_finding": false,
+        "threat_feed_matches": []
+      },
+      "checks": {
+        "changed": true,
+        "unauthorized": true,
+        "files_exact": true
+      },
+      "correct": true
+    },
+    {
+      "app": "org.fossify.notes",
+      "variant": "payload_resigned",
+      "what": "Extra file added (harmless marker), re-signed with an attacker key",
+      "detail": null,
+      "size_mb": 9.8,
+      "ms": 3365,
+      "observed": {
+        "integrity": "CERTIFICATE_CHANGED",
+        "verdict": "HIGH_RISK",
+        "risk": "CRITICAL",
+        "risk_score": 84,
+        "signature": "verified",
+        "certificate_changed": true,
+        "files": {
+          "added": [
+            "assets/merkletrust_eval_payload.bin"
+          ],
+          "deleted": [
+            "META-INF/versions/9/OSGI-INF/MANIFEST.MF"
+          ]
+        },
+        "dex_similarity": [],
+        "near_duplicate_finding": false,
+        "threat_feed_matches": []
+      },
+      "checks": {
+        "changed": true,
+        "unauthorized": true,
+        "files_exact": false
+      },
+      "correct": false
+    },
+    {
+      "app": "org.fossify.notes",
+      "variant": "code_endpoint_swap",
+      "what": "One URL in the program code replaced (documentation address), re-signed",
+      "detail": "classes.dex: 'http://schemas.android.com/apk/res-auto' -> 'http://203.0.113.9:8080/xxxxxxxxxxxxxxx'",
+      "size_mb": 9.8,
+      "ms": 3393,
+      "observed": {
+        "integrity": "CERTIFICATE_CHANGED",
+        "verdict": "HIGH_RISK",
+        "risk": "CRITICAL",
+        "risk_score": 100,
+        "signature": "verified",
+        "certificate_changed": true,
+        "files": {
+          "modified": [
+            "classes.dex"
+          ],
+          "deleted": [
+            "META-INF/versions/9/OSGI-INF/MANIFEST.MF"
+          ]
+        },
+        "dex_similarity": [
+          {
+            "file": "classes.dex",
+            "similarity": 97,
+            "class": "NEAR_DUPLICATE"
+          }
+        ],
+        "near_duplicate_finding": true,
+        "threat_feed_matches": []
+      },
+      "checks": {
+        "changed": true,
+        "unauthorized": true,
+        "files_exact": false
+      },
+      "correct": false
+    },
+    {
+      "app": "org.fossify.notes",
+      "variant": "code_c2_swap",
+      "what": "One URL in the program code replaced by a current ThreatFox C2 address, re-signed",
+      "detail": "classes.dex: 'http://schemas.android.com/apk/res-auto' -> 'http://151.243.126.22:9443/xxxxxxxxxxxx' (ThreatFox #1956999, CraxsRAT)",
+      "size_mb": 9.8,
+      "ms": 3538,
+      "observed": {
+        "integrity": "CERTIFICATE_CHANGED",
+        "verdict": "HIGH_RISK",
+        "risk": "CRITICAL",
+        "risk_score": 100,
+        "signature": "verified",
+        "certificate_changed": true,
+        "files": {
+          "modified": [
+            "classes.dex"
+          ],
+          "deleted": [
+            "META-INF/versions/9/OSGI-INF/MANIFEST.MF"
+          ]
+        },
+        "dex_similarity": [
+          {
+            "file": "classes.dex",
+            "similarity": 97,
+            "class": "NEAR_DUPLICATE"
+          }
+        ],
+        "near_duplicate_finding": true,
+        "threat_feed_matches": [
+          "151.243.126.22:9443 (#1956999 CraxsRAT)",
+          "151.243.126.22 (#1956999 CraxsRAT)"
+        ]
+      },
+      "checks": {
+        "changed": true,
+        "unauthorized": true,
+        "files_exact": false,
+        "threat_feed_match": true
+      },
+      "correct": false
+    },
+    {
+      "app": "org.fossify.notes",
+      "variant": "signature_stripped",
+      "what": "All signatures removed (zip rebuilt, not re-signed)",
+      "detail": null,
+      "size_mb": 9.6,
+      "ms": 3353,
+      "observed": {
+        "integrity": "CERTIFICATE_CHANGED",
+        "verdict": "HIGH_RISK",
+        "risk": "CRITICAL",
+        "risk_score": 84,
+        "signature": "unsigned",
+        "certificate_changed": true,
+        "files": {
+          "deleted": [
+            "META-INF/versions/9/OSGI-INF/MANIFEST.MF"
+          ]
+        },
+        "dex_similarity": [],
+        "near_duplicate_finding": false,
+        "threat_feed_matches": []
+      },
+      "checks": {
+        "changed": true,
+        "unauthorized": true,
+        "files_exact": false
+      },
+      "correct": false
+    },
+    {
+      "app": "org.fossify.notes",
+      "variant": "_baseline",
+      "enrol_ms": 3107,
+      "signer_matches_fdroid": true,
+      "baseline_sha256": "5a56e0e39cc488e1f3b947d3801006d3b7450ec73c67f03195c64c5fd3b6bced"
+    },
+    {
+      "app": "de.danoeh.antennapod",
+      "variant": "official_copy",
+      "what": "Byte-identical copy of the F-Droid download",
+      "detail": null,
+      "size_mb": 17.7,
+      "ms": 9896,
+      "observed": {
+        "integrity": "CLEAN",
+        "verdict": "HIGH_RISK",
+        "risk": "HIGH",
+        "risk_score": 61,
+        "signature": "verified",
+        "certificate_changed": false,
+        "files": {},
+        "dex_similarity": [],
+        "near_duplicate_finding": false,
+        "threat_feed_matches": []
+      },
+      "checks": {
+        "changed": true,
+        "unauthorized": true,
+        "files_exact": true
+      },
+      "correct": true
+    },
+    {
+      "app": "de.danoeh.antennapod",
+      "variant": "payload_resigned",
+      "what": "Extra file added (harmless marker), re-signed with an attacker key",
+      "detail": null,
+      "size_mb": 18.0,
+      "ms": 9767,
+      "observed": {
+        "integrity": "CERTIFICATE_CHANGED",
+        "verdict": "HIGH_RISK",
+        "risk": "CRITICAL",
+        "risk_score": 100,
+        "signature": "verified",
+        "certificate_changed": true,
+        "files": {
+          "added": [
+            "assets/merkletrust_eval_payload.bin"
+          ],
+          "deleted": [
+            "META-INF/versions/9/OSGI-INF/MANIFEST.MF"
+          ]
+        },
+        "dex_similarity": [],
+        "near_duplicate_finding": false,
+        "threat_feed_matches": []
+      },
+      "checks": {
+        "changed": true,
+        "unauthorized": true,
+        "files_exact": false
+      },
+      "correct": false
+    },
+    {
+      "app": "de.danoeh.antennapod",
+      "variant": "code_endpoint_swap",
+      "what": "One URL in the program code replaced (documentation address), re-signed",
+      "detail": "classes.dex: 'http://ns.adobe.com/xap/1.0/' -> 'http://203.0.113.9:8080/xxxx'",
+      "size_mb": 18.0,
+      "ms": 9802,
+      "observed": {
+        "integrity": "CERTIFICATE_CHANGED",
+        "verdict": "HIGH_RISK",
+        "risk": "CRITICAL",
+        "risk_score": 100,
+        "signature": "verified",
+        "certificate_changed": true,
+        "files": {
+          "modified": [
+            "classes.dex"
+          ],
+          "deleted": [
+            "META-INF/versions/9/OSGI-INF/MANIFEST.MF"
+          ]
+        },
+        "dex_similarity": [
+          {
+            "file": "classes.dex",
+            "similarity": 96,
+            "class": "NEAR_DUPLICATE"
+          }
+        ],
+        "near_duplicate_finding": true,
+        "threat_feed_matches": []
+      },
+      "checks": {
+        "changed": true,
+        "unauthorized": true,
+        "files_exact": false
+      },
+      "correct": false
+    },
+    {
+      "app": "de.danoeh.antennapod",
+      "variant": "code_c2_swap",
+      "what": "One URL in the program code replaced by a current ThreatFox C2 address, re-signed",
+      "detail": "classes.dex: 'http://podlove.org/simple-chapters' -> 'http://151.243.126.22:9443/xxxxxxx' (ThreatFox #1956999, CraxsRAT)",
+      "size_mb": 18.0,
+      "ms": 9825,
+      "observed": {
+        "integrity": "CERTIFICATE_CHANGED",
+        "verdict": "HIGH_RISK",
+        "risk": "CRITICAL",
+        "risk_score": 100,
+        "signature": "verified",
+        "certificate_changed": true,
+        "files": {
+          "modified": [
+            "classes.dex"
+          ],
+          "deleted": [
+            "META-INF/versions/9/OSGI-INF/MANIFEST.MF"
+          ]
+        },
+        "dex_similarity": [
+          {
+            "file": "classes.dex",
+            "similarity": 96,
+            "class": "NEAR_DUPLICATE"
+          }
+        ],
+        "near_duplicate_finding": true,
+        "threat_feed_matches": [
+          "151.243.126.22:9443 (#1956999 CraxsRAT)",
+          "151.243.126.22 (#1956999 CraxsRAT)"
+        ]
+      },
+      "checks": {
+        "changed": true,
+        "unauthorized": true,
+        "files_exact": false,
+        "threat_feed_match": true
+      },
+      "correct": false
+    },
+    {
+      "app": "de.danoeh.antennapod",
+      "variant": "signature_stripped",
+      "what": "All signatures removed (zip rebuilt, not re-signed)",
+      "detail": null,
+      "size_mb": 17.9,
+      "ms": 9761,
+      "observed": {
+        "integrity": "CERTIFICATE_CHANGED",
+        "verdict": "HIGH_RISK",
+        "risk": "CRITICAL",
+        "risk_score": 100,
+        "signature": "unsigned",
+        "certificate_changed": true,
+        "files": {
+          "deleted": [
+            "META-INF/versions/9/OSGI-INF/MANIFEST.MF"
+          ]
+        },
+        "dex_similarity": [],
+        "near_duplicate_finding": false,
+        "threat_feed_matches": []
+      },
+      "checks": {
+        "changed": true,
+        "unauthorized": true,
+        "files_exact": false
+      },
+      "correct": false
+    },
+    {
+      "app": "de.danoeh.antennapod",
+      "variant": "_baseline",
+      "enrol_ms": 9810,
+      "signer_matches_fdroid": true,
+      "baseline_sha256": "3f43a4337a693cdb49141afe06cb596e88c796009ed77bff51e9444ce2d1ebfc"
+    }
+  ]
+}

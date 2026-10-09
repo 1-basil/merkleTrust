@@ -74,12 +74,16 @@ SENSITIVE_SUPERCLASSES = {
 }
 
 URL_RE = re.compile(r"https?://[A-Za-z0-9\-._~:/?#\[\]@!$&'()*+,;%=]+", re.IGNORECASE)
-IPV4_RE = re.compile(r"\b(?:\d{1,3}\.){3}\d{1,3}\b")
+# Four dotted numbers that are not part of a longer dotted number: "1.3.6.1.5.5.7.3.1" is an ASN.1
+# object identifier (common in crypto libraries), not the IP address 1.3.6.1.
+IPV4_RE = re.compile(r"(?<![\d.])(?:\d{1,3}\.){3}\d{1,3}(?!\.?\d)")
 EMAIL_RE = re.compile(r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,24}\b")
 HOST_RE = re.compile(r"^(?=.{4,253}$)(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?\.)+"
                      r"(?:com|org|net|io|co|xyz|info|biz|ru|cn|top|cc|me|dev|tk|onion|su|pw)$", re.IGNORECASE)
 BENIGN_HOST_SUFFIXES = ("android.com", "google.com", "googleapis.com", "w3.org", "apache.org",
-                        "example.com", "schema.org", "schemas.android.com", "gstatic.com")
+                        "example.com", "schema.org", "schemas.android.com", "gstatic.com",
+                        # XML namespace names (e.g. XMP image metadata): identifiers, never contacted
+                        "ns.adobe.com", "purl.org")
 
 
 class DexError(ValueError):

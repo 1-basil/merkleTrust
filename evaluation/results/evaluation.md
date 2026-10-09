@@ -1,6 +1,6 @@
 # MerkleTrust — Evaluation results
 
-Generated 2026-10-08T09:45:01+00:00 on Windows 11 (Python 3.14.7, 22 CPUs).
+Generated 2026-10-09T01:37:54+00:00 on Windows 11 (Python 3.14.7, 22 CPUs).
 Produced by `python -m scripts.run_evaluation` from `evaluation/dataset/` (real APKs built with the Android toolchain; see `scripts/build_eval_dataset.py`). Ground truth was fixed when the dataset was built; this report only measures. Methodology, the held-out protocol and the changes made after the initial run are described in `evaluation/README.md`.
 
 ## Detection metrics
@@ -16,45 +16,45 @@ Produced by `python -m scripts.run_evaluation` from `evaluation/dataset/` (real 
 
 * Exact integrity status (5 classes): **32/32** (1.000)
 * Changed files reported exactly as expected: **20/20** (1.000)
-* Upload-to-result time per APK (API, inline analysis): median 187.4 ms, min 142.4 ms, max 455.1 ms
+* Upload-to-result time per APK (API, inline analysis): median 78.3 ms, min 49.3 ms, max 116.7 ms
 * Cases that failed to process: none
 
 ## Per-case results
 
 | ID | Case | Expected | Observed integrity | Verdict | Risk | Signature | Changed files | ms | Match |
 |---|---|---|---|---|---|---|---|---|---|
-| D01 | Byte-identical copy of the official build | CLEAN | CLEAN | CLEAN | LOW (0) | verified | none | 144.9 | ✓ |
-| D02 | Rebuilt and re-signed by the developer with the same key (v2+v3) | CLEAN | CLEAN | CLEAN | LOW (0) | verified | none | 146.5 | ✓ |
-| D03 | Legitimate next release by the developer (+CAMERA, +1 service) | MODIFIED | MODIFIED | CHANGES_DETECTED | MEDIUM (26) | verified | modified: AndroidManifest.xml, classes.dex | 144.4 | ✓ |
-| D04 | Manifest modified (debuggable, backup) and re-signed | CERTIFICATE_CHANGED | CERTIFICATE_CHANGED | HIGH_RISK | HIGH (68) | verified | modified: AndroidManifest.xml | 178.9 | ✓ |
-| D05 | Program code (DEX) modified to run commands and re-signed | CERTIFICATE_CHANGED | CERTIFICATE_CHANGED | HIGH_RISK | CRITICAL (100) | verified | modified: classes.dex | 256.2 | ✓ |
-| D06 | Unchanged content re-signed with a look-alike certificate (same subject name) | CERTIFICATE_CHANGED | CERTIFICATE_CHANGED | HIGH_RISK | HIGH (40) | verified | none | 223.7 | ✓ |
-| D07 | File injected (assets/payload.bin) and re-signed | CERTIFICATE_CHANGED | CERTIFICATE_CHANGED | HIGH_RISK | HIGH (50) | verified | added: assets/payload.bin | 193.4 | ✓ |
-| D08 | File deleted (assets/config.json) and re-signed | CERTIFICATE_CHANGED | CERTIFICATE_CHANGED | HIGH_RISK | HIGH (50) | verified | deleted: assets/config.json | 205.8 | ✓ |
-| D09 | Repackaged: injected loader + SMS code, new permission, extra native library | CERTIFICATE_CHANGED | CERTIFICATE_CHANGED | HIGH_RISK | CRITICAL (100) | verified | modified: AndroidManifest.xml, classes.dex; added: lib/x86_64/libpayload.so | 194.2 | ✓ |
-| D10 | Permissions added (SEND_SMS, READ_CONTACTS) and re-signed | CERTIFICATE_CHANGED | CERTIFICATE_CHANGED | HIGH_RISK | HIGH (66) | verified | modified: AndroidManifest.xml | 186.3 | ✓ |
-| D11 | Asset modified after signing (signature now invalid) | MODIFIED | MODIFIED | HIGH_RISK | HIGH (45) | invalid | modified: assets/config.json | 142.4 | ✓ |
-| D12 | v2 signature block stripped (downgrade to v1) | MODIFIED | MODIFIED | HIGH_RISK | HIGH (35) | invalid | none | 151.1 | ✓ |
-| D13 | DEX data prepended to the signed APK (Janus-style) | MODIFIED | MODIFIED | HIGH_RISK | HIGH (65) | invalid | none | 170.5 | ✓ |
-| N01 | Byte-identical copy of the official build | CLEAN | CLEAN | CLEAN | LOW (0) | verified | none | 214.0 | ✓ |
-| N02 | Re-signed by the developer, v2 only | CLEAN | CLEAN | CLEAN | LOW (0) | verified | none | 251.3 | ✓ |
-| N03 | Re-signed with an attacker key (RSA) | CERTIFICATE_CHANGED | CERTIFICATE_CHANGED | HIGH_RISK | HIGH (40) | verified | none | 172.6 | ✓ |
-| N04 | Code modified (new network endpoint) and re-signed | CERTIFICATE_CHANGED | CERTIFICATE_CHANGED | HIGH_RISK | CRITICAL (79) | verified | modified: classes.dex | 178.4 | ✓ |
-| W01 | Byte-identical copy of the official build | CLEAN | CLEAN | CLEAN | LOW (3) | verified | none | 240.0 | ✓ |
-| W02 | Legitimate data-only update by the developer | MODIFIED | MODIFIED | CHANGES_DETECTED | LOW (3) | verified | modified: AndroidManifest.xml, assets/cities.json | 313.2 | ✓ |
-| W03 | Location tracking permissions added and re-signed | CERTIFICATE_CHANGED | CERTIFICATE_CHANGED | HIGH_RISK | HIGH (64) | verified | modified: AndroidManifest.xml | 189.4 | ✓ |
-| R01 | Debuggable app with command execution, code loading and SMS sending | NO_BASELINE | NO_BASELINE | HIGH_RISK | CRITICAL (100) | verified | none | 214.4 | ✓ |
-| R02 | Dropper: downloads and loads extra code | NO_BASELINE | NO_BASELINE | HIGH_RISK | HIGH (64) | verified | none | 168.8 | ✓ |
-| R03 | Premium-SMS fraud on boot | NO_BASELINE | NO_BASELINE | HIGH_RISK | HIGH (66) | verified | none | 184.0 | ✓ |
-| R04 | Spyware: identifiers, contacts, location, audio, command execution | NO_BASELINE | NO_BASELINE | HIGH_RISK | HIGH (68) | verified | none | 175.7 | ✓ |
-| R05 | Benign app with debuggable/cleartext/backup enabled (should be review, not high risk) | NO_BASELINE | NO_BASELINE | NO_BASELINE | MEDIUM (26) | verified | none | 202.4 | ✓ |
-| H01 | Dropper using InMemoryDexClassLoader + HTTPS download | NO_BASELINE | NO_BASELINE | HIGH_RISK | HIGH (45) | verified | none | 195.7 | ✓ |
-| H02 | SMS fraud triggered by incoming SMS (multipart send) | NO_BASELINE | NO_BASELINE | HIGH_RISK | HIGH (69) | verified | none | 203.2 | ✓ |
-| H03 | Stalkerware: call log, location, phone number, hides its icon | NO_BASELINE | NO_BASELINE | HIGH_RISK | HIGH (55) | verified | none | 188.4 | ✓ |
-| H04 | Runs 'su' to disable SELinux on boot | NO_BASELINE | NO_BASELINE | NO_BASELINE | MEDIUM (23) | verified | none | 455.1 | ✗ |
-| H05 | Benign drawing app loading its own plugins (legitimate code loading) | NO_BASELINE | NO_BASELINE | HIGH_RISK | HIGH (45) | verified | none | 172.8 | ✗ |
-| H06 | Benign user-initiated SMS reminders | NO_BASELINE | NO_BASELINE | NO_BASELINE | MEDIUM (28) | verified | none | 184.5 | ✓ |
-| H07 | Benign fitness tracker with location | NO_BASELINE | NO_BASELINE | NO_BASELINE | LOW (3) | verified | none | 177.5 | ✓ |
+| D01 | Byte-identical copy of the official build | CLEAN | CLEAN | CLEAN | LOW (0) | verified | none | 101.0 | ✓ |
+| D02 | Rebuilt and re-signed by the developer with the same key (v2+v3) | CLEAN | CLEAN | CLEAN | LOW (0) | verified | none | 74.8 | ✓ |
+| D03 | Legitimate next release by the developer (+CAMERA, +1 service) | MODIFIED | MODIFIED | CHANGES_DETECTED | MEDIUM (26) | verified | modified: AndroidManifest.xml, classes.dex | 89.4 | ✓ |
+| D04 | Manifest modified (debuggable, backup) and re-signed | CERTIFICATE_CHANGED | CERTIFICATE_CHANGED | HIGH_RISK | HIGH (68) | verified | modified: AndroidManifest.xml | 83.2 | ✓ |
+| D05 | Program code (DEX) modified to run commands and re-signed | CERTIFICATE_CHANGED | CERTIFICATE_CHANGED | HIGH_RISK | CRITICAL (100) | verified | modified: classes.dex | 81.7 | ✓ |
+| D06 | Unchanged content re-signed with a look-alike certificate (same subject name) | CERTIFICATE_CHANGED | CERTIFICATE_CHANGED | HIGH_RISK | HIGH (40) | verified | none | 74.6 | ✓ |
+| D07 | File injected (assets/payload.bin) and re-signed | CERTIFICATE_CHANGED | CERTIFICATE_CHANGED | HIGH_RISK | HIGH (50) | verified | added: assets/payload.bin | 90.5 | ✓ |
+| D08 | File deleted (assets/config.json) and re-signed | CERTIFICATE_CHANGED | CERTIFICATE_CHANGED | HIGH_RISK | HIGH (50) | verified | deleted: assets/config.json | 88.5 | ✓ |
+| D09 | Repackaged: injected loader + SMS code, new permission, extra native library | CERTIFICATE_CHANGED | CERTIFICATE_CHANGED | HIGH_RISK | CRITICAL (100) | verified | modified: AndroidManifest.xml, classes.dex; added: lib/x86_64/libpayload.so | 107.6 | ✓ |
+| D10 | Permissions added (SEND_SMS, READ_CONTACTS) and re-signed | CERTIFICATE_CHANGED | CERTIFICATE_CHANGED | HIGH_RISK | HIGH (66) | verified | modified: AndroidManifest.xml | 116.7 | ✓ |
+| D11 | Asset modified after signing (signature now invalid) | MODIFIED | MODIFIED | HIGH_RISK | HIGH (45) | invalid | modified: assets/config.json | 49.3 | ✓ |
+| D12 | v2 signature block stripped (downgrade to v1) | MODIFIED | MODIFIED | HIGH_RISK | HIGH (35) | invalid | none | 64.0 | ✓ |
+| D13 | DEX data prepended to the signed APK (Janus-style) | MODIFIED | MODIFIED | HIGH_RISK | HIGH (65) | invalid | none | 92.1 | ✓ |
+| N01 | Byte-identical copy of the official build | CLEAN | CLEAN | CLEAN | LOW (0) | verified | none | 85.5 | ✓ |
+| N02 | Re-signed by the developer, v2 only | CLEAN | CLEAN | CLEAN | LOW (0) | verified | none | 96.3 | ✓ |
+| N03 | Re-signed with an attacker key (RSA) | CERTIFICATE_CHANGED | CERTIFICATE_CHANGED | HIGH_RISK | HIGH (40) | verified | none | 73.5 | ✓ |
+| N04 | Code modified (new network endpoint) and re-signed | CERTIFICATE_CHANGED | CERTIFICATE_CHANGED | HIGH_RISK | CRITICAL (79) | verified | modified: classes.dex | 72.7 | ✓ |
+| W01 | Byte-identical copy of the official build | CLEAN | CLEAN | CLEAN | LOW (3) | verified | none | 70.9 | ✓ |
+| W02 | Legitimate data-only update by the developer | MODIFIED | MODIFIED | CHANGES_DETECTED | LOW (3) | verified | modified: AndroidManifest.xml, assets/cities.json | 80.7 | ✓ |
+| W03 | Location tracking permissions added and re-signed | CERTIFICATE_CHANGED | CERTIFICATE_CHANGED | HIGH_RISK | HIGH (64) | verified | modified: AndroidManifest.xml | 79.8 | ✓ |
+| R01 | Debuggable app with command execution, code loading and SMS sending | NO_BASELINE | NO_BASELINE | HIGH_RISK | CRITICAL (100) | verified | none | 75.4 | ✓ |
+| R02 | Dropper: downloads and loads extra code | NO_BASELINE | NO_BASELINE | HIGH_RISK | HIGH (64) | verified | none | 75.3 | ✓ |
+| R03 | Premium-SMS fraud on boot | NO_BASELINE | NO_BASELINE | HIGH_RISK | HIGH (66) | verified | none | 70.2 | ✓ |
+| R04 | Spyware: identifiers, contacts, location, audio, command execution | NO_BASELINE | NO_BASELINE | HIGH_RISK | HIGH (68) | verified | none | 74.9 | ✓ |
+| R05 | Benign app with debuggable/cleartext/backup enabled (should be review, not high risk) | NO_BASELINE | NO_BASELINE | NO_BASELINE | MEDIUM (26) | verified | none | 72.1 | ✓ |
+| H01 | Dropper using InMemoryDexClassLoader + HTTPS download | NO_BASELINE | NO_BASELINE | HIGH_RISK | HIGH (45) | verified | none | 87.1 | ✓ |
+| H02 | SMS fraud triggered by incoming SMS (multipart send) | NO_BASELINE | NO_BASELINE | HIGH_RISK | HIGH (69) | verified | none | 90.7 | ✓ |
+| H03 | Stalkerware: call log, location, phone number, hides its icon | NO_BASELINE | NO_BASELINE | HIGH_RISK | HIGH (55) | verified | none | 76.6 | ✓ |
+| H04 | Runs 'su' to disable SELinux on boot | NO_BASELINE | NO_BASELINE | NO_BASELINE | MEDIUM (23) | verified | none | 75.7 | ✗ |
+| H05 | Benign drawing app loading its own plugins (legitimate code loading) | NO_BASELINE | NO_BASELINE | HIGH_RISK | HIGH (45) | verified | none | 88.9 | ✗ |
+| H06 | Benign user-initiated SMS reminders | NO_BASELINE | NO_BASELINE | NO_BASELINE | MEDIUM (28) | verified | none | 76.9 | ✓ |
+| H07 | Benign fitness tracker with location | NO_BASELINE | NO_BASELINE | NO_BASELINE | LOW (3) | verified | none | 64.7 | ✓ |
 
 ## Cryptographic tampering
 
@@ -73,7 +73,7 @@ Produced by `python -m scripts.run_evaluation` from `evaluation/dataset/` (real 
 | K07 | Baseline: re-signed with a rogue key claiming the trusted key id | yes | yes | approval signature invalid: signature does not match the signed data |
 | K08 | Baseline: certificate fingerprint swapped for an attacker's | yes | yes | approval signature invalid: signature does not match the signed data |
 | K09 | Baseline: revocation undone by editing the status column | yes | yes | status 'approved' contradicts the audit trail (last recorded: revoked) |
-| K10 | Audit block appended with an untrusted signing key | yes | yes | Integrity failure at block #129: Its digital signature is not valid (unknown or untrusted signing key 'mt-65fb5ed3ec2a23ba'). |
+| K10 | Audit block appended with an untrusted signing key | yes | yes | Integrity failure at block #129: Its digital signature is not valid (unknown or untrusted signing key 'mt-c07cd8310ec97e3f'). |
 | K11 | Newest audit block deleted (checked against a saved signed head) | yes | yes | The chain is shorter than, or different from, a previously recorded head: blocks were deleted or replaced. |
 
 Plus 32 untouched sealed reports, each verified: 32/32 accepted as valid.
