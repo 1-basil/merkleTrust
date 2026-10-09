@@ -16,7 +16,7 @@ const NAV = [
   { path: '/scans', label: 'Scan history', icon: 'list' },
   { path: '/baselines', label: 'Trusted versions', icon: 'shield' },
   { path: '/audit', label: 'Audit history', icon: 'clock' },
-  { path: '/chain', label: 'Blockchain Simulation', icon: 'blocks' },
+  { path: '/chain', label: 'Blockchain', icon: 'blocks' },
 ];
 
 const ROUTES = [
