@@ -56,6 +56,13 @@ class Settings(BaseSettings):
     trusted_keys_dir: Path | None = None
     dev_key_dir: Path = Path.home() / ".merkletrust" / "keys"
 
+    kms_provider: Literal["none", "mock", "aws", "gcp", "azure", "pkcs11"] = "none"
+    kms_key_id: str | None = None
+    kms_endpoint: str | None = None
+    pkcs11_module_path: Path | None = None
+    pkcs11_pin: SecretStr | None = None
+    pkcs11_token_label: str | None = None
+
     cors_origins: list[str] = []
     max_upload_mb: int = 100
     session_ttl_minutes: int = 480

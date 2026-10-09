@@ -160,7 +160,7 @@ decentralisation, and the documentation and UI say so.
 
 ## 14. Risk analysis
 
-Integrity and risk are separate outputs. Risk is computed from a catalogue of 68 finding
+Integrity and risk are separate outputs. Risk is computed from a catalogue of 74 finding
 types, each with a plain-language title, explanation, evidence and recommendation, and
 documented points. Findings describing the same fact share a group and are counted once;
 self-signed certificates are not penalised (normal on Android); operational messages
@@ -191,7 +191,7 @@ faster without weakening durability. ER diagram: [ARCHITECTURE.md §6](ARCHITECT
 
 ## 17. API design
 
-27 endpoints under `/api/v1` covering authentication, scans (upload, status, report,
+29 endpoints under `/api/v1` covering authentication, scans (upload, status, report,
 verification, per-file Merkle proof), baselines (enrol, approve, reject, revoke, verify,
 proof), the audit chain (blocks, verification, signed head, public keys, admin-only
 tamper/restore demonstration) and the dashboard. Every state change is authorised and

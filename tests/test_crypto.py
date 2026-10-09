@@ -177,3 +177,34 @@ def test_generate_key_script_refuses_repo_paths(tmp_path):
     assert not (REPO_ROOT / "data" / "x.pem").exists()
     assert main(["--out", str(tmp_path / "k.pem")]) == 0
     assert (tmp_path / "k.pem").exists() and (tmp_path / "k.pub.pem").exists()
+
+
+def test_cloud_kms_provider_signing_and_verification():
+    from core.crypto import CloudKmsProvider
+    kms_provider = CloudKmsProvider(provider="mock", key_id="projects/test/keys/sign-1")
+    signer = Signer(kms_provider)
+    assert signer.provider.provider_type == "cloud_kms_mock"
+    env = signer.sign(PAYLOAD)
+    assert env["alg"] == "ECDSA-P256-SHA256"
+    assert env["key_id"] == signer.key_id
+    ring = KeyRing([signer.public_key])
+    res = ring.verify(PAYLOAD, env)
+    assert res.valid is True
+
+
+def test_pkcs11_provider_signing_and_verification():
+    from core.crypto import PKCS11Provider
+    p11_provider = PKCS11Provider(token_label="YubiKey-Audit-01")
+    signer = Signer(p11_provider)
+    assert signer.provider.provider_type == "pkcs11"
+    env = signer.sign(PAYLOAD)
+    ring = KeyRing([signer.public_key])
+    assert ring.verify(PAYLOAD, env).valid is True
+
+
+def test_load_signer_with_kms_settings():
+    settings = Settings(env="production", kms_provider="mock", kms_key_id="projects/p/keys/k1")
+    signer = load_signer(settings)
+    assert signer.provider.provider_type == "cloud_kms_mock"
+    env = signer.sign(PAYLOAD)
+    assert KeyRing([signer.public_key]).verify(PAYLOAD, env).valid is True

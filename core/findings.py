@@ -259,6 +259,36 @@ _CATALOG_SPEC: dict[str, tuple] = {
         "java.lang.reflect.Method.invoke referenced",
         "Reflection is common in normal apps and libraries but can also be used to hide which functions are called.",
         "No action needed on its own.", 0),
+    "STATIC_MULTIDEX": _t(
+        "info", "code", "Multi-DEX application package",
+        "Multiple classes*.dex files found in APK archive",
+        "The application is split across multiple Dalvik Executable files.",
+        "Ensure all DEX files are verified for consistency.", 0),
+    "STATIC_NATIVE_ROOT_DETECT": _t(
+        "medium", "code", "Native library checks for root access",
+        "Root binary or management tool references found in native .so library",
+        "Native C/C++ code contains references to /system/bin/su or root management tools.",
+        "Verify why native libraries probe for device root status.", 6, "native_root"),
+    "STATIC_NATIVE_PTRACE": _t(
+        "medium", "code", "Native library employs anti-debugging",
+        "ptrace / TracerPid anti-debugging techniques in native .so library",
+        "Native code uses ptrace or inspects process status to detect dynamic analysis and debugging.",
+        "Ensure anti-tamper protections do not obscure malicious functionality.", 8, "native_antidebug"),
+    "STATIC_NATIVE_EXEC": _t(
+        "high", "code", "Native library executes shell commands",
+        "Direct system / execve invocation in native .so library",
+        "Native binary code directly spawns system processes or shell commands.",
+        "Review shell commands executed by native libraries.", 12, "command_execution"),
+    "STATIC_NATIVE_PACKER": _t(
+        "high", "code", "Packed with native protector / crypter",
+        "Known packer or binary crypter signature detected in native library",
+        "The application appears packed or encrypted using a native binary packer, hiding its true bytecode.",
+        "Inspect the unpacked payload to verify complete application behavior.", 15, "native_packer"),
+    "STATIC_YARA_MATCH": _t(
+        "high", "code", "Threat signature detected by YARA rule",
+        "One or more YARA threat detection rules matched files in the package",
+        "A heuristic security rule matched known malware indicators, ransom notes, or suspicious strings.",
+        "Investigate the specific matched strings and rule details.", 15, "yara_threat"),
     "STATIC_HARDCODED_IP": _t(
         "medium", "network", "Contacts hard-coded internet addresses",
         "Public IPv4 address literals in code",
