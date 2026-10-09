@@ -81,7 +81,7 @@ class Settings(BaseSettings):
     dynamic_observe_s: int = 20
     adb_path: str | None = None
     adb_serial: str | None = None
-    frida_path: str | None = None
+    frida_path: str | None = "frida"  # the CLI's name: used only if it resolves on PATH (shutil.which)
 
     @property
     def resolved_database_url(self) -> str:
