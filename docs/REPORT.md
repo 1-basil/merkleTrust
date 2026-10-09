@@ -238,9 +238,10 @@ upload-to-result time 78 ms per dataset APK. Performance on a quiet machine (med
 52 MB APK; full verification of a 538-block audit chain about 57 ms (timings are 2–3× higher
 on a busy machine). On three real F-Droid apps repackaged as an attacker would, 15/15 variants
 were handled as expected (exact changed files, re-signing detected, 96–97 % ssdeep similarity
-for a one-string code change), but the untouched apps were rated MEDIUM to CRITICAL for risk —
-false positives of the heuristics (evaluation/results/realworld.md). The test suite
-has 478 automated tests (90.5 % line coverage, measured 8 October), plus headless-browser end-to-end tests
+for a one-string code change), but the risk heuristics over-flag genuine apps: with call-site
+analysis added, 4 of 8 held-out genuine F-Droid apps are still rated HIGH or CRITICAL (mean
+score 59 → 53; evaluation/README.md). The test suite
+has 482 automated tests (90.5 % line coverage, measured 8 October), plus headless-browser end-to-end tests
 of both front ends, an
 `apksigner` cross-check and a concurrency stress test. Details:
 [../evaluation/results/evaluation.md](../evaluation/results/evaluation.md),

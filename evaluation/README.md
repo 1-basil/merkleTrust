@@ -185,10 +185,41 @@ fixed in the script before scanning. Results ([results/realworld.md](results/rea
 * ssdeep on real code: the one-string change in a 4.7–9.4 MB DEX file is measured 96–97 % similar
   (near-copy finding raised) — on the tiny synthetic apps fuzzy hashing was not meaningful;
 * the planted C2 address was reported with its ThreatFox record number;
-* **false positives**: the untouched official apps are rated MEDIUM (30), HIGH (61) and CRITICAL (96)
-  for risk. The behavioural heuristics were designed on small synthetic apps; real apps use
-  `Runtime.exec`, exported widget receivers and `setComponentEnabledSetting` legitimately. They
-  were deliberately not re-tuned on these three apps.
+* **false positives**: on the first run the untouched official apps were rated MEDIUM (30), HIGH (61)
+  and CRITICAL (96) for risk. The behavioural heuristics were designed on small synthetic apps; real
+  apps use `Runtime.exec`, exported widget receivers and `setComponentEnabledSetting` legitimately.
+  After the rule changes below: MEDIUM (30), HIGH (55), MEDIUM (37).
+
+## Risk rules on genuine apps (development vs held-out)
+
+On 9 October two rule changes were designed using the three apps above as the development set:
+
+1. **Call-site analysis.** `core/dex.py` now decodes Dalvik bytecode and records which classes really
+   call each sensitive API. Calls made only from well-known open-source libraries (androidx, Google,
+   Kotlin, OkHttp, Apache Commons, ACRA, …) count a quarter of their points, are labelled as library
+   calls, and never trigger a malware *pattern*; calls from the app's own code count fully.
+   Limitation: a package name is not proof of origin, so malware could hide code under a library name.
+2. **Widgets.** Receivers that only handle `android.appwidget.action.*` must be exported for the
+   launcher, so they no longer count as unprotected entry points.
+
+Before changing anything, eight other genuine F-Droid apps (Fossify Calendar, Messages, File Manager
+and Clock, NewPipe, LibreTube, FFUpdater, DAVx5; hashes pinned) were scored and the result saved
+(`results/benign_risk_before.json`). They were not used for design. After the change
+(`results/benign_risk_after.json`, `python -m scripts.run_benign_risk --label after`):
+
+| | Before | After |
+|---|---|---|
+| Genuine held-out apps rated HIGH or CRITICAL | 4 / 8 (3 CRITICAL) | 4 / 8 (2 CRITICAL) |
+| Mean risk score of the 8 | 59 | 53 |
+| Synthetic risky cases still flagged (development + held-out) | 17/17, 3/4 | 17/17, 3/4 (every case unchanged) |
+
+An honest reading: the change removes library noise (NewPipe 96 → 47, Markor 96 → 37) but does not
+fix the false-alarm rate on genuine apps. The remaining causes, seen on the held-out apps and
+deliberately *not* addressed on them: boot-completed receivers (calendars and alarms need them),
+an SMS app matching the SMS-fraud pattern (Fossify Messages sends SMS because that is its job), and
+apps whose own code runs commands (DAVx5, FFUpdater). The risk score therefore stays an explained
+warning, not a malware verdict. A proper redesign needs a large labelled set of real benign and
+malicious apps, which this project does not have.
 
 Changes made after the first real-world run (kept in `results/realworld_initial.md`): two
 extraction defects were fixed because they were objectively wrong — ASN.1 object identifiers

@@ -1,6 +1,6 @@
 {
   "environment": {
-    "generated": "2026-10-09T01:37:01+00:00",
+    "generated": "2026-10-09T02:02:00+00:00",
     "python": "3.14.7",
     "fuzzy_limit_mb": 16,
     "c2_indicator": {
@@ -44,12 +44,12 @@
       "what": "Byte-identical copy of the F-Droid download",
       "detail": null,
       "size_mb": 12.1,
-      "ms": 9569,
+      "ms": 14418,
       "observed": {
         "integrity": "CLEAN",
-        "verdict": "HIGH_RISK",
-        "risk": "CRITICAL",
-        "risk_score": 96,
+        "verdict": "REVIEW",
+        "risk": "MEDIUM",
+        "risk_score": 37,
         "signature": "verified",
         "certificate_changed": false,
         "files": {},
@@ -70,12 +70,12 @@
       "what": "Extra file added (harmless marker), re-signed with an attacker key",
       "detail": null,
       "size_mb": 12.3,
-      "ms": 11016,
+      "ms": 12417,
       "observed": {
         "integrity": "CERTIFICATE_CHANGED",
         "verdict": "HIGH_RISK",
         "risk": "CRITICAL",
-        "risk_score": 100,
+        "risk_score": 87,
         "signature": "verified",
         "certificate_changed": true,
         "files": {
@@ -100,7 +100,7 @@
       "what": "One URL in the program code replaced (documentation address), re-signed",
       "detail": "classes.dex: 'http://apache.org/xml/features/nonvalidating/load-dtd-grammar' -> 'http://203.0.113.9:8080/xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'",
       "size_mb": 12.3,
-      "ms": 9842,
+      "ms": 10662,
       "observed": {
         "integrity": "CERTIFICATE_CHANGED",
         "verdict": "HIGH_RISK",
@@ -136,7 +136,7 @@
       "what": "One URL in the program code replaced by a current ThreatFox C2 address, re-signed",
       "detail": "classes.dex: 'http://apache.org/xml/features/nonvalidating/load-dtd-grammar' -> 'http://151.243.126.22:9443/xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx' (ThreatFox #1956999, CraxsRAT)",
       "size_mb": 12.3,
-      "ms": 11744,
+      "ms": 12395,
       "observed": {
         "integrity": "CERTIFICATE_CHANGED",
         "verdict": "HIGH_RISK",
@@ -176,12 +176,12 @@
       "what": "All signatures removed (zip rebuilt, not re-signed)",
       "detail": null,
       "size_mb": 12.1,
-      "ms": 10118,
+      "ms": 8151,
       "observed": {
         "integrity": "CERTIFICATE_CHANGED",
         "verdict": "HIGH_RISK",
         "risk": "CRITICAL",
-        "risk_score": 100,
+        "risk_score": 77,
         "signature": "unsigned",
         "certificate_changed": true,
         "files": {},
@@ -199,7 +199,7 @@
     {
       "app": "net.gsantner.markor",
       "variant": "_baseline",
-      "enrol_ms": 10636,
+      "enrol_ms": 12569,
       "signer_matches_fdroid": true,
       "baseline_sha256": "3f9f260dc3e32a1281cb8803eea6f926eef897579f68a5d35f922523974b84b9"
     },
@@ -209,7 +209,7 @@
       "what": "Byte-identical copy of the F-Droid download",
       "detail": null,
       "size_mb": 9.5,
-      "ms": 5543,
+      "ms": 3839,
       "observed": {
         "integrity": "CLEAN",
         "verdict": "REVIEW",
@@ -235,7 +235,7 @@
       "what": "Extra file added (harmless marker), re-signed with an attacker key",
       "detail": null,
       "size_mb": 9.8,
-      "ms": 4236,
+      "ms": 4104,
       "observed": {
         "integrity": "CERTIFICATE_CHANGED",
         "verdict": "HIGH_RISK",
@@ -265,7 +265,7 @@
       "what": "One URL in the program code replaced (documentation address), re-signed",
       "detail": "classes.dex: 'http://schemas.android.com/apk/res-auto' -> 'http://203.0.113.9:8080/xxxxxxxxxxxxxxx'",
       "size_mb": 9.8,
-      "ms": 3488,
+      "ms": 4116,
       "observed": {
         "integrity": "CERTIFICATE_CHANGED",
         "verdict": "HIGH_RISK",
@@ -301,7 +301,7 @@
       "what": "One URL in the program code replaced by a current ThreatFox C2 address, re-signed",
       "detail": "classes.dex: 'http://schemas.android.com/apk/res-auto' -> 'http://151.243.126.22:9443/xxxxxxxxxxxx' (ThreatFox #1956999, CraxsRAT)",
       "size_mb": 9.8,
-      "ms": 3509,
+      "ms": 3581,
       "observed": {
         "integrity": "CERTIFICATE_CHANGED",
         "verdict": "HIGH_RISK",
@@ -341,7 +341,7 @@
       "what": "All signatures removed (zip rebuilt, not re-signed)",
       "detail": null,
       "size_mb": 9.6,
-      "ms": 3628,
+      "ms": 3524,
       "observed": {
         "integrity": "CERTIFICATE_CHANGED",
         "verdict": "HIGH_RISK",
@@ -364,7 +364,7 @@
     {
       "app": "org.fossify.notes",
       "variant": "_baseline",
-      "enrol_ms": 4891,
+      "enrol_ms": 3708,
       "signer_matches_fdroid": true,
       "baseline_sha256": "5a56e0e39cc488e1f3b947d3801006d3b7450ec73c67f03195c64c5fd3b6bced"
     },
@@ -374,12 +374,12 @@
       "what": "Byte-identical copy of the F-Droid download",
       "detail": null,
       "size_mb": 17.7,
-      "ms": 9857,
+      "ms": 10737,
       "observed": {
         "integrity": "CLEAN",
         "verdict": "HIGH_RISK",
         "risk": "HIGH",
-        "risk_score": 61,
+        "risk_score": 55,
         "signature": "verified",
         "certificate_changed": false,
         "files": {},
@@ -400,7 +400,7 @@
       "what": "Extra file added (harmless marker), re-signed with an attacker key",
       "detail": null,
       "size_mb": 18.0,
-      "ms": 9882,
+      "ms": 10797,
       "observed": {
         "integrity": "CERTIFICATE_CHANGED",
         "verdict": "HIGH_RISK",
@@ -430,7 +430,7 @@
       "what": "One URL in the program code replaced (documentation address), re-signed",
       "detail": "classes.dex: 'http://ns.adobe.com/xap/1.0/' -> 'http://203.0.113.9:8080/xxxx'",
       "size_mb": 18.0,
-      "ms": 10202,
+      "ms": 10993,
       "observed": {
         "integrity": "CERTIFICATE_CHANGED",
         "verdict": "HIGH_RISK",
@@ -466,7 +466,7 @@
       "what": "One URL in the program code replaced by a current ThreatFox C2 address, re-signed",
       "detail": "classes.dex: 'http://podlove.org/simple-chapters' -> 'http://151.243.126.22:9443/xxxxxxx' (ThreatFox #1956999, CraxsRAT)",
       "size_mb": 18.0,
-      "ms": 10178,
+      "ms": 10880,
       "observed": {
         "integrity": "CERTIFICATE_CHANGED",
         "verdict": "HIGH_RISK",
@@ -506,12 +506,12 @@
       "what": "All signatures removed (zip rebuilt, not re-signed)",
       "detail": null,
       "size_mb": 17.9,
-      "ms": 9901,
+      "ms": 10481,
       "observed": {
         "integrity": "CERTIFICATE_CHANGED",
         "verdict": "HIGH_RISK",
         "risk": "CRITICAL",
-        "risk_score": 100,
+        "risk_score": 95,
         "signature": "unsigned",
         "certificate_changed": true,
         "files": {},
@@ -529,7 +529,7 @@
     {
       "app": "de.danoeh.antennapod",
       "variant": "_baseline",
-      "enrol_ms": 9927,
+      "enrol_ms": 12256,
       "signer_matches_fdroid": true,
       "baseline_sha256": "3f43a4337a693cdb49141afe06cb596e88c796009ed77bff51e9444ce2d1ebfc"
     }

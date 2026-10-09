@@ -1,6 +1,6 @@
 # MerkleTrust — Performance
 
-Generated 2026-10-09T01:38:31+00:00 on Windows 11 (AMD64, 22 CPUs), Python 3.14.7. Cells show **median (min–p95)** of 5 runs unless stated. Single process, SQLite (WAL, synchronous=FULL), no emulator. Produced by `python -m scripts.benchmark`.
+Generated 2026-10-09T02:02:31+00:00 on Windows 11 (AMD64, 22 CPUs), Python 3.14.7. Cells show **median (min–p95)** of 5 runs unless stated. Single process, SQLite (WAL, synchronous=FULL), no emulator. Produced by `python -m scripts.benchmark`.
 
 The machine was in normal interactive use while measuring, so medians include background noise; the minimum is the best estimate of the intrinsic cost.
 
@@ -8,29 +8,29 @@ The machine was in normal interactive use while measuring, so medians include ba
 
 | Measurement | small (0.01 MB, 8 files) | medium (5.26 MB, 9 files) | large (52.45 MB, 9 files) |
 |---|---|---|---|
-| Upload → analysis → result (REST API) | 66.93 ms (61.70–122.83) | 204.17 ms (189.17–227.25) | 1413.51 ms (1382.66–1447.39) |
-| SHA-256 of the whole file | 0.01 ms (0.01–0.04) | 2.84 ms (2.71–4.07) | 30.67 ms (26.58–35.03) |
-| Per-file SHA-256 manifest + Merkle root (+ chunk forensics) | 1.47 ms (1.02–2.93) | 28.00 ms (25.17–31.47) | 296.85 ms (290.10–301.98) |
-| APK signature verification (v1/v2/v3) | 1.19 ms (1.16–2.94) | 16.71 ms (15.21–18.52) | 156.79 ms (142.68–160.25) |
-| Static analysis (manifest, DEX, signature, findings) | 3.58 ms (2.67–7.30) | 80.93 ms (70.39–85.63) | 761.67 ms (709.43–773.16) |
-| Comparison with baseline | 0.03 ms (0.02–0.07) | 0.07 ms (0.06–0.13) | 0.10 ms (0.10–0.15) |
-| Baseline enrolment (analyse + insert + commit), single run | 12.2 ms | 110.4 ms | 1163.3 ms |
-| Baseline approval (ECDSA sign + audit block + commit), single run | 2.8 ms | 3.9 ms | 4.5 ms |
+| Upload → analysis → result (REST API) | 70.10 ms (66.02–147.36) | 205.99 ms (188.03–214.69) | 1366.59 ms (1326.05–1379.61) |
+| SHA-256 of the whole file | 0.01 ms (0.01–0.03) | 2.87 ms (2.85–4.17) | 30.89 ms (26.38–34.63) |
+| Per-file SHA-256 manifest + Merkle root (+ chunk forensics) | 1.89 ms (1.68–2.41) | 30.16 ms (28.47–31.61) | 281.56 ms (278.51–286.18) |
+| APK signature verification (v1/v2/v3) | 1.54 ms (1.37–2.73) | 15.47 ms (14.46–16.82) | 140.05 ms (134.92–143.73) |
+| Static analysis (manifest, DEX, signature, findings) | 2.70 ms (2.57–9.82) | 76.52 ms (69.60–80.17) | 745.64 ms (699.60–800.65) |
+| Comparison with baseline | 0.03 ms (0.03–0.08) | 0.08 ms (0.07–0.13) | 0.10 ms (0.10–0.18) |
+| Baseline enrolment (analyse + insert + commit), single run | 12.1 ms | 106.4 ms | 1092.5 ms |
+| Baseline approval (ECDSA sign + audit block + commit), single run | 5.0 ms | 3.8 ms | 17.1 ms |
 
 ## Cryptographic operations
 
 | Operation | Time |
 |---|---|
-| ECDSA P-256 sign (canonical JSON payload, 200 runs) | 0.03 ms (0.03–0.04) |
-| ECDSA P-256 verify (200 runs) | 0.07 ms (0.07–0.11) |
-| Merkle tree build, 100 leaves | 0.15 ms (0.15–0.17) |
+| ECDSA P-256 sign (canonical JSON payload, 200 runs) | 0.04 ms (0.03–0.06) |
+| ECDSA P-256 verify (200 runs) | 0.06 ms (0.06–0.09) |
+| Merkle tree build, 100 leaves | 0.14 ms (0.14–0.16) |
 | Inclusion proof generate / verify, 100 leaves (7 steps) | 0.00 ms (0.00–0.00) / 0.01 ms (0.01–0.01) |
-| Merkle tree build, 1000 leaves | 1.59 ms (1.52–1.60) |
+| Merkle tree build, 1000 leaves | 1.46 ms (1.44–1.89) |
 | Inclusion proof generate / verify, 1000 leaves (10 steps) | 0.00 ms (0.00–0.00) / 0.01 ms (0.01–0.01) |
-| Merkle tree build, 10000 leaves | 16.48 ms (16.28–19.59) |
-| Inclusion proof generate / verify, 10000 leaves (14 steps) | 0.00 ms (0.00–0.00) / 0.02 ms (0.02–0.02) |
-| Merkle tree build, 100000 leaves | 188.13 ms (184.60–191.67) |
-| Inclusion proof generate / verify, 100000 leaves (17 steps) | 0.01 ms (0.01–0.01) / 0.02 ms (0.02–0.03) |
-| Full audit-chain verification, 538 blocks (hash + link + ECDSA per block) | 57.40 ms (51.76–60.00) |
+| Merkle tree build, 10000 leaves | 16.43 ms (14.61–24.11) |
+| Inclusion proof generate / verify, 10000 leaves (14 steps) | 0.00 ms (0.00–0.00) / 0.02 ms (0.02–0.03) |
+| Merkle tree build, 100000 leaves | 168.65 ms (161.92–175.38) |
+| Inclusion proof generate / verify, 100000 leaves (17 steps) | 0.00 ms (0.00–0.00) / 0.02 ms (0.02–0.03) |
+| Full audit-chain verification, 538 blocks (hash + link + ECDSA per block) | 54.49 ms (52.93–63.11) |
 
 Times include Python interpreter overhead; they are indicative of this prototype on this machine, not a performance guarantee.

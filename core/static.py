@@ -138,6 +138,28 @@ API_FINDINGS = {
     "HideComponent": "STATIC_HIDE_ICON",
     "ReflectionInvoke": "STATIC_REFLECTION",
 }
+# Widely used open-source libraries. A sensitive API that is ONLY called from these packages (for
+# example the crash reporter ACRA reading the device ID, or androidx enabling a component) is
+# library behaviour, not the app's own intent, and counts for a quarter of its points.
+# Limitation: package names are not proof of origin — malware could hide code under a library name.
+KNOWN_LIBRARY_PREFIXES = (
+    "androidx.", "android.support.", "com.google.android.", "com.google.firebase.", "com.google.common.",
+    "com.google.gson.", "kotlin.", "kotlinx.", "okhttp3.", "okio.", "retrofit2.", "com.squareup.",
+    "org.apache.", "org.acra.", "io.reactivex.", "org.jetbrains.", "com.bumptech.glide.", "coil.",
+    "org.bouncycastle.", "com.fasterxml.", "org.slf4j.", "ch.qos.logback.", "io.ktor.", "dagger.",
+)
+
+
+def _is_library(cls: str) -> bool:
+    return cls.startswith(KNOWN_LIBRARY_PREFIXES)
+
+
+def _library_only(item: dict[str, Any]) -> bool:
+    """True when call-site analysis ran and found no call from outside known libraries."""
+    callers = item.get("callers")
+    return callers is not None and not any(not _is_library(c) for c in callers)
+
+
 SENSITIVE_CLASS_FINDINGS = {"accessibility_service": "STATIC_ACCESSIBILITY",
                             "device_admin_receiver": "STATIC_DEVICE_ADMIN"}
 
@@ -158,7 +180,8 @@ def behaviour_patterns(manifest: dict[str, Any], dex: dict[str, Any],
     is too weak to accuse an app of a malware pattern.
     """
     def has(fid: str) -> bool:
-        return any(i.get("match") != "string" for i in capabilities.get(fid, []))
+        # Only the app's own calls count towards a malware pattern, not library code.
+        return any(i.get("match") != "string" and not _library_only(i) for i in capabilities.get(fid, []))
 
     perms = set(manifest["permissions"])
     network = "android.permission.INTERNET" in perms
@@ -215,8 +238,13 @@ def static_findings(manifest: dict[str, Any], classified: list[dict[str, Any]], 
         out.append(finding("STATIC_CLEARTEXT_TRAFFIC", 'android:usesCleartextTraffic="true" in <application>'))
     if app.get("allowBackup") is True:
         out.append(finding("STATIC_ALLOW_BACKUP", 'android:allowBackup="true" in <application>'))
+    # Home-screen widget providers must be exported for the launcher to use them, so a receiver
+    # that only handles android.appwidget.* actions is expected, not an unprotected entry point.
+    def is_widget(c: dict[str, Any]) -> bool:
+        actions = c.get("intent_actions") or []
+        return c["type"] == "receiver" and bool(actions) and all(a.startswith("android.appwidget.action.") for a in actions)
     exposed = [c for c in manifest["component_details"]
-               if c["type"] != "activity" and c["exported_effective"] and not c.get("permission")]
+               if c["type"] != "activity" and c["exported_effective"] and not c.get("permission") and not is_widget(c)]
     if exposed:
         out.append(finding("STATIC_EXPORTED_UNPROTECTED",
                            ", ".join(f"{c['type']} {c['name']}" for c in exposed),
@@ -253,11 +281,27 @@ def static_findings(manifest: dict[str, Any], classified: list[dict[str, Any]], 
                                                 "source": cls["source"]})
     for fid, items in grouped.items():
         weak = all(i.get("match") == "string" for i in items)
-        evidence = "; ".join(f"{i['class']}.{i['method']} in {i['source']}" for i in items)
-        if weak:
-            evidence += " (weak evidence: name found as text, not as a method call)"
+        library = not weak and all(i.get("match") == "string" or _library_only(i) for i in items)
+        parts = []
+        for i in items:
+            text = f"{i['class']}.{i['method']} in {i['source']}"
+            callers = i.get("callers")
+            if callers:
+                own = [c for c in callers if not _is_library(c)]
+                text += f" — called from {', '.join((own or callers)[:3])}" + (" …" if len(own or callers) > 3 else "")
+            elif callers is not None:
+                text += " — referenced but never called"
+            parts.append(text)
+        evidence = "; ".join(parts)
         base = finding(fid, evidence)
-        out.append(finding(fid, evidence, points=base["points"] // 2 if weak else None))
+        if weak:
+            out.append(finding(fid, evidence + " (weak evidence: name found as text, not as a method call)",
+                               points=base["points"] // 2))
+        elif library:
+            out.append(finding(fid, evidence + " (only from well-known libraries, not the app's own code)",
+                               points=base["points"] // 4, severity="low"))
+        else:
+            out.append(base)
 
     out.extend(behaviour_patterns(manifest, dex, grouped))
 

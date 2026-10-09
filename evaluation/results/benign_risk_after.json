@@ -1,0 +1,121 @@
+{
+  "generated": "2026-10-09T01:57:29+00:00",
+  "python": "3.14.7",
+  "label": "after",
+  "flagged_high_or_critical": 4,
+  "apps": [
+    {
+      "package": "org.fossify.calendar",
+      "version": "1.11.0",
+      "risk": "MEDIUM",
+      "score": 42,
+      "contributions": [
+        "STATIC_EXPORTED_UNPROTECTED+16",
+        "STATIC_DANGEROUS_PERM+15",
+        "STATIC_HIDE_ICON+8",
+        "STATIC_ALLOW_BACKUP+3"
+      ]
+    },
+    {
+      "package": "org.fossify.messages",
+      "version": "1.9.1",
+      "risk": "CRITICAL",
+      "score": 100,
+      "contributions": [
+        "PATTERN_SMS_FRAUD+30",
+        "STATIC_SMS_SEND+20",
+        "STATIC_EXPORTED_UNPROTECTED+16",
+        "STATIC_DANGEROUS_PERM+15",
+        "STATIC_HIDE_ICON+8",
+        "STATIC_DEVICE_HARVEST+8",
+        "STATIC_HTTP_URLS+4",
+        "STATIC_ALLOW_BACKUP+3"
+      ]
+    },
+    {
+      "package": "org.fossify.filemanager",
+      "version": "1.6.1",
+      "risk": "MEDIUM",
+      "score": 43,
+      "contributions": [
+        "STATIC_CMD_EXEC+15",
+        "STATIC_DANGEROUS_PERM+9",
+        "STATIC_EXPORTED_UNPROTECTED+8",
+        "STATIC_HIDE_ICON+8",
+        "STATIC_ALLOW_BACKUP+3"
+      ]
+    },
+    {
+      "package": "org.schabi.newpipe",
+      "version": "0.29.1",
+      "risk": "HIGH",
+      "score": 47,
+      "contributions": [
+        "STATIC_EXPORTED_UNPROTECTED+16",
+        "STATIC_DANGEROUS_PERM+9",
+        "STATIC_HARDCODED_IP+8",
+        "STATIC_HTTP_URLS+4",
+        "STATIC_ALLOW_BACKUP+3",
+        "STATIC_CMD_EXEC+3",
+        "STATIC_HIDE_ICON+2",
+        "STATIC_DEVICE_HARVEST+2"
+      ]
+    },
+    {
+      "package": "com.github.libretube",
+      "version": "32.1",
+      "risk": "MEDIUM",
+      "score": 24,
+      "contributions": [
+        "STATIC_HARDCODED_IP+8",
+        "STATIC_WEBVIEW_JS_BRIDGE+4",
+        "STATIC_HTTP_URLS+4",
+        "STATIC_ALLOW_BACKUP+3",
+        "STATIC_DANGEROUS_PERM+3",
+        "STATIC_HIDE_ICON+2"
+      ]
+    },
+    {
+      "package": "de.marmaro.krt.ffupdater",
+      "version": "81.0.0",
+      "risk": "HIGH",
+      "score": 52,
+      "contributions": [
+        "STATIC_CMD_EXEC+15",
+        "STATIC_DANGEROUS_PERM+12",
+        "STATIC_EXPORTED_UNPROTECTED+8",
+        "STATIC_HARDCODED_IP+8",
+        "STATIC_HTTP_URLS+4",
+        "STATIC_ALLOW_BACKUP+3",
+        "STATIC_HIDE_ICON+2"
+      ]
+    },
+    {
+      "package": "at.bitfire.davdroid",
+      "version": "4.5.20-ose",
+      "risk": "CRITICAL",
+      "score": 85,
+      "contributions": [
+        "PATTERN_SPYWARE+25",
+        "STATIC_EXPORTED_UNPROTECTED+16",
+        "STATIC_DANGEROUS_PERM+15",
+        "STATIC_CMD_EXEC+15",
+        "STATIC_HARDCODED_IP+8",
+        "STATIC_HTTP_URLS+4",
+        "STATIC_HIDE_ICON+2"
+      ]
+    },
+    {
+      "package": "org.fossify.clock",
+      "version": "1.6.0",
+      "risk": "MEDIUM",
+      "score": 33,
+      "contributions": [
+        "STATIC_EXPORTED_UNPROTECTED+16",
+        "STATIC_HIDE_ICON+8",
+        "STATIC_DANGEROUS_PERM+6",
+        "STATIC_ALLOW_BACKUP+3"
+      ]
+    }
+  ]
+}

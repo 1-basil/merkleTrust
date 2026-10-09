@@ -76,3 +76,5 @@ with open('samples/tampered_photo.jpg', 'wb') as f:
     f.write(base_jpeg + zip_payload)
 
 print('Generated sample test files in samples/ successfully!')
+
+

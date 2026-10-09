@@ -25,7 +25,7 @@ hash-linked audit chain.
 
 ```bash
 pip install -r requirements.txt                     # Python 3.12+
-python -m pytest                                    # 478 tests
+python -m pytest                                    # 482 tests
 cd webapp && npm install && npm run build && cd ..  # the web app (once)
 python -m scripts.update_threat_feed                # today's ThreatFox indicators
 python -m scripts.manage_users create admin --role admin
@@ -65,12 +65,14 @@ On 35 real APKs built with the Android toolchain ([evaluation/](evaluation/READM
   F-Droid (hashes pinned from F-Droid's index) and repackaged the way an attacker would — 15/15
   variants handled as expected (changed files named exactly, re-signing detected, a one-string code
   change measured as a 96–97 % ssdeep near-copy, a real ThreatFox C2 address found). The risk
-  heuristics, however, rate the untouched official apps MEDIUM to CRITICAL: false positives, reported
-  as such and not re-tuned on the test apps;
+  heuristics, however, over-flag genuine apps: after adding call-site analysis (library calls
+  count a quarter), 4 of 8 *held-out* genuine F-Droid apps are still rated HIGH or CRITICAL (was
+  4/8; mean score 59 → 53). Reported as a limitation, not tuned away
+  ([details](evaluation/README.md#risk-rules-on-genuine-apps-development-vs-held-out));
 * about 0.07 s from upload to result for a typical test APK (median), about 0.2 s for 5 MB and
   about 1.4 s for 52 MB on a quiet machine ([benchmark](evaluation/results/benchmark.md)); timings
   vary with machine load (2–3× slower when busy);
-* 478 automated tests (90.5 % line coverage, measured 8 October), plus a headless-browser test of the web app.
+* 482 automated tests (90.5 % line coverage, measured 8 October), plus a headless-browser test of the web app.
 
 ## Documentation
 

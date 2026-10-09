@@ -155,27 +155,112 @@ def parse_dex(data: bytes) -> dict[str, Any]:
         "strings": strings,
         "method_refs": methods,
         "classes": classes,
+        "_types": types, "_n_cls": n_cls, "_off_cls": off_cls,
     }
+
+
+# ------------------------------------------------------------- call sites --
+# Width in 16-bit code units of every Dalvik opcode (Dalvik bytecode format reference).
+_WIDTH = [1] * 256
+for _ops, _w in (((0x02, 0x05, 0x08, 0x13, 0x15, 0x16, 0x19, 0x1A, 0x1C, 0x1F, 0x20, 0x22, 0x23, 0x29, 0xFE, 0xFF), 2),
+                 ((0x03, 0x06, 0x09, 0x14, 0x17, 0x1B, 0x24, 0x25, 0x26, 0x2A, 0x2B, 0x2C, 0xFC, 0xFD), 3),
+                 ((0x18,), 5), ((0xFA, 0xFB), 4)):
+    for _op in _ops:
+        _WIDTH[_op] = _w
+for _lo, _hi, _w in ((0x2D, 0x3D, 2), (0x44, 0x6D, 2), (0x6E, 0x72, 3), (0x74, 0x78, 3), (0x90, 0xAF, 2), (0xD0, 0xE2, 2)):
+    for _op in range(_lo, _hi + 1):
+        _WIDTH[_op] = _w
+_INVOKE = frozenset(range(0x6E, 0x73)) | frozenset(range(0x74, 0x79))
+
+
+def _invoked(insns: bytes, targets: set[int]) -> set[int]:
+    """Method indices from `targets` that this method body invokes (decodes instructions, skips payloads)."""
+    n = len(insns) // 2
+    found: set[int] = set()
+    i = 0
+    while i < n:
+        unit = insns[2 * i] | (insns[2 * i + 1] << 8)
+        op = unit & 0xFF
+        if op == 0x00 and unit:  # switch / array payloads embedded in the code
+            if 2 * i + 8 > len(insns):
+                break
+            size = insns[2 * i + 2] | (insns[2 * i + 3] << 8)
+            if unit == 0x0100:
+                i += size * 2 + 4
+            elif unit == 0x0200:
+                i += size * 4 + 2
+            elif unit == 0x0300:
+                count = struct.unpack_from("<I", insns, 2 * i + 4)[0]
+                i += (size * count + 1) // 2 + 4
+            else:
+                i += 1
+            continue
+        if op in _INVOKE and 2 * i + 4 <= len(insns):
+            idx = insns[2 * i + 2] | (insns[2 * i + 3] << 8)
+            if idx in targets:
+                found.add(idx)
+        i += _WIDTH[op]
+    return found
+
+
+def call_sites(data: bytes, types: list[str], n_cls: int, off_cls: int, targets: set[int]) -> dict[int, set[str]]:
+    """{method index: set of class descriptors whose code invokes it}, for the given target methods only."""
+    callers: dict[int, set[str]] = {t: set() for t in targets}
+    if not targets:
+        return callers
+    needles = [t.to_bytes(2, "little") for t in targets]
+    for c in range(n_cls):
+        cls_idx = struct.unpack_from("<I", data, off_cls + c * 32)[0]
+        (class_data,) = struct.unpack_from("<I", data, off_cls + c * 32 + 24)
+        if not class_data:
+            continue
+        p = class_data
+        sf, p = _uleb128(data, p)
+        inf, p = _uleb128(data, p)
+        dm, p = _uleb128(data, p)
+        vm, p = _uleb128(data, p)
+        for _ in range(2 * (sf + inf)):
+            _, p = _uleb128(data, p)
+        for _ in range(dm + vm):
+            _, p = _uleb128(data, p)  # method index delta
+            _, p = _uleb128(data, p)  # access flags
+            code, p = _uleb128(data, p)
+            if not code or code + 16 > len(data):
+                continue
+            size = struct.unpack_from("<I", data, code + 12)[0]
+            insns = data[code + 16: code + 16 + 2 * size]
+            if not any(nd in insns for nd in needles):  # cheap pre-filter before decoding
+                continue
+            for hit in _invoked(insns, targets):
+                callers[hit].add(types[cls_idx])
+    return callers
 
 
 def _string_fallback(data: bytes, min_len: int = 4) -> list[str]:
     return [m.decode("ascii") for m in re.findall(rb"[\x20-\x7e]{%d,}" % min_len, data)]
 
 
-def _detect_apis(method_refs: list[tuple[str, str]], source: str) -> list[dict[str, Any]]:
-    refs = set(method_refs)
+def _detect_apis(method_refs: list[tuple[str, str]], source: str,
+                 callers_of=None) -> list[dict[str, Any]]:
+    """Sensitive APIs referenced by the DEX. With `callers_of` (method index set -> callers), each hit
+    also lists the classes whose code really calls it."""
+    index: dict[tuple[str, str], int] = {ref: i for i, ref in enumerate(method_refs)}
     by_class: dict[str, set[str]] = {}
-    for cls, name in refs:
+    for cls, name in index:
         by_class.setdefault(cls, set()).add(name)
     found = []
     for cls, names, api, category, title in SENSITIVE_APIS:
         hit = by_class.get(cls, set()) & set(names) if names else by_class.get(cls, set())
         if hit:
-            found.append({
+            item = {
                 "api": api, "category": category, "title": title,
                 "class": cls[1:-1].replace("/", "."), "method": ", ".join(sorted(hit)),
                 "source": source, "match": "method_ref",
-            })
+            }
+            if callers_of is not None:
+                found_callers = callers_of({index[(cls, n)] for n in hit})
+                item["callers"] = sorted(c[1:-1].replace("/", ".") for c in found_callers)
+            found.append(item)
     return found
 
 
@@ -238,7 +323,13 @@ def analyze_dex_files(dex_files: list[tuple[str, bytes]]) -> dict[str, Any]:
                          size_matches_header=parsed["file_size_header"] == parsed["file_size_actual"],
                          class_count=len(parsed["classes"]), method_ref_count=len(parsed["method_refs"]))
             strings = parsed["strings"]
-            found = _detect_apis(parsed["method_refs"], name)
+            def callers_of(idx: set[int], parsed=parsed, data=data) -> set[str]:
+                try:
+                    sites = call_sites(data, parsed["_types"], parsed["_n_cls"], parsed["_off_cls"], idx)
+                except (struct.error, IndexError):
+                    return set()
+                return set().union(*sites.values()) if sites else set()
+            found = _detect_apis(parsed["method_refs"], name, callers_of)
             class_count += len(parsed["classes"])
             for cls, sup in parsed["classes"]:
                 if sup in SENSITIVE_SUPERCLASSES:
@@ -252,8 +343,12 @@ def analyze_dex_files(dex_files: list[tuple[str, bytes]]) -> dict[str, Any]:
         all_strings.extend(strings)
         for f in found:
             # Prefer the stronger (method_ref) evidence when an API appears in several files.
-            if f["api"] not in apis or (apis[f["api"]]["match"] == "string" and f["match"] == "method_ref"):
+            prev = apis.get(f["api"])
+            if prev is None or (prev["match"] == "string" and f["match"] == "method_ref"):
                 apis[f["api"]] = f
+            elif prev["match"] == f["match"] == "method_ref":
+                prev["callers"] = sorted(set(prev.get("callers", [])) | set(f.get("callers", [])))
+                prev["source"] = f"{prev['source']}, {f['source']}"
 
     return {
         "dex_files": per_file,

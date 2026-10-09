@@ -142,6 +142,12 @@ remain APK-only.
 
 ### 2.4 Threat intelligence, signature rules and code similarity
 
+* **Call sites** (`core/dex.py`). Besides the ID tables, the parser decodes method bodies (Dalvik
+  instruction widths, switch/array payloads skipped) for the methods that reference a sensitive API,
+  and records which classes invoke it. Static findings use this: an API called only from well-known
+  library packages counts a quarter of its points and never feeds a malware pattern. Widget
+  receivers (`android.appwidget.action.*` only) are not counted as unprotected exports.
+
 * **Threat feed** (`core/threat_intel.py`). Indicators come only from a real, dated feed:
   the abuse.ch ThreatFox CSV export, downloaded by `scripts/update_threat_feed.py` to
   `<data_dir>/threat_feeds/threatfox_recent.csv` (or `MERKLETRUST_THREAT_FEED_PATH`). The
