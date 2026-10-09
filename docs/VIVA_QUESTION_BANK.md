@@ -182,9 +182,10 @@ The dashboard builds DOM nodes with `textContent` only — a test fails if any H
 API appears — and a CSP with `script-src 'self'` and no inline scripts.
 
 **Q29. How did you test it?**
-357 automated tests (unit, integration, API, security) at 91.9 % line coverage; real signed
-APK fixtures; regression tests that fail on the old code for every fixed bug; a headless
-Chrome end-to-end test; a differential check against `apksigner`; a concurrency stress
+476 automated tests (unit, integration, API, security) at 90.5 % line coverage; real signed
+APK fixtures; regression tests that fail on the old code for every fixed bug; headless
+Chrome end-to-end tests of both web front ends (the React one runs in CI); fuzzy hashes
+cross-checked against an independent ssdeep implementation; a differential check against `apksigner`; a concurrency stress
 test; and the evaluation (`docs/TESTING.md`).
 
 **Q30. What would you do next?**

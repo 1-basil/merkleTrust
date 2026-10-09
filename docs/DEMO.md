@@ -1,128 +1,112 @@
 # MerkleTrust — Live Demonstration Script (≈ 12 minutes)
 
-All APKs used here are already in the repository (`evaluation/dataset/`), so the demo
-needs no Android SDK and no internet.
+Everything used here is in the repository (`evaluation/dataset/`, `samples/`), so the demo
+needs no Android SDK. Internet is only needed to download the threat feed beforehand.
+The web app also has this script built in: **Home → Demo guide**.
 
 | File | Role in the story |
 |---|---|
-| `baseline_demo.apk` | The developer's official build 1.2.0 |
-| `demo_official_copy.apk` | A byte-identical copy that a user downloaded |
-| `demo_repackaged.apk` | The same app repackaged by an attacker: injected code-loading and SMS code, an extra permission, an extra native library, re-signed with the attacker's key |
+| `evaluation/dataset/baseline_demo.apk` | The developer's official build 1.2.0 |
+| `evaluation/dataset/demo_official_copy.apk` | A byte-identical copy that a user downloaded |
+| `evaluation/dataset/demo_repackaged.apk` | The same app repackaged by an attacker: injected code-loading and SMS code, an extra permission, an extra native library, re-signed with the attacker's key |
+| `samples/tampered_photo.jpg` / `samples/clean_photo.jpg` | A photo with data hidden after the end of the image, and the original |
 
-## 0. Before the viva (pre-flight)
+## 0. Before the presentation
 
-```bash
-pip install -r requirements.txt
-python -m pytest -q                                    # expect: all passed
-# fresh demo data directory (any empty folder)
-#   PowerShell: $env:MERKLETRUST_DATA_DIR = "demo-data"
-#   bash:       export MERKLETRUST_DATA_DIR=demo-data
-python -m scripts.generate_signing_key --out ~/.merkletrust/keys/demo.pem   # optional; otherwise a dev key is created
-python -m scripts.manage_users create admin --role admin
-python -m scripts.manage_users create analyst --role analyst
-uvicorn api.main:app --port 8000
+```powershell
+python -m pytest -q                                              # expect: all passed
+powershell -ExecutionPolicy Bypass -File scripts\start_demo.ps1 -Fresh
 ```
 
-Open http://127.0.0.1:8000 and sign in as **admin**. Keep `evaluation/dataset/` open in a
-file browser. Rehearse once; to reset, stop the server and delete the demo data folder.
+`start_demo.ps1` builds the web app (first run), downloads today's abuse.ch ThreatFox feed,
+creates the `admin` account (you choose the password) and starts the server. Open
+**http://127.0.0.1:8000/app** and sign in as **admin**. Turn on **projector mode** (screen
+icon, top right) for a large room. Keep the two folders above open in a file browser.
+Rehearse once; `-Fresh` resets everything.
 
-Optional automated rehearsal of every screen: `python -m scripts.seed_demo
-http://127.0.0.1:8000` against a *separate* fresh data folder, then `node
-tests/e2e/ui_smoke.mjs …` (see the script header).
+Manual alternative: `cd webapp; npm install; npm run build; cd ..`, then
+`python -m scripts.update_threat_feed`, `python -m scripts.manage_users create admin --role admin`
+and `python -m uvicorn api.main:app --port 8000`.
 
-## 1–2. Upload a clean APK — and see that nothing is trusted by default
+## 1. Home — the idea in one sentence
 
-1. **Scan an app** → drop `demo_official_copy.apk`.
-   *Say:* "Every file inside the APK is fingerprinted with SHA-256, its signature is
-   verified, its code and configuration are inspected, and the result is recorded."
-2. Result: **NOT VERIFIED — No trusted version to compare with**, risk **LOW 0**.
-   *Say:* "The app is validly signed — but by whom? Android only checks that *someone*
-   signed it. Without an approved reference we refuse to call it 'clean'. Many systems
-   trust the first upload; that would let an attacker poison the baseline."
+Show the hero and the live numbers. Point at the line under the numbers: *"Threat
+intelligence: abuse.ch ThreatFox, N known malicious servers and files, updated …"*.
+*Say:* "MerkleTrust answers three questions about any file: is it the original, is it
+safe, and can we prove both later?"
 
-## 3. Create and verify the trusted baseline
+## 2. Scan an app with nothing to compare it to
 
-3. **Trusted versions** → **Upload official APK** → `baseline_demo.apk` → it appears as
-   *Awaiting approval*. Click **Approve** (note: "Official release 1.2.0").
-   Then **Details** → "Record verified".
-   *Say:* "Approval signs a canonical record with ECDSA P-256: package, version, the
-   certificate fingerprint, the Merkle root over every file's hash. Before every use the
-   record is re-verified — if anyone edits it in the database, it is rejected."
-   Re-upload `demo_official_copy.apk` → **CLEAN**, "Matches the trusted version".
+**Scan** → drop `demo_official_copy.apk`. Watch the four steps (fingerprint, look inside,
+score, seal). Result: **Not Verified**.
+*Say:* "The app is validly signed — but by whom? Android only checks that *someone*
+signed it. We never trust a file just because it looks fine, and we never trust the first
+upload: an attacker who uploads first would otherwise become the 'original'."
 
-## 4–5. Modify the APK and upload it
+## 3. Add the official app as trusted
 
-4. *Say:* "An attacker took the official app, injected a code loader and SMS-sending
-   code, added a permission and a native library, and re-signed it with their own key —
-   they don't have the developer's key." (The file is `demo_repackaged.apk`; it was built
-   with the real Android toolchain.)
-5. **Scan an app** → `demo_repackaged.apk`.
+**Trusted Apps** → drop `baseline_demo.apk` → **Approve & sign** → **Check this record**
+(all five checks green).
+*Say:* "Approval digitally signs a record of the app: name, version, developer key, the
+Merkle root over every file and the fuzzy fingerprint of its code. That record is
+re-checked before every use, so editing it in the database is detected."
+Scan `demo_official_copy.apk` again → **Verified Original**.
 
-## 6–8. What changed, the certificate, and why it is risky
+## 4. Scan the hacked copy
 
-6. Result: **HIGH RISK**; "Is this the same app?" → **Signed by a different developer
-   key**. Tab **File changes**: `AndroidManifest.xml` and `classes.dex` **modified**,
-   `lib/x86_64/libpayload.so` **added**; resources unchanged.
-   *Say:* "Per-file hashing tells us exactly *which* files changed, not just that the
-   bytes differ."
-7. Tab **Certificate**: trusted vs this app side by side — different fingerprint and key
-   type. *Say:* "A self-signed certificate is normal on Android. What matters is that it
-   is not the trusted developer's. Our dataset even includes an attacker certificate that
-   copies the developer's *name* — we compare fingerprints, never names."
-8. Tab **Overview** → risk breakdown: each line with its points (signed by a different
-   developer key, program code changed, can download and run code, …). Tab **Security
-   findings**: each finding has an explanation, evidence and what to do.
-   *Say:* "Integrity and risk are separate questions. The score is an explained
-   indicator, not a malware probability — and nothing is counted twice."
+**Scan** → `demo_repackaged.apk` → **Security Risks Found**, trust score 0.
 
-## 9–10. Cryptographic verification and a Merkle proof
+* **Summary** — "Is it the original? No, signed by someone else." Risk points, each with a reason.
+* **What changed** — 2 modified, 1 added. Press **Prove it** on `classes.dex`:
+  *"Not genuine: its fingerprint does not lead to the trusted root."*
+  *Say:* "This Merkle proof is recomputed in this browser, not on our server: you don't
+  have to trust us." The code-similarity bar (ssdeep fuzzy hash) shows a low score here:
+  the demo app's code is only about 3 KB, and fuzzy hashing needs larger files to be
+  meaningful. Say so if asked — it is stated on the page too.
+* **Certificate** — trusted key vs this upload, side by side.
+  *Say:* "We compare key fingerprints, never names. Our dataset includes an attacker
+  certificate that copies the developer's name; it is still caught."
+* **Problems found** — the line on top shows which threat feed (and which version) the app
+  was checked against. Each finding has an explanation, evidence and what to do.
+* **Proof & seal** → **Check it again now** → *Verified*. Download the verification bundle:
+  "anyone can check this offline with `python -m scripts.verify_offline --bundle bundle.json`."
 
-9. Tab **Verification**: trusted record ✓, developer signature (this app's own signature
-   is valid — it is the attacker's), Merkle root ✗ "Integrity record has changed", audit
-   record ✓. Click **Verify this report now** → **Verified**.
-   *Say:* "The report's canonical SHA-256 is sealed in a signed audit block. If anyone
-   edits the stored report, this check fails."
-10. Tab **File changes** → **Check proof** on `classes.dex` → **INVALID**: "its
-    fingerprint does not lead to the trusted root". Open *Merkle proof*: trusted root,
-    both fingerprints, number of proof steps.
-    *Say:* "A Merkle proof needs only log₂(n) hashes. The trusted fingerprint of
-    classes.dex proves into the signed root; the uploaded one cannot." (Optionally show
-    the clean scan: **VALID**.)
+## 5. Not just apps: a photo with hidden data
 
-## 11. The audit entry
+Scan `samples/tampered_photo.jpg` → **Problems found**: data hidden after the end of the
+image. Scan `samples/clean_photo.jpg` → no problems.
 
-11. **Audit history**: Baseline enrolled / approved, APK uploaded, APK analysed,
-    **Integrity problem detected**, Report verification performed — each with actor,
-    time, and a valid record.
+## 6. How the fingerprint works — Merkle Tree Lab
 
-## 12–14. Tamper with the Blockchain Simulation
+**Merkle Tree** → **Tamper with an item**: the changed path turns red up to the root, the
+proof panel shows the item no longer reaches the trusted root.
+*Say:* "Only 3 hashes are needed to check one item out of 8; about 10 for 1,000 files."
+Optional: drop `samples/clean_photo.jpg` into *Fingerprint a real file* — once it has been
+scanned, the browser shows **Matches the server, computed independently**.
 
-12. **Blockchain Simulation**. Point at the notice: single-node, append-only, *not* a
-    distributed blockchain. Click a block: index, previous hash, block hash, signature.
-    Admin panel → enter the number of the **Baseline enrolled** block (block **4** if you
-    signed in once and followed the steps above; check the event name on the card), mode
-    **Edit data and recompute the block hash** → **Tamper with block**.
-    *Say:* "This is an attacker with database access rewriting history — and they even
-    recompute the block's hash."
-13. Click **Verify chain**.
-14. Red banner **BLOCKCHAIN SIMULATION INTEGRITY FAILURE** — the altered block and the
-    broken link to the next block are red; block detail: "Its digital signature is not
-    valid", and the next block "does not match the hash of the block before it".
-    *Say:* "Without our private key they cannot re-sign it, and block 4 still points to
-    the old fingerprint. Changing anything breaks the chain from that point."
+## 7. Try to rewrite history — Blockchain
 
-## 15–16. Restore and verify again
+1. **Save checkpoint** (a signed statement of the newest block, kept in this browser).
+2. Click a block in the middle of the chain → **Play the attacker** → *Change it and cover
+   the tracks* → **Tamper with block #N**. The block turns red and its link to the next
+   block breaks.
+3. **Verify the whole chain** → the check walks the chain and stops at the broken block.
+   *Say:* "They recomputed the hash, but they cannot forge the signature without our private
+   key, and the next block still points to the old fingerprint."
+4. **Restore the chain** → **Verify the whole chain** → *Verified: all N blocks*.
 
-15. **Restore valid chain**.
-16. **Verify chain** → **Chain intact**, all blocks valid.
+*Say:* "This is a single-server, signed hash chain — tamper-evident, not a distributed
+blockchain. The checkpoint also catches deleted blocks, not only edited ones."
 
 ## Fallbacks
 
 * Browser problem: every step has an API equivalent at http://127.0.0.1:8000/api/docs.
-* If the server will not start because of an old database: point
-  `MERKLETRUST_DATA_DIR` at a new folder.
-* If time is short: steps 1–3, 5–6, 10, 12–16 carry the story.
+* Offline on the day: the last downloaded threat feed is used; if there is none, the
+  report says so instead of claiming a check that did not run.
+* If the server will not start because of an old database: run `start_demo.ps1 -Fresh`.
+* If time is short: steps 3, 4 and 7 carry the story.
+* The classic dashboard (http://127.0.0.1:8000/) still offers every function.
 
-## Questions to expect at this point
+## Questions to expect
 
 See [VIVA_QUESTION_BANK.md](VIVA_QUESTION_BANK.md).

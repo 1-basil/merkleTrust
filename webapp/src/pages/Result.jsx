@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import {
-  ArrowDown, ArrowLeft, BadgeCheck, CheckCircle2, ChevronDown, Download, FileDiff, FileSearch, Fingerprint, Gauge,
-  KeyRound, LayoutDashboard, Link2, ListFilter, Network, ShieldAlert, ShieldCheck, ShieldQuestion, ShieldX, XCircle,
+  Activity, ArrowDown, ArrowLeft, BadgeCheck, CheckCircle2, ChevronDown, Download, FileDiff, FileSearch, Fingerprint,
+  Gauge, KeyRound, LayoutDashboard, Link2, ListFilter, Network, Radar, ScrollText, ShieldAlert, ShieldCheck,
+  ShieldQuestion, ShieldX, XCircle,
 } from 'lucide-react';
 import ScanSteps from '../components/ScanSteps.jsx';
 import TrustGauge from '../components/TrustGauge.jsx';
@@ -121,19 +122,24 @@ function SummaryCard({ scan, report }) {
               </div>
             )}
           </dl>
-          {r.static?.threat_intel?.matches?.length > 0 && (
-            <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-3.5">
-              <div className="flex items-center gap-2 text-xs font-semibold text-red-300">
-                <ShieldAlert className="size-4 shrink-0 text-red-400" />
-                <span>Threat Intelligence: {r.static.threat_intel.matches.length} C2 indicator match(es) detected</span>
+          {(() => {
+            const ti = r.static?.threat_intel || {};
+            const known = [...(ti.matches || []).filter((m) => m.basis === 'feed'), ...(ti.known_malware_file ? [ti.known_malware_file] : [])];
+            if (!known.length) return null;
+            return (
+              <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-3.5">
+                <div className="flex items-center gap-2 text-xs font-semibold text-red-300">
+                  <ShieldAlert className="size-4 shrink-0 text-red-400" aria-hidden="true" />
+                  <span>Listed in {ti.feed?.source || 'the threat feed'}: {known.length} known malicious match{known.length === 1 ? '' : 'es'}</span>
+                </div>
+                <ul className="mt-1.5 space-y-1 text-xs text-red-200/80">
+                  {known.map((m) => (
+                    <li key={m.record_id} className="truncate">• <strong className="text-red-100">{m.threat_family}</strong> ({m.indicator}, record #{m.record_id})</li>
+                  ))}
+                </ul>
               </div>
-              <ul className="mt-1.5 space-y-1 text-xs text-red-200/80">
-                {r.static.threat_intel.matches.map((m, idx) => (
-                  <li key={idx} className="truncate">• <strong className="text-red-100">{m.threat_family}</strong> ({m.indicator})</li>
-                ))}
-              </ul>
-            </div>
-          )}
+            );
+          })()}
         </div>
       </div>
       {(score.notes?.length > 0 || Object.keys(report.errors || {}).length > 0) && (
@@ -550,33 +556,7 @@ function ChangesTab({ jobId, report }) {
           </div>
         </Card>
       )}
-      {t.fuzzy_comparison && t.fuzzy_comparison.similarity !== null && (
-        <Card className="p-5">
-          <CardHeader icon={Fingerprint} title="Near-duplicate analysis (Fuzzy Hashing / CTPH)"
-            subtitle="Measures bytecode similarity to detect repackaged malware and modified variants." />
-          <div className="mt-3 grid gap-3 sm:grid-cols-3">
-            <div className="rounded-xl bg-white/[0.03] p-4 ring-1 ring-white/[0.06]">
-              <p className="text-xs text-zinc-500">Bytecode similarity</p>
-              <p className={cx('mt-1 text-2xl font-bold tabular-nums',
-                t.fuzzy_comparison.similarity >= 80 ? 'text-amber-300' : 'text-emerald-300')}>
-                {t.fuzzy_comparison.similarity}%
-              </p>
-            </div>
-            <div className="rounded-xl bg-white/[0.03] p-4 ring-1 ring-white/[0.06]">
-              <p className="text-xs text-zinc-500">Classification</p>
-              <p className="mt-1 text-base font-semibold text-zinc-100">{t.fuzzy_comparison.classification}</p>
-            </div>
-            <div className="rounded-xl bg-white/[0.03] p-4 ring-1 ring-white/[0.06]">
-              <p className="text-xs text-zinc-500">Assessment</p>
-              <p className="mt-1 text-xs leading-relaxed text-zinc-300">
-                {t.fuzzy_comparison.is_near_duplicate
-                  ? 'High similarity indicates a repackaged or trojanized build with modified bytecode.'
-                  : 'Codebase has diverged significantly from baseline.'}
-              </p>
-            </div>
-          </div>
-        </Card>
-      )}
+      <CodeSimilarity fuzzy={t.fuzzy_comparison} />
       {total > 0 && (
         <Card>
           <CardHeader icon={FileDiff} title="Changed files"
@@ -612,6 +592,164 @@ function ChangedUnchanged({ jobId, path }) {
       </div>
       {open && <FileProof jobId={jobId} path={path} />}
     </li>
+  );
+}
+
+// ------------------------------------------------------- code similarity --
+
+function CodeSimilarity({ fuzzy }) {
+  if (!fuzzy) return null;
+  if (!fuzzy.compared) {
+    return <p className="text-xs text-zinc-500">Code similarity was not measured: {fuzzy.reason}</p>;
+  }
+  if (!fuzzy.dex?.length) {
+    return fuzzy.skipped_too_large?.length
+      ? <p className="text-xs text-zinc-500">Code similarity not measured: {fuzzy.skipped_too_large.join(', ')} too large for this check.</p>
+      : null;
+  }
+  return (
+    <Card>
+      <CardHeader icon={Fingerprint} title="How much of the program code is still the trusted code?"
+        subtitle="Measured with ssdeep fuzzy hashing. 100% means the same code; a high score with changes means a near-copy, which is typical of a repackaged app." />
+      <ul className="space-y-3 p-5">
+        {fuzzy.dex.map((d) => {
+          const tone = d.similarity === 100 ? 'good' : d.is_near_duplicate ? 'bad' : 'warn';
+          return (
+            <li key={d.file}>
+              <div className="flex items-baseline justify-between gap-3 text-sm">
+                <code className="font-mono text-zinc-200">{d.file}</code>
+                <span className={cx('font-semibold tabular-nums', TONES[tone].text)}>{d.similarity}% similar</span>
+              </div>
+              <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-white/[0.06]">
+                <div className="h-full rounded-full" style={{ width: `${d.similarity}%`, background: TONES[tone].stroke }} />
+              </div>
+            </li>
+          );
+        })}
+      </ul>
+      <p className="border-t border-white/[0.06] px-5 py-3 text-xs text-zinc-500">
+        Fuzzy hashing works best on larger files. For very small code files (a few KB) even a small change can give a low score.
+        {fuzzy.skipped_too_large?.length > 0 && ` Not measured (too large for this check): ${fuzzy.skipped_too_large.join(', ')}.`}
+      </p>
+    </Card>
+  );
+}
+
+// ------------------------------------------------------------ certificate --
+
+function CertRows({ c }) {
+  const rows = [
+    ['Issued to', c.subject], ['Issued by', c.issuer],
+    ['Valid', c.valid_from ? `${new Date(c.valid_from).toLocaleDateString()} – ${new Date(c.valid_to).toLocaleDateString()}` : null],
+    ['Key', c.public_key ? `${c.public_key.algorithm} ${c.public_key.size || ''}${c.public_key.curve ? ` (${c.public_key.curve})` : ''}` : null],
+    ['Signature algorithm', c.signature_algorithm],
+  ];
+  return (
+    <dl className="space-y-2 text-sm">
+      <div><dt className="mb-1 text-xs text-zinc-500">Fingerprint (SHA-256)</dt><dd><HashChip value={c.sha256} n={24} /></dd></div>
+      {rows.filter(([, v]) => v).map(([k, v]) => (
+        <div key={k}><dt className="text-xs text-zinc-500">{k}</dt><dd className="break-words text-zinc-200">{v}</dd></div>
+      ))}
+    </dl>
+  );
+}
+
+const SCHEMES = [['v1', 'v1 (JAR signing)'], ['v2', 'v2 (APK Signature Scheme)'], ['v3', 'v3 (key rotation)']];
+
+function CertificateTab({ report }) {
+  const r = report.reports || {};
+  const current = r.static?.certificate || {};
+  const sig = r.static?.signature || {};
+  const t = r.tamper || {};
+  const base = t.baseline?.certificate;
+  return (
+    <div className="space-y-6">
+      {base ? (
+        <Banner tone={t.certificate_changed ? 'bad' : 'good'} icon={t.certificate_changed ? ShieldX : ShieldCheck}
+          title={t.certificate_changed ? 'Signed with a different key than the trusted version' : 'Same developer key as the trusted version'}>
+          {t.certificate_changed
+            ? 'Only the real developer has the original key, so someone else rebuilt this app. MerkleTrust compares key fingerprints, never names, so a look-alike certificate with the same name is still caught.'
+            : 'The app was signed with the same key the trusted version was signed with.'}
+        </Banner>
+      ) : (
+        <Banner tone="warn" icon={ShieldQuestion} title="No trusted version to compare the certificate with" />
+      )}
+      <div className={cx('grid gap-6', base && 'lg:grid-cols-2')}>
+        {base && <Card className="p-5"><p className="mb-3 text-sm font-semibold text-zinc-100">Trusted version</p><CertRows c={base} /></Card>}
+        <Card className="p-5">
+          <p className="mb-3 text-sm font-semibold text-zinc-100">This upload</p>
+          {current.sha256 ? <CertRows c={current} /> : <p className="text-sm text-zinc-500">No certificate found.</p>}
+        </Card>
+      </div>
+      <Card>
+        <CardHeader icon={KeyRound} title="App signature" subtitle="Android apps can carry up to three signature schemes. Each one present is checked." />
+        <ul className="divide-y divide-white/[0.05]">
+          {SCHEMES.map(([k, label]) => {
+            const s = sig.schemes?.[k] || {};
+            return (
+              <li key={k} className="flex items-center justify-between px-5 py-3 text-sm">
+                <span className="text-zinc-200">{label}</span>
+                {!s.present ? <span className="text-zinc-500">Not present</span>
+                  : s.verified ? <span className="flex items-center gap-1.5 text-emerald-300"><CheckCircle2 className="size-4" aria-hidden="true" />Valid</span>
+                    : <span className="flex items-center gap-1.5 text-red-300"><XCircle className="size-4" aria-hidden="true" />Failed</span>}
+              </li>
+            );
+          })}
+        </ul>
+        {sig.errors?.length > 0 && (
+          <div className="space-y-1 border-t border-white/[0.06] px-5 py-3 text-xs text-red-300">{sig.errors.map((e) => <p key={e}>{e}</p>)}</div>
+        )}
+      </Card>
+      <p className="text-xs text-zinc-500">Android app certificates are normally self-signed; that alone is not a problem. What matters is whether the key matches the trusted version.</p>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------- runtime --
+
+function RuntimeTab({ report }) {
+  const d = report.reports?.dynamic;
+  if (!d || !d.installed) {
+    const why = (d?.findings || []).find((f) => f.id?.startsWith('DYN_'));
+    return (
+      <Banner tone="neutral" icon={Activity} title="The app was not run in an emulator">
+        {why ? `${why.title}. ${why.evidence || ''}` : 'The optional emulator step is switched off on this server.'} The results come from checking the file only.
+      </Banner>
+    );
+  }
+  const obs = d.observation || {};
+  const list = (title, items, render, empty) => (
+    <Card>
+      <CardHeader title={title} />
+      {items?.length ? <ul className="divide-y divide-white/[0.05]">{items.map((x, i) => <li key={i} className="px-5 py-2.5 text-sm text-zinc-200">{render(x)}</li>)}</ul>
+        : <p className="px-5 py-4 text-sm text-zinc-500">{empty}</p>}
+    </Card>
+  );
+  return (
+    <div className="space-y-6">
+      <Banner tone="neutral" icon={Activity} title={`Watched running for ${obs.window_s ?? '?'} seconds in an Android emulator`}>
+        Nothing suspicious in a short run does not prove an app is safe: it may wait for a trigger the test did not provide.
+      </Banner>
+      {list('Programs started by the app', d.process_events, (p) => <code className="font-mono text-xs">{p.name} {p.args}</code>, 'The app did not start any other programs.')}
+      {list('Internet connections', d.network, (n) => `${n.host || n.dst_ip}:${n.dst_port} (${n.proto})`, 'No internet connections during the test.')}
+      {list('Files the app created', d.file_ops, (f) => <code className="font-mono text-xs">{f.path}</code>, obs.root ? 'The app created no files.' : 'Not observed (emulator is not rooted).')}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------- threat feed --
+
+function ThreatFeedNote({ report }) {
+  const ti = report.reports?.static?.threat_intel;
+  if (!ti) return null;
+  const feed = ti.feed || {};
+  return (
+    <div className="mb-4 flex items-start gap-2 rounded-xl bg-white/[0.03] px-4 py-3 text-xs text-zinc-400 ring-1 ring-white/[0.06]">
+      <Radar className="mt-0.5 size-4 shrink-0 text-sky-300" aria-hidden="true" />
+      {feed.loaded
+        ? <span>Addresses in the code and the file's fingerprint were checked against <strong className="text-zinc-200">{feed.source}</strong> ({feed.indicators.toLocaleString()} indicators, updated {feed.updated}). {ti.match_count ? `${ti.match_count} match(es) — see below.` : 'No matches.'}</span>
+        : <span>No threat feed was loaded for this scan, so known-malware checks did not run. Run <code className="text-zinc-300">python -m scripts.update_threat_feed</code> on the server.</span>}
+    </div>
   );
 }
 
@@ -688,10 +826,12 @@ export default function Result() {
   const issues = findings.filter((f) => f.severity !== 'info').length;
   const counts = report.reports?.tamper?.integrity?.counts;
   const changed = counts ? (counts.modified || 0) + (counts.added || 0) + (counts.deleted || 0) : null;
+  const isApk = (report.file_category || 'apk') === 'apk';
   const tabs = [
     { id: 'summary', label: 'Summary', icon: LayoutDashboard },
     { id: 'changes', label: 'What changed', icon: FileDiff, count: changed || null, tone: 'bad' },
     { id: 'findings', label: 'Problems found', icon: FileSearch, count: issues || null, tone: 'warn' },
+    ...(isApk ? [{ id: 'certificate', label: 'Certificate', icon: ScrollText }, { id: 'runtime', label: 'Runtime', icon: Activity }] : []),
     { id: 'proof', label: 'Proof & seal', icon: ShieldCheck },
   ];
 
@@ -702,7 +842,9 @@ export default function Result() {
       <div key={tab} className="animate-fade-in space-y-6">
         {tab === 'summary' && <Answers report={report} />}
         {tab === 'changes' && <ChangesTab jobId={jobId} report={report} />}
-        {tab === 'findings' && <FindingsCard findings={findings} />}
+        {tab === 'findings' && <><ThreatFeedNote report={report} /><FindingsCard findings={findings} /></>}
+        {tab === 'certificate' && <CertificateTab report={report} />}
+        {tab === 'runtime' && <RuntimeTab report={report} />}
         {tab === 'proof' && (
           <>
             <IntegrityCard jobId={jobId} report={report} />

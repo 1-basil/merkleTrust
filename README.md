@@ -14,6 +14,9 @@ hash-linked audit chain.
 | **Authenticity** | Own implementation of APK Signature Scheme v1/v2/v3 verification (agrees with Google's `apksigner` on 13/13 cases); signer compared by certificate fingerprint |
 | **Trusted baselines** | Explicit enrol → approve workflow, ECDSA P-256-signed, versioned, re-verified before every use |
 | **Risk** | Explained findings (title, explanation, evidence, recommendation, points), kept separate from integrity; no double counting |
+| **Threat intelligence** | Addresses in the app's code, and the file's SHA-256, checked against the real abuse.ch ThreatFox feed (downloaded with `scripts/update_threat_feed.py`, reloaded automatically); every match cites the ThreatFox record. Plus clearly-labelled heuristics (dynamic DNS, malware-like host names) and YARA-style signature rules |
+| **Code similarity** | ssdeep fuzzy hash (CTPH) of each DEX file, stored in the signed baseline; later uploads are scored 0–100 against the trusted code. Implements the ssdeep algorithm; its output matches the independent `ppdeep` implementation on all 939 inputs tested |
+| **Other files** | Images, audio/video, web pages and PDFs: fingerprinted piece by piece and checked for hidden data, unsafe scripts and privacy leaks |
 | **Runtime behaviour** | Optional emulator stage: installs and runs the app, triggers its boot/broadcast receivers, and records child processes (e.g. `su`), connections named from a packet capture, files written, SMS sent and icon hiding; off by default |
 | **Audit** | *Cryptographically Linked Blockchain Simulation*: signed, hash-linked blocks for every security event (single node — not a distributed blockchain) |
 | **Platform** | FastAPI REST API with roles, secure uploads and job queue; SQLite + Alembic; plain-language web dashboard |
@@ -22,14 +25,16 @@ hash-linked audit chain.
 
 ```bash
 pip install -r requirements.txt                     # Python 3.12+
-python -m pytest                                    # 357 tests
+python -m pytest                                    # 476 tests
+cd webapp && npm install && npm run build && cd ..  # the web app (once)
+python -m scripts.update_threat_feed                # today's ThreatFox indicators
 python -m scripts.manage_users create admin --role admin
-uvicorn api.main:app --port 8000                    # open http://127.0.0.1:8000
+uvicorn api.main:app --port 8000                    # open http://127.0.0.1:8000/app
 ```
 
-For the new demo dashboard (Merkle Tree Lab, visual blockchain with a tamper demo,
-built-in demo guide), build it once with `cd webapp && npm install && npm run build`
-and open http://127.0.0.1:8000/app. See [webapp/README.md](webapp/README.md).
+On Windows, `scripts\start_demo.ps1` does all of this in one step. The web app
+(Merkle Tree Lab, visual blockchain with a tamper demo, built-in demo guide) is described
+in [webapp/README.md](webapp/README.md); the classic dashboard is still at `/`.
 
 Upload `evaluation/dataset/baseline_demo.apk` as a trusted version (admin → *Trusted
 versions*), approve it, then scan `evaluation/dataset/demo_repackaged.apk`. The full
@@ -56,7 +61,9 @@ On 35 real APKs built with the Android toolchain ([evaluation/](evaluation/READM
   positive, one false negative — the limits of static analysis, documented); with the
   optional emulator stage 6/7, as it catches the app running `su` (finished after these
   results were known — see [evaluation/README.md](evaluation/README.md));
-* about 0.1 s from upload to result for a small APK, about 1.1 s for 52 MB.
+* about 0.19 s from upload to result for a typical test APK (median), about 0.5 s for
+  5 MB and about 3 s for 52 MB ([benchmark](evaluation/results/benchmark.md));
+* 476 automated tests at 90.5 % line coverage, plus a headless-browser test of the web app.
 
 ## Documentation
 

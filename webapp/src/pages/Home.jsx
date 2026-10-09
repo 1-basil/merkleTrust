@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   ArrowRight, Blocks, CheckCircle2, ChevronRight, Circle, FileSearch, Fingerprint, Link2, Network, PlayCircle,
-  ScanLine, ShieldAlert, ShieldCheck, Stamp, Upload,
+  Radar, ScanLine, ShieldAlert, ShieldCheck, Stamp, Upload,
 } from 'lucide-react';
 import { Button, Card, CardHeader, ErrorBox, FileTypeBadge, Stat, ToneBadge, cx } from '../components/ui.jsx';
 import { api } from '../lib/api.js';
@@ -101,9 +101,11 @@ export default function Home() {
   const { user } = useAuth();
   const [sum, setSum] = useState(null);
   const [error, setError] = useState(null);
+  const [feed, setFeed] = useState(null);
 
   useEffect(() => {
     api.get('/dashboard/summary').then(setSum).catch(setError);
+    api.get('/health').then((h) => setFeed(h.threat_feed || null)).catch(() => {});
   }, []);
 
   const caught = sum ? sum.applications.modified + sum.applications.high_risk : null;
@@ -148,6 +150,15 @@ export default function Home() {
         <Stat icon={Blocks} label="Blockchain" value={sum ? `${sum.audit_chain.length} blocks` : '—'}
           tone={sum ? (chainOk ? 'good' : 'bad') : 'neutral'} hint={sum ? (chainOk ? 'Intact: nothing was edited' : 'Broken: tampering detected') : ''} />
       </section>
+
+      {feed && (
+        <p className="-mt-6 flex items-center gap-2 text-xs text-zinc-500">
+          <Radar className="size-3.5 text-sky-300" aria-hidden="true" />
+          {feed.loaded
+            ? <>Threat intelligence: {feed.source}, {feed.indicators.toLocaleString()} known malicious servers and files, updated {feed.updated}.</>
+            : <>Threat intelligence feed not downloaded yet. Run <code className="text-zinc-300">python -m scripts.update_threat_feed</code>.</>}
+        </p>
+      )}
 
       {/* How it works */}
       <section>

@@ -160,7 +160,7 @@ decentralisation, and the documentation and UI say so.
 
 ## 14. Risk analysis
 
-Integrity and risk are separate outputs. Risk is computed from a catalogue of 77 finding
+Integrity and risk are separate outputs. Risk is computed from a catalogue of 78 finding
 types, each with a plain-language title, explanation, evidence and recommendation, and
 documented points. Findings describing the same fact share a group and are counted once;
 self-signed certificates are not penalised (normal on Android); operational messages
@@ -233,10 +233,12 @@ disclosure: [../evaluation/README.md](../evaluation/README.md).
 | Cryptographic tamper detection | 47 | 1.000 | 1.000 | 1.000 | 0.000 | 0.000 |
 
 Exact integrity status 32/32; exact changed-file localisation 20/20; median
-upload-to-result time 84 ms per dataset APK. Performance on a machine in interactive use
-(median, 9 runs): about 0.11 s end-to-end for a 9 KB APK and about 1.1 s for a 52 MB APK;
-full verification of a 562-block audit chain about 95 ms. The test suite has 357
-automated tests at 91.9 % line coverage, plus a headless-browser end-to-end test, an
+upload-to-result time 187 ms per dataset APK. Performance on a machine in interactive use
+(median, 9 runs, 8 October 2026): about 0.19 s end-to-end for a 9 KB APK, 0.5 s for 5 MB and
+about 3 s for a 52 MB APK; full verification of a 538-block audit chain about 0.23 s
+(see evaluation/README.md for why these are slower than the first run). The test suite
+has 476 automated tests at 90.5 % line coverage, plus headless-browser end-to-end tests
+of both front ends, an
 `apksigner` cross-check and a concurrency stress test. Details:
 [../evaluation/results/evaluation.md](../evaluation/results/evaluation.md),
 [../evaluation/results/benchmark.md](../evaluation/results/benchmark.md),

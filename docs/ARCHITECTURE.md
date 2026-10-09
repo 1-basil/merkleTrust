@@ -140,6 +140,38 @@ with a known archive/executable/script signature raise the finding to critical.
 and `file_category` (default `"apk"`, so existing callers are unchanged). Baselines
 remain APK-only.
 
+### 2.4 Threat intelligence, signature rules and code similarity
+
+* **Threat feed** (`core/threat_intel.py`). Indicators come only from a real, dated feed:
+  the abuse.ch ThreatFox CSV export, downloaded by `scripts/update_threat_feed.py` to
+  `<data_dir>/threat_feeds/threatfox_recent.csv` (or `MERKLETRUST_THREAT_FEED_PATH`). The
+  engine reloads the file when it changes, so a scheduled download keeps checks current
+  without a restart. URLs, domains (and their subdomains), IPs and IP:port pairs found in
+  the DEX code are matched (`STATIC_THREAT_INTEL_C2`), and so is the uploaded file's
+  SHA-256 (`STATIC_KNOWN_MALWARE_FILE`). Each match records the ThreatFox record id,
+  malware family and first-seen date, and every static report records the feed's source,
+  date and size (`threat_intel.feed`). With no feed downloaded, the report says the check
+  did not run. Two heuristics — dynamic-DNS/tunnel services and malware-like host names on
+  high-abuse top-level domains — are reported separately as medium-severity warnings that
+  never claim a host is known-bad. ThreatFox is free under abuse.ch's fair-use terms;
+  commercial use may need their commercial API.
+* **Signature rules** (`core/yara_scanner.py`). YARA-style rules (sets of regular
+  expressions; YARA files are not read) for ransom notes, mining pools, unencrypted code
+  downloads and well-known packers, run over DEX files, native libraries and assets. Each
+  pattern's longest fixed text is located with a substring search and the regex runs only
+  in a 512-byte window around it; a test checks this finds the same matches as a full scan.
+* **Code similarity** (`core/fuzzy_hash.py`). ssdeep (CTPH) hashes of each DEX file, with
+  output matching the independent `ppdeep` implementation of ssdeep on every input tested; the
+  comparison follows ssdeep's source: weighted edit distance with replace cost 2, 7-char
+  common substring, run elimination and the small-block-size cap). The hashes are stored
+  in the baseline profile, so they are covered by the approval signature. The tamper stage
+  reports each DEX file's similarity to the trusted one and raises
+  `TAMPER_FUZZY_NEAR_DUPLICATE` for a changed file that is still ≥ 70 % similar — the shape
+  of a repackaged app. DEX files above `MERKLETRUST_FUZZY_MAX_DEX_MB` (4 MB) are skipped
+  and listed, because the pure-Python hash costs about 0.7 s per MB. Fuzzy hashing is not
+  meaningful for very small files; on the evaluation apps (DEX files of about 3 KB) the
+  scores are low even for small changes, and the near-duplicate finding never fires there.
+
 ## 3. Trusted baselines
 
 ```mermaid
@@ -182,7 +214,7 @@ These are separate questions with separate answers (`core/comparison.py`, `core/
 | BASELINE_INVALID | The stored baseline failed verification |
 
 **Risk** — "does it have dangerous characteristics?" Every finding comes from one
-catalogue (`core/findings.py`, 77 entries) with a plain title, technical title,
+catalogue (`core/findings.py`, 78 entries) with a plain title, technical title,
 severity, explanation, recommendation, points and a *group*. The score is the sum of
 the highest-scoring finding per group (no double counting), capped at 100.
 Level: LOW < 20 ≤ MEDIUM < 45 ≤ HIGH < 70 ≤ CRITICAL; a critical-severity finding
@@ -385,13 +417,23 @@ APKs is never inserted as HTML. `js/api.js` keeps the session token in
 `sessionStorage` (this tab only). Status is always shown with an icon and words, not
 colour alone. `tests/e2e/ui_smoke.mjs` drives every page in headless Chrome.
 
+The React app in `webapp/` (built bundle served at `/app`) is the presentation front end:
+Home with live numbers and a demo guide, Scan, History, the report (Summary, What changed
+with in-browser Merkle proofs and code similarity, Problems found with the threat feed
+used, Certificate, Runtime, Proof & seal with downloadable evidence), the Merkle Tree Lab
+(`src/lib/merkle.js` reimplements the RFC 6962 tree; its roots equal the server's),
+Blockchain with tamper/restore and signed checkpoints, and Trusted Apps with approval and
+record checks. `tests/e2e/webapp_smoke.mjs` drives all of it at desktop and phone width;
+CI runs it against a live server.
+
 ## 9. Configuration
 
 All settings are environment variables with the `MERKLETRUST_` prefix (or `.env`), see
 `core/config.py` and `.env.example`: environment, data directory, database URL,
 signing key path/password, trusted keys directory, CORS origins, upload size, session
 lifetime, job workers/queue size, demo endpoints, migrations, logging, rate limits, and
-the dynamic-analysis switch, time budget, observation window, adb path/serial and Frida path.
+the dynamic-analysis switch, time budget, observation window, adb path/serial and Frida path,
+the threat feed path and the fuzzy-hash size limit.
 No secret has a default value.
 
 ## 10. Repository layout

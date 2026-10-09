@@ -85,4 +85,6 @@ dist/
 # Documentation, presentations, and report PDFs
 docs/
 *.pdf
-*.docx
+*.docx
+# Downloaded threat intelligence feeds (scripts/update_threat_feed.py)
+data/threat_feeds/

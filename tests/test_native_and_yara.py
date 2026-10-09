@@ -76,3 +76,31 @@ def test_yara_scanner_downloader_detection():
     data = b"Downloading payload from http://malicious-c2.org/stage2.apk now."
     matches = scan_files([("classes2.dex", data)])
     assert any(m.rule_name == "Android_Suspicious_Downloader" for m in matches)
+
+
+def test_fast_search_finds_exactly_what_a_full_regex_scan_finds():
+    """The anchored search must fire on the same inputs as running every regex over every byte."""
+    import random
+    from core.yara_scanner import _search
+    r = random.Random(42)
+    snippets = [b"All Your Files Have Been Encrypted", b"PAY THE RANSOM", b"stratum+tcp://p:3333", b"xmrig", b"axmrigb",
+                b"http://evil.example/a/b.apk", b"http://h/z.jarx", b"/system/xbin/which   su", b"magisk.version",
+                b"UPX!", b"xUPX!", b"LIBSECEXE.SO", b"libDexHelper.so", b"bitcoin address to pay"]
+    alphabet = b"abcxyz ./:-_0123456789ABC\n\x00\xff"
+    for _ in range(600):
+        parts = []
+        for _ in range(r.randrange(0, 5)):
+            parts += [bytes(r.choice(alphabet) for _ in range(r.randrange(0, 40))), r.choice(snippets)]
+        data = b"".join(parts)
+        for rule in BUILTIN_RULES:
+            for pat in rule.patterns:
+                assert (pat.search(data) is None) == (_search(pat, data, data.lower()) is None), (pat.pattern, data)
+
+
+def test_large_files_are_scanned_quickly():
+    import random
+    import time
+    data = random.Random(1).randbytes(8_000_000)
+    start = time.perf_counter()
+    scan_files([("assets/big.bin", data)])
+    assert time.perf_counter() - start < 3.0  # a full regex scan took about 6.5 s for 8 MB

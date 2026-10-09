@@ -147,11 +147,24 @@ in their source. A fair measurement needs new samples written after this engine.
 
 ## Performance (summary)
 
-From `results/benchmark.md` (median of 9 runs on a machine in interactive use):
-end-to-end upload-to-result through the API takes about 0.1 s for a small APK and
-about 1.1 s for a 52 MB APK; ECDSA P-256 signing/verification take well under a
-millisecond; a Merkle tree over 100 000 leaves builds in about 0.3 s and proofs verify in
-microseconds.
+From `results/benchmark.md` (median of 9 runs on a machine in interactive use, 8 October
+2026): end-to-end upload-to-result through the API takes about 0.2 s for a small APK,
+about 0.5 s for 5 MB and about 3 s for a 52 MB APK; ECDSA P-256 signing/verification
+take well under a millisecond; a Merkle tree over 100 000 leaves builds in under a second
+and proofs verify in microseconds.
+
+These times are higher than the first published run (about 0.1 s and 1.1 s). Part of it is
+the machine: even pure cryptography (ECDSA signing, Merkle tree builds) measured about 2–3×
+slower on 8 October than on 2 October. The rest was measured, not guessed: the ledger now writes the sealed report bytes to disk
+before the database commit (a durability change made on 6–7 October; sealing rose from
+about 3 ms to about 30 ms per scan), and static analysis now also runs the signature
+rules, the threat-feed checks and the ssdeep fuzzy hash. When the signature rules were
+first added they ran every regular expression over every byte (about 0.8 s per MB, so
+44 s for the 52 MB APK); they now locate each pattern's fixed text with a fast substring
+search first and run the regular expression only around it — the same matches (checked
+on 69 000 comparisons in the tests), about 55× faster. The ssdeep hash is pure Python
+(about 0.7 s per MB), so DEX files larger than 4 MB (`MERKLETRUST_FUZZY_MAX_DEX_MB`) are
+not fuzzy-hashed and the report says so.
 
 Profiling during the benchmark showed that SQLite's default rollback journal (creating
 and deleting a journal file on every commit) dominated request time on Windows. Switching

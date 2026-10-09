@@ -45,6 +45,8 @@ def build_profile(static: dict[str, Any]) -> dict[str, Any]:
         "signature_schemes": (static.get("signature") or {}).get("schemes_present", []),
         "dangerous_apis": sorted(a["api"] for a in static.get("dangerous_apis", [])),
         "network_urls": sorted((static.get("iocs") or {}).get("urls", [])),
+        # ssdeep hash of each DEX file, so a later upload can be measured as a near-copy of the trusted code.
+        "dex_fuzzy_hashes": dict(sorted((static.get("dex_fuzzy_hashes") or {}).items())),
     }
 
 

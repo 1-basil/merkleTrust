@@ -19,7 +19,6 @@ Integrity status: NO_BASELINE | BASELINE_INVALID | CLEAN | MODIFIED | CERTIFICAT
 from __future__ import annotations
 
 import json
-import os
 import sys
 import tempfile
 from contextlib import nullcontext
@@ -31,7 +30,7 @@ from core.comparison import compare_with_baseline
 from core.contracts import JobContext, emit
 from core.file_manifest import file_proof, verify_file_proof
 from core.findings import finding
-from core.fuzzy_hash import detect_near_duplicate, fuzzy_hash_file
+from core.fuzzy_hash import detect_near_duplicate
 from db.database import session_scope
 
 MAX_PROOFS = 25
@@ -65,6 +64,27 @@ def _proofs(baseline_files: list[dict], comparison: dict[str, Any], root: str) -
                                                             p["proof"], root)
         out.append(entry)
     return out
+
+
+def _fuzzy_code_comparison(base_profile: dict[str, Any], static: dict[str, Any]) -> dict[str, Any]:
+    """ssdeep similarity of each DEX file to the trusted one.
+
+    The trusted hashes are part of the signed baseline profile. Baselines enrolled before this
+    field existed have none, and are reported as not compared rather than guessed.
+    """
+    trusted = base_profile.get("dex_fuzzy_hashes") or {}
+    current = static.get("dex_fuzzy_hashes") or {}
+    if not trusted:
+        return {"compared": False, "reason": "The trusted version has no recorded code fingerprints (enrolled "
+                "before fuzzy hashing was added).", "dex": []}
+    dex = []
+    for name in sorted(set(trusted) & set(current)):
+        r = detect_near_duplicate(current[name], trusted[name])
+        dex.append({"file": name, "similarity": r["similarity"], "classification": r["classification"],
+                    "is_near_duplicate": r["is_near_duplicate"], "trusted_hash": trusted[name],
+                    "current_hash": current[name]})
+    return {"compared": True, "threshold": 70, "dex": dex, "skipped_too_large": static.get("dex_fuzzy_skipped") or [],
+            "added": sorted(set(current) - set(trusted)), "removed": sorted(set(trusted) - set(current))}
 
 
 def _findings(cmp: dict[str, Any], baseline: dict[str, Any]) -> list[dict[str, str]]:
@@ -159,27 +179,13 @@ def compare_reports(job_id: str, integrity: dict[str, Any], static: dict[str, An
     files = cmp["files"]
     changed_files = files["modified"] + files["added"] + files["deleted"] + files["signature_files_changed"]
 
-    # CTPH Near-duplicate evaluation
-    cur_fuzzy = static.get("fuzzy_hash")
-    base_fuzzy = None
-    try:
-        from db.models import ApkFile
-        apk_row = db.query(ApkFile).filter(ApkFile.sha256 == row.apk_sha256).first()
-        if apk_row and os.path.isfile(apk_row.quarantine_path):
-            base_fuzzy = fuzzy_hash_file(apk_row.quarantine_path)
-    except Exception:
-        pass
-
-    fuzzy_cmp = None
     tamper_findings = _findings(cmp, baseline)
-    if cur_fuzzy and base_fuzzy:
-        fuzzy_cmp = detect_near_duplicate(cur_fuzzy, base_fuzzy)
-        if fuzzy_cmp["is_near_duplicate"] and changed_files:
-            tamper_findings.append(finding(
-                "TAMPER_FUZZY_NEAR_DUPLICATE",
-                f"CTPH fuzzy similarity is {fuzzy_cmp['similarity']}% ({fuzzy_cmp['classification']}) to baseline: "
-                f"repackaged near-duplicate with modified code segments."
-            ))
+    fuzzy_cmp = _fuzzy_code_comparison(base_snap["profile"], static)
+    near = [d for d in fuzzy_cmp["dex"] if d["is_near_duplicate"]]
+    if near:
+        tamper_findings.append(finding(
+            "TAMPER_FUZZY_NEAR_DUPLICATE",
+            "; ".join(f"{d['file']} is {d['similarity']}% similar to the trusted code (ssdeep)" for d in near)))
 
     return {
         "job_id": job_id, "engine": "tamper", "status": "ok",
@@ -194,13 +200,7 @@ def compare_reports(job_id: str, integrity: dict[str, Any], static: dict[str, An
         "changed_chunks": cmp["chunks"].get("changed_indices", []),
         "manifest_diff": cmp["manifest_diff"],
         "certificate_changed": cmp["certificate"]["changed"],
-        "fuzzy_comparison": fuzzy_cmp or {
-            "current_fuzzy_hash": cur_fuzzy,
-            "baseline_fuzzy_hash": base_fuzzy,
-            "similarity": None,
-            "classification": "NO_BASELINE_FUZZY" if not base_fuzzy else "NOT_COMPARED",
-            "is_near_duplicate": False,
-        },
+        "fuzzy_comparison": fuzzy_cmp,
         "proofs": _proofs(base_snap["files"], cmp, row.merkle_root),
         "suspicious_targets": _suspicious_targets(cmp, static),
     }

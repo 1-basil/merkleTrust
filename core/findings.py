@@ -291,9 +291,10 @@ _CATALOG_SPEC: dict[str, tuple] = {
         "The application appears packed or encrypted using a native binary packer, hiding its true bytecode.",
         "Inspect the unpacked payload to verify complete application behavior.", 15, "native_packer"),
     "STATIC_YARA_MATCH": _t(
-        "high", "code", "Threat signature detected by YARA rule",
-        "One or more YARA threat detection rules matched files in the package",
-        "A heuristic security rule matched known malware indicators, ransom notes, or suspicious strings.",
+        "high", "code", "Matches a known threat pattern",
+        "One or more built-in YARA-style (regular expression) signature rules matched files in the package",
+        "A signature rule found text typical of threats, such as ransom notes, crypto-mining pools, unencrypted "
+        "code downloads or known app packers.",
         "Investigate the specific matched strings and rule details.", 15, "yara_threat"),
     "STATIC_HARDCODED_IP": _t(
         "medium", "network", "Contacts hard-coded internet addresses",
@@ -305,18 +306,24 @@ _CATALOG_SPEC: dict[str, tuple] = {
         "http:// URL literals in code",
         "Traffic to http:// addresses is not encrypted.",
         "Use https:// endpoints.", 4, "cleartext"),
+    "STATIC_KNOWN_MALWARE_FILE": _t(
+        "critical", "code", "This exact file is known malware",
+        "SHA-256 of the uploaded file is listed in the threat intelligence feed",
+        "The file's fingerprint matches a malware sample reported to a public threat intelligence feed.",
+        "Do not install or open it. Delete it and check where it came from.", 60, "known_malware"),
     "STATIC_THREAT_INTEL_C2": _t(
-        "critical", "network", "Known Command & Control (C2) server or malware feed match",
-        "Domain or IP matched active Threat Intelligence indicator feed",
-        "A network address or domain discovered in the application matches known malicious Command & Control (C2) "
-        "infrastructure or malware distribution hosts.",
+        "critical", "network", "Contacts a known malicious server",
+        "Domain, IP or URL in the code is listed in the threat intelligence feed",
+        "A network address in the app's code is listed in a public threat intelligence feed as a command-and-control "
+        "(C2) server or a malware host.",
         "Block all network communication to this destination immediately and treat the app as hostile malware.", 35,
         "c2_match"),
     "STATIC_THREAT_INTEL_SUSPICIOUS": _t(
-        "high", "network", "Suspicious domain reputation or dynamic DNS abuse",
-        "Target domain flagged in Threat Intelligence reputation records",
-        "The host utilizes volatile dynamic DNS services or high-abuse domains commonly used for malware C2 rotation.",
-        "Investigate communication endpoints and restrict outbound network access.", 15, "c2_match"),
+        "medium", "network", "Uses a suspicious kind of server address",
+        "Heuristic: dynamic DNS / tunnel service, or malware-like host name on a high-abuse top-level domain",
+        "The address is not on any list of known malicious servers, but it uses a service or naming pattern that "
+        "malware often uses to hide or move its servers.",
+        "Check what this server is before trusting the app.", 8, "c2_match"),
 
     # ------------------------------------------------ behaviour patterns --
     # Combinations of capabilities that characterise well-known Android malware

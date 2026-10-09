@@ -1,306 +1,306 @@
 {
   "environment": {
-    "generated_at": "2026-10-02T23:52:00+00:00",
+    "generated_at": "2026-10-08T09:44:47+00:00",
     "platform": "Windows 11",
     "machine": "AMD64",
     "processor": "Intel64 Family 6 Model 170 Stepping 4, GenuineIntel",
     "python": "3.14.7",
     "cpus": 22,
-    "repeat": 9
+    "repeat": 5
   },
   "apk": {
     "small": {
       "size_bytes": 8722,
       "files": 8,
       "sha256_whole_file": {
-        "n": 9,
-        "median_ms": 0.005,
-        "p95_ms": 0.032,
-        "min_ms": 0.005,
-        "max_ms": 0.032
+        "n": 5,
+        "median_ms": 0.014,
+        "p95_ms": 0.044,
+        "min_ms": 0.013,
+        "max_ms": 0.044
       },
       "integrity_per_file_hashing_and_merkle": {
-        "n": 9,
-        "median_ms": 1.189,
-        "p95_ms": 2.107,
-        "min_ms": 0.723,
-        "max_ms": 2.107
+        "n": 5,
+        "median_ms": 4.224,
+        "p95_ms": 10.539,
+        "min_ms": 3.055,
+        "max_ms": 10.539
       },
       "apk_signature_verification": {
-        "n": 9,
-        "median_ms": 1.783,
-        "p95_ms": 3.961,
-        "min_ms": 1.078,
-        "max_ms": 3.961
+        "n": 5,
+        "median_ms": 4.482,
+        "p95_ms": 13.132,
+        "min_ms": 3.453,
+        "max_ms": 13.132
       },
       "static_analysis_total": {
-        "n": 9,
-        "median_ms": 8.522,
-        "p95_ms": 12.246,
-        "min_ms": 1.505,
-        "max_ms": 12.246
+        "n": 5,
+        "median_ms": 8.029,
+        "p95_ms": 18.442,
+        "min_ms": 5.346,
+        "max_ms": 18.442
       },
       "baseline_comparison": {
-        "n": 9,
-        "median_ms": 0.02,
-        "p95_ms": 0.066,
-        "min_ms": 0.017,
-        "max_ms": 0.066
+        "n": 5,
+        "median_ms": 0.054,
+        "p95_ms": 0.121,
+        "min_ms": 0.035,
+        "max_ms": 0.121
       },
       "api_upload_to_result": {
-        "n": 9,
-        "median_ms": 111.377,
-        "p95_ms": 336.225,
-        "min_ms": 66.493,
-        "max_ms": 336.225
+        "n": 5,
+        "median_ms": 190.782,
+        "p95_ms": 1080.003,
+        "min_ms": 171.41,
+        "max_ms": 1080.003
       },
       "engine_ms_last_run": {
-        "integrity": 3,
-        "static": 5,
-        "tamper": 3,
-        "dynamic": 15,
-        "score": 1,
-        "repository": 3
+        "integrity": 5,
+        "static": 22,
+        "tamper": 12,
+        "dynamic": 3,
+        "score": 2,
+        "repository": 35
       }
     },
     "medium": {
       "size_bytes": 5255759,
       "files": 9,
       "sha256_whole_file": {
-        "n": 9,
-        "median_ms": 4.109,
-        "p95_ms": 5.887,
-        "min_ms": 2.778,
-        "max_ms": 5.887
+        "n": 5,
+        "median_ms": 5.386,
+        "p95_ms": 5.576,
+        "min_ms": 4.322,
+        "max_ms": 5.576
       },
       "integrity_per_file_hashing_and_merkle": {
-        "n": 9,
-        "median_ms": 44.235,
-        "p95_ms": 114.563,
-        "min_ms": 35.44,
-        "max_ms": 114.563
+        "n": 5,
+        "median_ms": 72.887,
+        "p95_ms": 120.085,
+        "min_ms": 59.03,
+        "max_ms": 120.085
       },
       "apk_signature_verification": {
-        "n": 9,
-        "median_ms": 24.433,
-        "p95_ms": 30.894,
-        "min_ms": 21.586,
-        "max_ms": 30.894
+        "n": 5,
+        "median_ms": 38.991,
+        "p95_ms": 44.615,
+        "min_ms": 35.812,
+        "max_ms": 44.615
       },
       "static_analysis_total": {
-        "n": 9,
-        "median_ms": 27.929,
-        "p95_ms": 128.384,
-        "min_ms": 21.658,
-        "max_ms": 128.384
+        "n": 5,
+        "median_ms": 191.815,
+        "p95_ms": 202.223,
+        "min_ms": 157.716,
+        "max_ms": 202.223
       },
       "baseline_comparison": {
-        "n": 9,
-        "median_ms": 0.081,
-        "p95_ms": 0.168,
-        "min_ms": 0.078,
-        "max_ms": 0.168
+        "n": 5,
+        "median_ms": 0.136,
+        "p95_ms": 0.238,
+        "min_ms": 0.075,
+        "max_ms": 0.238
       },
       "api_upload_to_result": {
-        "n": 9,
-        "median_ms": 689.656,
-        "p95_ms": 1105.504,
-        "min_ms": 235.778,
-        "max_ms": 1105.504
+        "n": 5,
+        "median_ms": 497.101,
+        "p95_ms": 810.134,
+        "min_ms": 452.136,
+        "max_ms": 810.134
       },
       "engine_ms_last_run": {
-        "integrity": 47,
-        "static": 194,
+        "integrity": 72,
+        "static": 192,
         "tamper": 6,
-        "dynamic": 14,
-        "score": 4,
-        "repository": 72
+        "dynamic": 4,
+        "score": 2,
+        "repository": 34
       }
     },
     "large": {
       "size_bytes": 52453967,
       "files": 9,
       "sha256_whole_file": {
-        "n": 9,
-        "median_ms": 135.622,
-        "p95_ms": 193.358,
-        "min_ms": 54.304,
-        "max_ms": 193.358
+        "n": 5,
+        "median_ms": 62.856,
+        "p95_ms": 70.9,
+        "min_ms": 55.184,
+        "max_ms": 70.9
       },
       "integrity_per_file_hashing_and_merkle": {
-        "n": 9,
-        "median_ms": 1053.345,
-        "p95_ms": 2102.971,
-        "min_ms": 367.124,
-        "max_ms": 2102.971
+        "n": 5,
+        "median_ms": 642.853,
+        "p95_ms": 740.964,
+        "min_ms": 565.77,
+        "max_ms": 740.964
       },
       "apk_signature_verification": {
-        "n": 9,
-        "median_ms": 248.339,
-        "p95_ms": 296.663,
-        "min_ms": 211.325,
-        "max_ms": 296.663
+        "n": 5,
+        "median_ms": 471.894,
+        "p95_ms": 634.181,
+        "min_ms": 299.341,
+        "max_ms": 634.181
       },
       "static_analysis_total": {
-        "n": 9,
-        "median_ms": 249.659,
-        "p95_ms": 297.491,
-        "min_ms": 238.356,
-        "max_ms": 297.491
+        "n": 5,
+        "median_ms": 1696.259,
+        "p95_ms": 2278.7,
+        "min_ms": 1478.066,
+        "max_ms": 2278.7
       },
       "baseline_comparison": {
-        "n": 9,
-        "median_ms": 0.17,
-        "p95_ms": 0.19,
-        "min_ms": 0.128,
-        "max_ms": 0.19
+        "n": 5,
+        "median_ms": 0.435,
+        "p95_ms": 0.611,
+        "min_ms": 0.356,
+        "max_ms": 0.611
       },
       "api_upload_to_result": {
-        "n": 9,
-        "median_ms": 1131.316,
-        "p95_ms": 1195.647,
-        "min_ms": 1043.228,
-        "max_ms": 1195.647
+        "n": 5,
+        "median_ms": 2970.813,
+        "p95_ms": 3865.557,
+        "min_ms": 2718.165,
+        "max_ms": 3865.557
       },
       "engine_ms_last_run": {
-        "integrity": 439,
-        "static": 207,
-        "tamper": 4,
-        "dynamic": 10,
-        "score": 2,
-        "repository": 5
+        "integrity": 585,
+        "static": 1671,
+        "tamper": 17,
+        "dynamic": 2,
+        "score": 6,
+        "repository": 46
       }
     }
   },
   "crypto": {
     "ecdsa_p256_sign": {
       "n": 200,
-      "median_ms": 0.041,
-      "p95_ms": 0.089,
-      "min_ms": 0.036,
-      "max_ms": 0.393
+      "median_ms": 0.134,
+      "p95_ms": 0.214,
+      "min_ms": 0.097,
+      "max_ms": 2.549
     },
     "ecdsa_p256_verify": {
       "n": 200,
-      "median_ms": 0.083,
-      "p95_ms": 0.19,
-      "min_ms": 0.077,
-      "max_ms": 0.505
+      "median_ms": 0.286,
+      "p95_ms": 0.497,
+      "min_ms": 0.182,
+      "max_ms": 3.158
     },
     "merkle_100_leaves": {
       "build": {
         "n": 5,
-        "median_ms": 0.186,
-        "p95_ms": 0.207,
-        "min_ms": 0.183,
-        "max_ms": 0.207
+        "median_ms": 0.581,
+        "p95_ms": 0.649,
+        "min_ms": 0.569,
+        "max_ms": 0.649
       },
       "proof_generate": {
         "n": 200,
-        "median_ms": 0.002,
-        "p95_ms": 0.002,
-        "min_ms": 0.001,
-        "max_ms": 0.011
+        "median_ms": 0.004,
+        "p95_ms": 0.005,
+        "min_ms": 0.002,
+        "max_ms": 0.333
       },
       "proof_verify": {
         "n": 200,
-        "median_ms": 0.014,
-        "p95_ms": 0.024,
-        "min_ms": 0.011,
-        "max_ms": 0.062
+        "median_ms": 0.04,
+        "p95_ms": 0.047,
+        "min_ms": 0.017,
+        "max_ms": 1.903
       },
       "proof_steps": 7
     },
     "merkle_1000_leaves": {
       "build": {
         "n": 5,
-        "median_ms": 2.777,
-        "p95_ms": 3.485,
-        "min_ms": 1.884,
-        "max_ms": 3.485
+        "median_ms": 6.055,
+        "p95_ms": 6.891,
+        "min_ms": 5.701,
+        "max_ms": 6.891
       },
       "proof_generate": {
         "n": 200,
-        "median_ms": 0.003,
-        "p95_ms": 0.005,
-        "min_ms": 0.003,
-        "max_ms": 0.011
+        "median_ms": 0.006,
+        "p95_ms": 0.006,
+        "min_ms": 0.004,
+        "max_ms": 0.02
       },
       "proof_verify": {
         "n": 200,
-        "median_ms": 0.027,
-        "p95_ms": 0.081,
-        "min_ms": 0.016,
-        "max_ms": 0.159
+        "median_ms": 0.061,
+        "p95_ms": 0.087,
+        "min_ms": 0.044,
+        "max_ms": 0.837
       },
       "proof_steps": 10
     },
     "merkle_10000_leaves": {
       "build": {
         "n": 5,
-        "median_ms": 25.124,
-        "p95_ms": 29.717,
-        "min_ms": 22.974,
-        "max_ms": 29.717
+        "median_ms": 76.378,
+        "p95_ms": 96.082,
+        "min_ms": 66.643,
+        "max_ms": 96.082
       },
       "proof_generate": {
         "n": 200,
-        "median_ms": 0.005,
+        "median_ms": 0.004,
         "p95_ms": 0.007,
-        "min_ms": 0.003,
-        "max_ms": 0.041
+        "min_ms": 0.004,
+        "max_ms": 0.113
       },
       "proof_verify": {
         "n": 200,
-        "median_ms": 0.036,
-        "p95_ms": 0.055,
-        "min_ms": 0.022,
-        "max_ms": 0.17
+        "median_ms": 0.076,
+        "p95_ms": 0.1,
+        "min_ms": 0.041,
+        "max_ms": 0.797
       },
       "proof_steps": 14
     },
     "merkle_100000_leaves": {
       "build": {
         "n": 2,
-        "median_ms": 299.906,
-        "p95_ms": 305.81,
-        "min_ms": 294.003,
-        "max_ms": 305.81
+        "median_ms": 950.922,
+        "p95_ms": 1181.864,
+        "min_ms": 719.98,
+        "max_ms": 1181.864
       },
       "proof_generate": {
         "n": 200,
         "median_ms": 0.004,
         "p95_ms": 0.004,
         "min_ms": 0.003,
-        "max_ms": 0.02
+        "max_ms": 0.039
       },
       "proof_verify": {
         "n": 200,
-        "median_ms": 0.027,
-        "p95_ms": 0.044,
-        "min_ms": 0.026,
-        "max_ms": 0.199
+        "median_ms": 0.089,
+        "p95_ms": 0.092,
+        "min_ms": 0.036,
+        "max_ms": 0.213
       },
       "proof_steps": 17
     },
-    "audit_chain_verify_562_blocks": {
+    "audit_chain_verify_538_blocks": {
       "n": 3,
-      "median_ms": 95.37,
-      "p95_ms": 119.217,
-      "min_ms": 88.703,
-      "max_ms": 119.217
+      "median_ms": 225.56,
+      "p95_ms": 226.229,
+      "min_ms": 205.931,
+      "max_ms": 226.229
     }
   },
   "database": {
     "baseline_enroll_ms": {
-      "small": 14.0,
-      "medium": 212.0,
-      "large": 682.5
+      "small": 24.4,
+      "medium": 268.5,
+      "large": 2301.6
     },
     "baseline_approve_sign_commit_ms": {
-      "small": 5.1,
-      "medium": 4.5,
-      "large": 4.5
+      "small": 4.6,
+      "medium": 5.5,
+      "large": 10.2
     }
   }
 }

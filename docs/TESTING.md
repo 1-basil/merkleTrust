@@ -124,8 +124,8 @@ concurrent ledger writers.
 ## Known limitations of the test suite
 
 * Line coverage is measured (not branch coverage) with `scripts/coverage_report.py`:
-  **91.9 %** of the lines in `core/`, `api/` and `db/` (4 831 of 5 259). The least-covered module is the optional dynamic engine
-  (85.9 %), whose uncovered lines are mostly the standalone command-line entry point and Frida process handling.
+  **90.5 %** of the lines in `core/`, `api/` and `db/` (6 904 of 7 632, measured 8 October 2026). Per-module figures are printed by the script;
+  among `api/` and `db/` the least covered is `api/routers/scans.py` (79.1 %).
 * The dynamic engine's unit tests use a simulated emulator (captured adb, kernel-trace and
   packet-capture formats); the real emulator is exercised by `scripts/run_dynamic_evaluation.py`
   and the browser test with dynamic analysis enabled, which are run manually (not in CI).

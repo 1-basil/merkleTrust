@@ -27,3 +27,40 @@ jobs:
         run: python -m pytest
       - name: Security-focused subset
         run: python -m pytest -m security -q
+
+  webapp:
+    # Builds the React app and drives it end to end in headless Chrome against a live server.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: webapp/package-lock.json
+      - name: Install dependencies
+        run: |
+          python -m pip install -r requirements.txt
+          npm ci --prefix webapp
+      - name: Build the web app
+        run: npm run build --prefix webapp
+      - name: Start the server on a fresh data folder
+        env:
+          MERKLETRUST_DATA_DIR: e2e-data
+          MERKLETRUST_NEW_USER_PASSWORD: ci-e2e-password-123
+        run: |
+          python -m scripts.manage_users create admin --role admin
+          nohup python -m uvicorn api.main:app --port 8765 > server.log 2>&1 &
+          for i in $(seq 1 30); do curl -sf http://127.0.0.1:8765/api/v1/health && break; sleep 1; done
+      - name: End-to-end browser test
+        env:
+          CHROME: /usr/bin/google-chrome
+          MERKLETRUST_E2E_PASSWORD: ci-e2e-password-123
+        run: node tests/e2e/webapp_smoke.mjs http://127.0.0.1:8765
+      - name: Server log
+        if: failure()
+        run: cat server.log

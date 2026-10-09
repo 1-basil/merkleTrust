@@ -58,4 +58,6 @@ def summary(_user: CurrentUser = Depends(current_user), db: Session = Depends(ge
 def health(db: Session = Depends(get_db), settings: Settings = Depends(settings_dep)):
     """Liveness/readiness without authentication. Exposes no sensitive detail."""
     db.execute(text("SELECT 1"))
-    return {"status": "ok", "demo_enabled": settings.demo_enabled, "max_upload_mb": settings.max_upload_mb}
+    from core.threat_intel import feed_status
+    return {"status": "ok", "demo_enabled": settings.demo_enabled, "max_upload_mb": settings.max_upload_mb,
+            "threat_feed": feed_status()}

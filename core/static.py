@@ -31,8 +31,9 @@ from core.axml import AxmlError, parse_manifest
 from core.contracts import EngineError, JobContext, emit
 from core.dex import analyze_dex_files
 from core.findings import finding
-from core.fuzzy_hash import fuzzy_hash_bytes, fuzzy_hash_file
-from core.threat_intel import scan_iocs
+from core.config import get_settings
+from core.fuzzy_hash import fuzzy_hash_bytes
+from core.threat_intel import check_file_hash, feed_status, scan_iocs
 
 # Known Android dangerous permissions (Android runtime permissions)
 DANGEROUS_PERMISSIONS = {
@@ -326,16 +327,22 @@ def analyze_apk(apk_path: str, limits: dict | None = None) -> dict[str, Any]:
                                          f"[{ym.rule_name}] matched in {ym.file_path}: {', '.join(ym.matched_strings[:3])}"))
 
         # Context Triggered Piecewise Hashing (CTPH / ssdeep fuzzy hashing)
-        apk_fuzzy_hash = fuzzy_hash_file(apk_path)
-        dex_fuzzy_hashes = {n: fuzzy_hash_bytes(raw) for n, raw in dex_files}
+        # ssdeep is pure Python here (~0.7 s per MB), so very large DEX files are skipped, never guessed.
+        fuzzy_limit = get_settings().fuzzy_max_dex_mb * 1024 * 1024
+        dex_fuzzy_hashes = {n: fuzzy_hash_bytes(raw) for n, raw in dex_files if len(raw) <= fuzzy_limit}
+        fuzzy_skipped = [n for n, raw in dex_files if len(raw) > fuzzy_limit]
 
-        # Threat Intelligence scanning against curated C2 indicator feed
+        # Threat intelligence: addresses in the code, and the file itself, against the ThreatFox feed.
         iocs = dex.get("iocs") or {}
         threat_matches = scan_iocs(iocs.get("urls", []), iocs.get("ips", []))
         threat_findings = []
         for tm in threat_matches:
-            fid = "STATIC_THREAT_INTEL_C2" if tm["severity"] == "critical" else "STATIC_THREAT_INTEL_SUSPICIOUS"
-            threat_findings.append(finding(fid, f"{tm['threat_family']} ({tm['indicator']}): {tm['description']}"))
+            fid = "STATIC_THREAT_INTEL_C2" if tm["basis"] == "feed" else "STATIC_THREAT_INTEL_SUSPICIOUS"
+            threat_findings.append(finding(fid, f"{tm['indicator']}: {tm['description']}"))
+        with open(apk_path, "rb") as fh:
+            known_file = check_file_hash(hashlib.file_digest(fh, "sha256").hexdigest())
+        if known_file:
+            threat_findings.append(finding("STATIC_KNOWN_MALWARE_FILE", known_file["description"]))
 
     classified = [classify_permission(p) for p in manifest["permissions"]]
     cert = signature["certificate"]
@@ -368,12 +375,14 @@ def analyze_apk(apk_path: str, limits: dict | None = None) -> dict[str, Any]:
                 "sensitive_classes": dex["sensitive_classes"],
                 "multidex": len(dex_files) > 1,
                 "dex_count": len(dex_files)},
-        "fuzzy_hash": apk_fuzzy_hash,
         "dex_fuzzy_hashes": dex_fuzzy_hashes,
+        "dex_fuzzy_skipped": fuzzy_skipped,
         "threat_intel": {
             "matches": threat_matches,
             "c2_detected": any(tm["severity"] == "critical" for tm in threat_matches),
             "match_count": len(threat_matches),
+            "known_malware_file": known_file,
+            "feed": feed_status(),  # which feed (and version) this verdict was based on
         },
         "iocs": dex["iocs"],
         "dangerous_apis": dex["dangerous_apis"],

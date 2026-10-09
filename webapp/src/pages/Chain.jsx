@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
-  Blocks, CheckCircle2, ChevronLeft, ExternalLink, FileCheck2, FileUp, KeyRound, Link2, Link2Off, LogIn, RotateCcw,
+  Blocks, Bookmark, CheckCircle2, ChevronLeft, ExternalLink, FileCheck2, FileUp, KeyRound, Link2, Link2Off, LogIn, RotateCcw,
   ShieldAlert, ShieldCheck, ShieldX, Skull, Sparkles, Stamp, User, XCircle,
 } from 'lucide-react';
 import {
@@ -12,6 +12,11 @@ import { useAuth } from '../lib/auth.jsx';
 import { dateTime } from '../lib/format.js';
 
 const PAGE = 40;
+const CHECKPOINT_KEY = 'merkletrust.chain-checkpoint';
+
+function readCheckpoint() {
+  try { return JSON.parse(localStorage.getItem(CHECKPOINT_KEY)); } catch { return null; }
+}
 
 // Plain-language names; the backend's labels predate non-APK files.
 const EVENTS = {
@@ -232,7 +237,20 @@ export default function Chain() {
   const [verifying, setVerifying] = useState(false);
   const [demoEnabled, setDemoEnabled] = useState(false);
   const [loadingOlder, setLoadingOlder] = useState(false);
+  const [checkpoint, setCheckpoint] = useState(readCheckpoint);
   const stripRef = useRef(null);
+
+  // A signed statement of the newest block, kept outside the server, reveals blocks deleted later.
+  const saveCheckpoint = async () => {
+    try {
+      const h = await api.get('/audit/head');
+      if (!h?.head) return;
+      try { localStorage.setItem(CHECKPOINT_KEY, JSON.stringify(h)); } catch { /* storage unavailable */ }
+      setCheckpoint(h);
+    } catch (err) {
+      setError(err);
+    }
+  };
 
   const load = useCallback(async (focus) => {
     try {
@@ -279,7 +297,7 @@ export default function Chain() {
     setVerifying(true);
     setResult(null);
     try {
-      const r = await api.post('/audit/verify');
+      const r = await api.post('/audit/verify', checkpoint?.head ? { expected_head: checkpoint.head } : undefined);
       const firstBad = r.valid ? null : r.first_invalid_index;
       const stopAt = firstBad === null ? items.length : Math.max(0, items.findIndex((b) => b.index === firstBad));
       const stride = Math.max(1, Math.ceil(items.length / 45));
@@ -327,6 +345,12 @@ export default function Chain() {
         )}
       />
 
+      {result?.truncation_detected && (
+        <Banner tone="bad" icon={ShieldX} pulse title="Blocks were deleted or replaced">
+          The chain no longer contains the block saved in your checkpoint (block #{checkpoint?.head?.index}). Someone removed or rewrote history after it was saved.
+        </Banner>
+      )}
+
       {chain && (broken ? (
         <Banner tone="bad" icon={ShieldX} pulse title={`Chain broken at block #${chain.first_invalid_index}`}>
           Someone changed history. Block #{chain.first_invalid_index} no longer matches its fingerprint or signature, so every block after it
@@ -334,7 +358,9 @@ export default function Chain() {
         </Banner>
       ) : (
         <Banner tone="good" icon={ShieldCheck} title={result?.valid ? `Verified: all ${result.length} blocks checked, nothing was changed` : 'Chain intact'}>
-          {chain.length} blocks, each signed and linked to the one before it, all the way back to the first.
+          {result?.valid && chain.length > result.length
+            ? `The check itself was then recorded as a new block, so the chain now has ${chain.length} blocks, each signed and linked to the one before it.`
+            : `${chain.length} blocks, each signed and linked to the one before it, all the way back to the first.`}
         </Banner>
       ))}
 
@@ -364,6 +390,16 @@ export default function Chain() {
           </div>
         </Card>
       )}
+
+      <Card className="flex flex-wrap items-center gap-3 p-4">
+        <Bookmark className="size-4 text-sky-300" aria-hidden="true" />
+        <p className="min-w-0 flex-1 basis-60 text-sm text-zinc-300">
+          {checkpoint?.head
+            ? <>Checkpoint saved at block #{checkpoint.head.index} ({dateTime(checkpoint.head.issued_at)}). Every check now also confirms that no blocks up to there were deleted.</>
+            : <>Save a signed checkpoint of the newest block in this browser. Later checks will then also catch deleted blocks, not only edited ones.</>}
+        </p>
+        <Button variant="secondary" size="sm" onClick={saveCheckpoint}>{checkpoint?.head ? 'Update checkpoint' : 'Save checkpoint'}</Button>
+      </Card>
 
       <BlockDetail block={selectedBlock} />
 

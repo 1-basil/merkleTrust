@@ -68,6 +68,41 @@ function Actions({ b, onChanged }) {
   );
 }
 
+const CHECK_TEXT = {
+  status_matches_audit: 'Status matches the audit chain',
+  approved: 'Approved by an administrator',
+  merkle_root: 'File list still produces the recorded fingerprint',
+  profile: 'App details unchanged since approval',
+  signature: 'Approval signature is valid',
+};
+
+function RecordCheck({ id }) {
+  const [res, setRes] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState(null);
+  const run = async () => {
+    setBusy(true);
+    setError(null);
+    try { setRes(await api.get(`/baselines/${id}/verify`)); } catch (err) { setError(err); } finally { setBusy(false); }
+  };
+  return (
+    <div className="mt-3">
+      <Button size="sm" variant="secondary" onClick={run} loading={busy}><ShieldCheck className="size-3.5" aria-hidden="true" />Check this record</Button>
+      {res && (
+        <ul className="mt-3 space-y-1.5 animate-fade-in">
+          {Object.entries(res.checks || {}).map(([k, ok]) => (
+            <li key={k} className={cx('flex items-center gap-2 text-xs', ok ? 'text-zinc-300' : 'text-red-300')}>
+              {ok ? <CheckCircle2 className="size-3.5 text-emerald-400" aria-hidden="true" /> : <XCircle className="size-3.5 text-red-400" aria-hidden="true" />}
+              {CHECK_TEXT[k] || k}
+            </li>
+          ))}
+        </ul>
+      )}
+      <ErrorBox error={error} className="mt-2" />
+    </div>
+  );
+}
+
 function BaselineCard({ b, isAdmin, onChanged }) {
   const [tone, label, Icon] = STATUS[b.status] || ['neutral', b.status, Info];
   return (
@@ -105,6 +140,7 @@ function BaselineCard({ b, isAdmin, onChanged }) {
           </dd>
         </div>
       </dl>
+      <RecordCheck id={b.id} />
       {isAdmin && (b.status === 'pending' || b.status === 'approved') && <Actions b={b} onChanged={onChanged} />}
     </Card>
   );

@@ -76,6 +76,10 @@ class Settings(BaseSettings):
     login_rate_per_minute: int = 10
     upload_rate_per_minute: int = 20
 
+    # ThreatFox CSV export (scripts/update_threat_feed.py); default <data_dir>/threat_feeds/threatfox_recent.csv
+    threat_feed_path: Path | None = None
+    fuzzy_max_dex_mb: int = 4  # DEX files larger than this are not fuzzy-hashed (pure-Python ssdeep)
+
     dynamic_enabled: bool = False
     dynamic_timeout_s: int = 120
     dynamic_observe_s: int = 20
