@@ -24,6 +24,7 @@ test_phase3/
 *.temp
 scratch/
 scratchpad/
+demo-data/
 
 # Local baseline database and persistent stores
 data/*.sqlite3
