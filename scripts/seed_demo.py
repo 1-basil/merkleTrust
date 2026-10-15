@@ -8,7 +8,7 @@ Uses only the public REST API, exactly as a user would:
   2. the analyst scans five variants: the identical app, a legitimate update, a copy
      re-signed with another key, a patched copy (modified DEX + injected file) and a
      suspicious app without a baseline.
-Prints "<name>=<scan id>" pairs (input for tests/e2e/ui_smoke.mjs).
+Prints "<name>=<scan id>" pairs, handy for opening the reports in the web app.
 Passwords may also come from MERKLETRUST_ADMIN_PASSWORD / MERKLETRUST_ANALYST_PASSWORD.
 """
 

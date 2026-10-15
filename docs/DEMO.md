@@ -105,7 +105,7 @@ blockchain. The checkpoint also catches deleted blocks, not only edited ones."
   report says so instead of claiming a check that did not run.
 * If the server will not start because of an old database: run `start_demo.ps1 -Fresh`.
 * If time is short: steps 3, 4 and 7 carry the story.
-* The classic dashboard (http://127.0.0.1:8000/) still offers every function.
+* Every function is also available through the API at http://127.0.0.1:8000/api/docs.
 
 ## Questions to expect
 

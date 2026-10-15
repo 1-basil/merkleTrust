@@ -15,8 +15,7 @@ python -m uvicorn api.main:app --port 8000
 # open http://127.0.0.1:8000/app
 ```
 
-FastAPI serves the built bundle from `webapp/dist` under `/app`. The classic dashboard
-stays at `/`.
+FastAPI serves the built bundle from `webapp/dist` under `/app`; `/` redirects there.
 
 ## Develop
 

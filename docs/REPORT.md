@@ -64,7 +64,7 @@ A FastAPI REST API (`api/`) accepts uploads, authenticates users and queues anal
 jobs; a six-stage pipeline (`core/`) — integrity, static, tamper, dynamic, score,
 repository — produces reports that are sealed into the audit chain; SQLite (via
 SQLAlchemy and Alembic) stores baselines, jobs and the chain; a dependency-free web
-dashboard (`frontend/`) presents results. Details, diagrams and the full API table:
+web app (`webapp/`) presents results. Details, diagrams and the full API table:
 [ARCHITECTURE.md](ARCHITECTURE.md).
 
 ## 6. Threat model

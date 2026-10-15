@@ -10,7 +10,7 @@ python -m pytest -m "unit"           # fast single-module tests
 python -m scripts.coverage_report    # line coverage (standard library only; slow, ~15 min)
 python -m scripts.crosscheck_apksigner   # differential check vs Google's apksigner (needs Android SDK)
 python -m scripts.stress_audit_chain     # concurrent audit-chain writers under CPU load
-node tests/e2e/ui_smoke.mjs <url> <shots-dir> "<ids>"   # browser end-to-end (needs Chrome, Node 22+)
+node tests/e2e/webapp_smoke.mjs <url> [shots-dir]      # browser end-to-end (needs Chrome, Node 22+)
 ```
 
 Markers (`pytest.ini`, `--strict-markers`): `unit`, `integration`, `api`, `security`.
@@ -93,7 +93,7 @@ Additional security tests beyond the brief: signature stripping, v1 file
 injection/deletion, Janus-style prepended data, duplicate ZIP entries, obfuscated
 manifests, fuzzing (AXML, DEX, DER), authentication/authorization matrix, session
 expiry and revocation, rate limiting, CORS, security headers, error-message leakage,
-XSS sinks in the frontend, code injection into the generated Frida script,
+XSS sinks in the web app, code injection into the generated Frida script,
 concurrent ledger writers.
 
 ## Independent verification
@@ -102,7 +102,7 @@ concurrent ledger writers.
   13/13 genuine and tampered cases give the same verdict.
 * **Merkle tree vs RFC 6962**: roots match a reference implementation written
   directly from the RFC for 0–33, 100 and 257 leaves.
-* **Browser end-to-end** (`tests/e2e/ui_smoke.mjs`): every page at desktop and phone
+* **Browser end-to-end** (`tests/e2e/webapp_smoke.mjs`): every page at desktop and phone
   width in real Chrome; fails on console errors, CSP violations or horizontal overflow.
 
 ## Defects found by these tests (and fixed)

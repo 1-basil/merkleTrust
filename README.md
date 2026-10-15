@@ -34,7 +34,7 @@ uvicorn api.main:app --port 8000                    # open http://127.0.0.1:8000
 
 On Windows, `scripts\start_demo.ps1` does all of this in one step. The web app
 (Merkle Tree Lab, visual blockchain with a tamper demo, built-in demo guide) is described
-in [webapp/README.md](webapp/README.md); the classic dashboard is still at `/`.
+in [webapp/README.md](webapp/README.md); `/` redirects to it.
 
 Upload `evaluation/dataset/baseline_demo.apk` as a trusted version (admin → *Trusted
 versions*), approve it, then scan `evaluation/dataset/demo_repackaged.apk`. The full

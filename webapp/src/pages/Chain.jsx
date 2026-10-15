@@ -226,6 +226,75 @@ function AttackerPanel({ block, chainValid, onDone }) {
 
 // ------------------------------------------------------------------- page --
 
+// ------------------------------------------------------------- event log --
+
+const LOG_LIMIT = 200;
+
+// Every event as a list, filterable by type (the strip above always shows the whole chain,
+// because filtering it would hide the links between blocks).
+function EventLog({ refreshKey, loadedIndexes, onSelect }) {
+  const [type, setType] = useState('');
+  const [log, setLog] = useState(null);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    let live = true;
+    setLog(null);
+    api.get('/audit/blocks', { limit: LOG_LIMIT, event_type: type || undefined })
+      .then((d) => { if (live) { setLog(d); setError(null); } })
+      .catch((err) => { if (live) setError(err); });
+    return () => { live = false; };
+  }, [type, refreshKey]);
+
+  return (
+    <Card>
+      <CardHeader icon={Blocks} title="Event log" subtitle="Every security-relevant action, newest first."
+        action={(
+          <label className="flex items-center gap-2 text-xs text-zinc-400">
+            Show
+            <select value={type} onChange={(e) => setType(e.target.value)} aria-label="Filter events by type"
+              className="rounded-lg border border-white/10 bg-zinc-900 px-2 py-1.5 text-sm text-zinc-100">
+              <option value="">All events</option>
+              {Object.entries(EVENTS).filter(([k]) => k !== 'GENESIS').map(([k, [label]]) => (
+                <option key={k} value={k}>{label}</option>
+              ))}
+            </select>
+          </label>
+        )}
+      />
+      <ErrorBox error={error} className="m-4" />
+      {!log && !error && <div className="p-4"><Spinner label="Loading events…" /></div>}
+      {log && !log.items.length && <p className="px-5 py-6 text-sm text-zinc-400">No events of this type.</p>}
+      {log && log.items.length > 0 && (
+        <ul className="scroll-thin max-h-96 divide-y divide-white/[0.05] overflow-y-auto">
+          {log.items.map((b) => {
+            const [label, Icon] = eventOf(b);
+            const valid = b.verification?.valid !== false;
+            const canOpen = loadedIndexes.has(b.index);
+            return (
+              <li key={b.index}>
+                <button type="button" disabled={!canOpen} onClick={() => onSelect(b.index)}
+                  title={canOpen ? 'Show this block above' : 'Load older blocks above to inspect this one'}
+                  className="flex w-full items-center gap-3 px-5 py-2.5 text-left text-sm enabled:hover:bg-white/[0.02]">
+                  <Icon className={cx('size-4 shrink-0', valid ? 'text-zinc-400' : 'text-red-400')} aria-hidden="true" />
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-zinc-100">{label}</span>
+                    <span className="block truncate text-xs text-zinc-500">by {b.actor} · {dateTime(b.timestamp)}</span>
+                  </span>
+                  <span className="shrink-0 font-mono text-xs text-zinc-500">#{b.index}</span>
+                  <span className={cx('shrink-0 text-xs font-medium', valid ? 'text-emerald-300' : 'text-red-300')}>
+                    {valid ? 'Valid' : 'Invalid'}
+                  </span>
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </Card>
+  );
+}
+
 export default function Chain() {
   const { user } = useAuth();
   const [data, setData] = useState(null);
@@ -402,6 +471,9 @@ export default function Chain() {
       </Card>
 
       <BlockDetail block={selectedBlock} />
+
+      <EventLog refreshKey={data} loadedIndexes={new Set(items.map((b) => b.index))}
+        onSelect={(i) => { setSelected(i); window.scrollTo({ top: 0, behavior: 'smooth' }); }} />
 
       {isAdmin && demoEnabled && <AttackerPanel block={selectedBlock} chainValid={chain?.valid !== false} onDone={load} />}
       {isAdmin && !demoEnabled && data && (

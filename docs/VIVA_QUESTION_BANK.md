@@ -178,8 +178,8 @@ sessions expire and can be revoked; sent as a bearer header (no cookies, so no C
 admin/analyst roles; sign-in is rate-limited and audited (`api/security.py`, `api/deps.py`).
 
 **Q28. How do you prevent XSS from data inside APKs?**
-The dashboard builds DOM nodes with `textContent` only — a test fails if any HTML-injection
-API appears — and a CSP with `script-src 'self'` and no inline scripts.
+The React web app renders all text through React, which escapes it — a test fails if any
+raw-HTML API (`dangerouslySetInnerHTML`, `innerHTML`, …) appears — and a CSP with `script-src 'self'` and no inline scripts.
 
 **Q29. How did you test it?**
 482 automated tests (unit, integration, API, security) at 90.5 % line coverage; real signed

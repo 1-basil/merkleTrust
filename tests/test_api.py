@@ -410,13 +410,9 @@ def test_health_needs_no_auth(client):
     assert client.get("/api/v1/health").json()["status"] == "ok"
 
 
-def test_dashboard_is_served_with_strict_csp(client):
-    page = client.get("/")
-    assert page.status_code == 200 and '<script type="module" src="/static/js/app.js">' in page.text
-    assert "<script>" not in page.text and "onclick=" not in page.text   # nothing inline: CSP needs no 'unsafe-inline'
-    js = client.get("/static/js/app.js")
-    assert js.status_code == 200 and "javascript" in js.headers["content-type"]
-    assert client.get("/static/css/app.css").status_code == 200
+def test_root_redirects_to_the_web_app(client):
+    page = client.get("/", follow_redirects=False)
+    assert page.status_code in (302, 307) and page.headers["location"] == "/app"
 
 
 def test_react_app_is_served_under_app(make_client, tmp_path, monkeypatch):
@@ -435,13 +431,16 @@ def test_react_app_is_served_under_app(make_client, tmp_path, monkeypatch):
     assert client.get("/app").headers["Content-Security-Policy"].startswith("default-src 'self'")
 
 
-def test_frontend_never_injects_html():
-    """Data from APKs is attacker-controlled: the UI must build DOM nodes, not HTML strings."""
+def test_webapp_never_injects_html():
+    """Data from APKs is attacker-controlled: the UI must let React escape it, never inject raw HTML."""
     from pathlib import Path
-    root = Path(__file__).resolve().parent.parent / "frontend" / "js"
-    for f in root.rglob("*.js"):
+    root = Path(__file__).resolve().parent.parent / "webapp" / "src"
+    files = [f for ext in ("*.js", "*.jsx") for f in root.rglob(ext)]
+    assert files
+    for f in files:
         code = "\n".join(line for line in f.read_text(encoding="utf-8").splitlines() if not line.strip().startswith("//"))
-        for sink in ("innerHTML", "outerHTML", "insertAdjacentHTML", "document.write", "eval(", "new Function"):
+        for sink in ("dangerouslySetInnerHTML", "innerHTML", "outerHTML", "insertAdjacentHTML", "document.write",
+                     "eval(", "new Function"):
             assert sink not in code, f"{f.name} uses {sink}"
 
 

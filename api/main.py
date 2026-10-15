@@ -6,7 +6,7 @@
     /api/v1/audit/...       audit trail — Cryptographically Linked Blockchain Simulation
     /api/v1/dashboard/...   summary for the web dashboard
     /api/v1/health          liveness (no auth)
-    /                       web dashboard (static files)
+    /app                    web app (React build in webapp/dist; / redirects here)
 
 Cross-cutting protections: bearer-token authentication with roles, request-size
 limit enforced while the body streams in, upload validation, rate limiting on
@@ -27,8 +27,7 @@ from pathlib import Path
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, JSONResponse
-from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
 
 from api.errors import install_error_handlers
 from api.jobs import JobRunner
@@ -41,7 +40,6 @@ from db.database import init_db
 
 log = logging.getLogger("merkletrust.api")
 REPO_ROOT = Path(__file__).resolve().parent.parent
-FRONTEND_DIR = REPO_ROOT / "frontend"
 WEBAPP_DIST = REPO_ROOT / "webapp" / "dist"  # React app, built with `npm run build` in webapp/
 
 CSP = ("default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
@@ -150,12 +148,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     for router in (auth.router, scans.router, baselines.router, audit_router.router, dashboard.router):
         app.include_router(router, prefix="/api/v1")
 
-    if FRONTEND_DIR.is_dir():
-        app.mount("/static", StaticFiles(directory=FRONTEND_DIR), name="static")
-
-        @app.get("/", include_in_schema=False)
-        def index():
-            return FileResponse(FRONTEND_DIR / "index.html")
+    @app.get("/", include_in_schema=False)
+    def index():
+        return RedirectResponse("/app")
 
     if WEBAPP_DIST.is_dir():
         dist = WEBAPP_DIST.resolve()

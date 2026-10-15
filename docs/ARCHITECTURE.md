@@ -11,7 +11,7 @@ is in [THREAT_MODEL.md](THREAT_MODEL.md); measured results are in
 ```mermaid
 flowchart TB
     subgraph Browser
-        UI["Dashboard (frontend/, ES modules, no build step)"]
+        UI["Web app (webapp/, React + Vite)"]
     end
     subgraph API["REST API — api/ (FastAPI, /api/v1)"]
         AUTH[auth] --- SCANS[scans] --- BASE[baselines] --- AUD[audit] --- DASH[dashboard]
@@ -36,7 +36,7 @@ flowchart TB
 
 | Layer | Package | Responsibility |
 |---|---|---|
-| Presentation | `frontend/` | Plain-language dashboard; technical detail on demand |
+| Presentation | `webapp/` | Plain-language React web app served at `/app`; technical detail on demand |
 | API | `api/` | Authentication, authorisation, uploads, jobs, errors, security headers |
 | Analysis | `core/` engines | Parse, verify, compare, score, seal |
 | Cryptography | `core/crypto.py`, `core/merkle.py`, `core/audit.py` | Hashing, signatures, Merkle proofs, hash chain |
@@ -415,21 +415,13 @@ jobs marked failed at startup.
 
 ## 8. Frontend
 
-`frontend/index.html` loads `js/app.js` (hash router) and page modules in
-`js/pages/`: login, dashboard, scan, scans, result (tabs: Overview, File changes,
-Security findings, Certificate, Verification, Technical details), baselines, audit,
-chain. `js/dom.js` builds every element with `textContent`/`setAttribute` — data from
-APKs is never inserted as HTML. `js/api.js` keeps the session token in
-`sessionStorage` (this tab only). Status is always shown with an icon and words, not
-colour alone. `tests/e2e/ui_smoke.mjs` drives every page in headless Chrome.
-
 The React app in `webapp/` (built bundle served at `/app`) is the presentation front end:
 Home with live numbers and a demo guide, Scan, History, the report (Summary, What changed
 with in-browser Merkle proofs and code similarity, Problems found with the threat feed
 used, Certificate, Runtime, Proof & seal with downloadable evidence), the Merkle Tree Lab
 (`src/lib/merkle.js` reimplements the RFC 6962 tree; its roots equal the server's),
-Blockchain with tamper/restore and signed checkpoints, and Trusted Apps with approval and
-record checks. `tests/e2e/webapp_smoke.mjs` drives all of it at desktop and phone width;
+Blockchain with tamper/restore, signed checkpoints and an event log filterable by type, and Trusted
+Apps with approval and record checks. `tests/e2e/webapp_smoke.mjs` drives all of it at desktop and phone width;
 CI runs it against a live server.
 
 ## 9. Configuration
@@ -449,7 +441,7 @@ api/            REST API (main.py, routers/, security, uploads, jobs, errors, ra
 core/           engines and cryptography
 db/             models, sessions, migration helper
 migrations/     Alembic environment and revisions
-frontend/       dashboard (HTML, CSS, ES modules)
+webapp/         React web app (Vite; built to webapp/dist, served at /app)
 scripts/        builders, evaluation, benchmark, CLIs, cross-checks
 tests/          pytest suite (+ fixtures/apks, e2e/)
 evaluation/     dataset, results, methodology
