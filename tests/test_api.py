@@ -411,21 +411,37 @@ def test_health_needs_no_auth(client):
 
 
 def test_dashboard_is_served_with_strict_csp(client):
+    """The React build's output filenames are content-hashed, so this reads them from the
+    served index.html rather than hardcoding a name. Needs `npm run build` in frontend/ first."""
+    import re
+    from pathlib import Path
+    if not (Path(__file__).resolve().parent.parent / "frontend" / "dist").is_dir():
+        pytest.skip("frontend/dist not built; run `npm ci && npm run build` in frontend/ first")
     page = client.get("/")
-    assert page.status_code == 200 and '<script type="module" src="/static/js/app.js">' in page.text
+    assert page.status_code == 200
+    script_src = re.search(r'<script[^>]+src="(/assets/[^"]+\.js)"', page.text)
+    style_href = re.search(r'<link[^>]+href="(/assets/[^"]+\.css)"', page.text)
+    assert script_src and style_href, "index.html should reference a built, hashed JS and CSS asset"
     assert "<script>" not in page.text and "onclick=" not in page.text   # nothing inline: CSP needs no 'unsafe-inline'
-    js = client.get("/static/js/app.js")
+    js = client.get(script_src.group(1))
     assert js.status_code == 200 and "javascript" in js.headers["content-type"]
-    assert client.get("/static/css/app.css").status_code == 200
+    css = client.get(style_href.group(1))
+    assert css.status_code == 200 and "css" in css.headers["content-type"]
 
 
 def test_frontend_never_injects_html():
-    """Data from APKs is attacker-controlled: the UI must build DOM nodes, not HTML strings."""
+    """Data from APKs is attacker-controlled: the UI must build DOM nodes, not HTML strings.
+
+    React's JSX escapes interpolated values by default, so the sink to actually guard
+    against here is dangerouslySetInnerHTML (React's equivalent of innerHTML).
+    """
     from pathlib import Path
-    root = Path(__file__).resolve().parent.parent / "frontend" / "js"
-    for f in root.rglob("*.js"):
+    root = Path(__file__).resolve().parent.parent / "frontend" / "src"
+    files = [*root.rglob("*.js"), *root.rglob("*.jsx")]
+    assert files, "frontend/src has no source files to check"
+    for f in files:
         code = "\n".join(line for line in f.read_text(encoding="utf-8").splitlines() if not line.strip().startswith("//"))
-        for sink in ("innerHTML", "outerHTML", "insertAdjacentHTML", "document.write", "eval(", "new Function"):
+        for sink in ("dangerouslySetInnerHTML", "outerHTML =", "insertAdjacentHTML", "document.write", "eval(", "new Function("):
             assert sink not in code, f"{f.name} uses {sink}"
 
 

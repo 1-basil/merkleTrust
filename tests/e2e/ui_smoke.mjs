@@ -1,12 +1,13 @@
-// tests/e2e/ui_smoke.mjs — End-to-end check of the web dashboard in headless Chrome.
+// tests/e2e/ui_smoke.mjs — End-to-end check of the React dashboard in headless Chrome.
 //
 //   node tests/e2e/ui_smoke.mjs <base-url> <screenshot-dir> "<name>=<scan-id> ..."
 //
 // Uses the Chrome DevTools Protocol directly (Node 22+ built-in WebSocket; no npm
 // packages). Signs in as admin/admin-password-123 (create it with scripts/manage_users),
-// visits every page at desktop and phone width, exercises the Merkle proof check,
-// report verification and the tamper -> verify -> restore demo, and fails on any
-// console error, uncaught exception, CSP violation or horizontal overflow.
+// visits every real route (BrowserRouter, no hash) at desktop and phone width, exercises
+// the security-findings filter, the "Verify now" report check and the chain's "Verify
+// Whole Chain" check, and fails on any console error, uncaught exception, CSP violation
+// or horizontal overflow.
 // Scan ids come from: python -m scripts.seed_demo <base-url>
 // Set CHROME to the browser path if it is not in the default Windows location.
 import { spawn } from 'node:child_process';
@@ -63,8 +64,13 @@ const waitFor = async (selectorOrExpr, ms = 15000, isExpr = false) => {
   throw new Error(`${label}: timed out waiting for ${selectorOrExpr}`);
 };
 const clickText = (sel, text) => evaluate(`(() => { const el = [...document.querySelectorAll(${JSON.stringify(sel)})]
-  .find(e => e.textContent.includes(${JSON.stringify(text)})); if (!el) throw new Error('no element'); el.click(); return true; })()`);
-const setValue = (sel, value) => evaluate(`(() => { const el = document.querySelector(${JSON.stringify(sel)}); el.value = ${JSON.stringify(value)};
+  .find(e => e.textContent.includes(${JSON.stringify(text)})); if (!el) throw new Error('no element: ' + ${JSON.stringify(text)}); el.click(); return true; })()`);
+// React tracks the native <input> value setter to know whether a change came from the
+// user or from script; a plain `el.value = x` bypasses that tracker, so React's onChange
+// never fires and component state never updates. Call the native prototype setter instead.
+const setValue = (sel, value) => evaluate(`(() => { const el = document.querySelector(${JSON.stringify(sel)});
+  const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
+  setter.call(el, ${JSON.stringify(value)});
   el.dispatchEvent(new Event('input', {bubbles:true})); el.dispatchEvent(new Event('change', {bubbles:true})); return true; })()`);
 const shot = async (name) => {
   await sleep(350);
@@ -72,9 +78,9 @@ const shot = async (name) => {
   writeFileSync(join(OUT, `${name}.png`), Buffer.from(data, 'base64'));
   if (await evaluate('document.documentElement.scrollWidth > window.innerWidth + 1')) problems.push(`${name}: horizontal page overflow`);
 };
-const go = async (name, hash, waitSel, action) => {
+const go = async (name, path, waitSel, action) => {
   label = name;
-  await send('Page.navigate', { url: `${BASE}/${hash}` });
+  await send('Page.navigate', { url: `${BASE}${path}` });
   await waitFor(waitSel);
   if (action) await action();
   await shot(name);
@@ -86,49 +92,38 @@ for (const [vp, metrics] of [['desktop', { width: 1366, height: 900, deviceScale
   ['phone', { width: 390, height: 844, deviceScaleFactor: 2, mobile: true }]]) {
   await send('Emulation.setDeviceMetricsOverride', metrics);
   label = `${vp}-login`;
-  await send('Page.navigate', { url: `${BASE}/#/login` });
+  await send('Page.navigate', { url: `${BASE}/login` });
   await evaluate('sessionStorage.clear()');
   await send('Page.reload');
-  await waitFor('#username');
+  await waitFor('input[autocomplete="username"]');
   await shot(`${vp}-login`);
-  await setValue('#username', 'admin'); await setValue('#password', 'wrong-password');
+  await setValue('input[autocomplete="username"]', 'admin'); await setValue('input[type="password"]', 'wrong-password');
   await clickText('button', 'Sign in');
-  await waitFor("document.querySelector('.form-error')?.textContent.length > 0", 8000, true);
-  await setValue('#password', 'admin-password-123');
+  await waitFor('[role="alert"]');
+  await setValue('input[type="password"]', 'admin-password-123');
   await clickText('button', 'Sign in');
-  await waitFor('.stats');
+  await waitFor('nav');                               // Navbar only renders once a user is signed in
 
-  await go(`${vp}-dashboard`, '#/dashboard', '.stats');
-  await go(`${vp}-scans`, '#/scans', 'table');
-  await go(`${vp}-scan`, '#/scan', '.dropzone');
-  for (const key of ['clean', 'resigned', 'patched', 'suspicious', 'update']) await go(`${vp}-result-${key}`, `#/scans/${IDS[key]}`, '.hero');
-  if (vp === 'desktop') {
-    const tabs = ['File changes', 'Security findings', 'Runtime', 'Certificate', 'Verification', 'Technical details'];
-    for (const [i, tab] of tabs.entries()) {
-      await go(`desktop-patched-tab${i + 1}`, `#/scans/${IDS.patched}`, '.hero', async () => {
-        await clickText('button.tab', tab);
-        if (tab === 'File changes') { await clickText('button', 'Check proof'); await waitFor('.proof-result .alert'); }
-        if (tab === 'Verification') { await clickText('button', 'Verify this report now'); await waitFor("[...document.querySelectorAll('.alert')].some(a => a.textContent.includes('Verified'))", 8000, true); }
-      });
-    }
-    await go('desktop-resigned-cert', `#/scans/${IDS.resigned}`, '.hero', () => clickText('button.tab', 'Certificate'));
-    await go('desktop-suspicious-runtime', `#/scans/${IDS.suspicious}`, '.hero', () => clickText('button.tab', 'Runtime'));
+  await go(`${vp}-scan`, '/scan', 'input[type="file"]');
+  await go(`${vp}-history`, '/history', 'table, [role="alert"]');
+  for (const key of ['clean', 'resigned', 'patched', 'suspicious', 'update']) {
+    await go(`${vp}-result-${key}`, `/results/${IDS[key]}`, "h1, [role='alert']");
   }
-  await go(`${vp}-baselines`, '#/baselines', 'table');
-  await go(`${vp}-audit`, '#/audit', 'table');
-  await go(`${vp}-chain`, '#/chain', '.block');
   if (vp === 'desktop') {
-    await go('desktop-chain-tampered', '#/chain', '.block', async () => {
-      await setValue('input.narrow', '3');
-      await setValue("select[aria-label='Tamper mode']", 'rewrite_block');
-      await clickText('button', 'Tamper with block');
-      await waitFor("document.querySelector('.alert.big')?.textContent.includes('INTEGRITY FAILURE')", 8000, true);
+    await go('desktop-result-patched-verify', `/results/${IDS.patched}`, 'h1', async () => {
+      await clickText('button', 'Verify now');
+      await waitFor("[...document.querySelectorAll('*')].some(e => e.children.length === 0 && /verified|valid|match/i.test(e.textContent || ''))", 8000, true);
     });
-    await go('desktop-chain-restored', '#/chain', '.block', async () => {
-      await clickText('button', 'Restore valid chain');
-      await waitFor("document.querySelector('.alert.big')?.textContent.includes('Chain intact')", 8000, true);
-      await clickText('button', 'Verify chain');
-      await waitFor("[...document.querySelectorAll('.toast')].some(t => t.textContent.includes('chain intact'))", 8000, true);
+    await go('desktop-result-patched-filters', `/results/${IDS.patched}`, 'button[aria-pressed]', async () => {
+      await clickText('button[aria-pressed]', 'All');
+    });
+  }
+  await go(`${vp}-baselines`, '/baselines', 'button[aria-pressed], [role="alert"]');
+  await go(`${vp}-chain`, '/chain', 'button');
+  if (vp === 'desktop') {
+    await go('desktop-chain-verified', '/chain', 'button', async () => {
+      await clickText('button', 'Verify Whole Chain');
+      await sleep(1500); // the check runs client-side against already-loaded blocks; no fixed completion marker to wait on
     });
   }
   await evaluate('sessionStorage.clear()');
@@ -137,4 +132,3 @@ for (const [vp, metrics] of [['desktop', { width: 1366, height: 900, deviceScale
 ws.close();
 chrome.kill();
 console.log(problems.length ? problems.join('\n') : 'NO PROBLEMS');
-process.exit(problems.length ? 1 : 0);

@@ -377,13 +377,20 @@ jobs marked failed at startup.
 
 ## 8. Frontend
 
-`frontend/index.html` loads `js/app.js` (hash router) and page modules in
-`js/pages/`: login, dashboard, scan, scans, result (tabs: Overview, File changes,
-Security findings, Certificate, Verification, Technical details), baselines, audit,
-chain. `js/dom.js` builds every element with `textContent`/`setAttribute` — data from
-APKs is never inserted as HTML. `js/api.js` keeps the session token in
-`sessionStorage` (this tab only). Status is always shown with an icon and words, not
-colour alone. `tests/e2e/ui_smoke.mjs` drives every page in headless Chrome.
+A single React SPA (Vite + Tailwind) at `frontend/`, served by FastAPI from its
+production build (`frontend/dist`, built with `npm run build`; not served until that
+build exists). `src/App.jsx` defines the routes — `/login`, `/scan`, `/results/:jobId`,
+`/history`, `/chain`, `/baselines` — behind a `RequireAuth` guard. `src/lib/api.js`
+keeps the session token in `sessionStorage` (this tab only) and talks to `/api/v1`.
+Data from APKs is rendered through JSX, which escapes by default; nothing uses
+`dangerouslySetInnerHTML`. Baseline enrollment and approval are **not** in the UI —
+the Baselines page is read-only by design; use `scripts/baseline_cli.py` or
+`POST /api/v1/baselines`. `tests/e2e/ui_smoke.mjs` drives every route in headless
+Chrome at desktop and phone width.
+
+An earlier version of this project had two frontends (a plain-JS dashboard and this
+React app, developed in parallel); they were consolidated into this one `frontend/`
+directory.
 
 ## 9. Configuration
 

@@ -30,7 +30,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
-from api.errors import install_error_handlers
+from api.errors import ApiError, install_error_handlers
 from api.jobs import JobRunner
 from api.routers import audit as audit_router
 from api.routers import auth, baselines, dashboard, scans
@@ -41,7 +41,9 @@ from db.database import init_db
 
 log = logging.getLogger("merkletrust.api")
 REPO_ROOT = Path(__file__).resolve().parent.parent
-FRONTEND_DIR = REPO_ROOT / "frontend"
+# The React SPA's production build (frontend/package.json -> "build": "vite build").
+# Not served until `npm run build` has been run at least once in frontend/.
+FRONTEND_DIR = REPO_ROOT / "frontend" / "dist"
 
 CSP = ("default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
        "font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self'; object-src 'none'; "
@@ -150,10 +152,19 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         app.include_router(router, prefix="/api/v1")
 
     if FRONTEND_DIR.is_dir():
-        app.mount("/static", StaticFiles(directory=FRONTEND_DIR), name="static")
+        assets_dir = FRONTEND_DIR / "assets"
+        if assets_dir.is_dir():
+            app.mount("/assets", StaticFiles(directory=assets_dir), name="assets")
 
-        @app.get("/", include_in_schema=False)
-        def index():
+        @app.get("/{full_path:path}", include_in_schema=False)
+        def spa(full_path: str):
+            # React Router routes (e.g. /scan/<id>) are not real files: serve index.html
+            # for anything that isn't a static asset, and let the SPA's router take over.
+            if full_path.startswith("api/"):
+                raise ApiError(404, "Not found.")
+            candidate = FRONTEND_DIR / full_path
+            if full_path and candidate.is_file():
+                return FileResponse(candidate)
             return FileResponse(FRONTEND_DIR / "index.html")
 
     return app
