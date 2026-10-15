@@ -3,7 +3,7 @@
 - Users and login sessions: User, AuthSession
 - Analysis: ApkFile, Job, EngineStatus, TrustScore
 - Trusted baselines: TrustedBaseline
-- Audit trail (Blockchain Simulation): AuditBlock, AuditTamperBackup
+- Audit trail (a signed, hash-linked ledger): AuditBlock, AuditTamperBackup
 
 Schema changes are managed with Alembic (migrations/).
 """
@@ -126,13 +126,13 @@ class TrustScore(Base):
 
 
 class AuditBlock(Base):
-    """One block of the Cryptographically Linked Blockchain Simulation (audit trail).
+    """One block of the signed, hash-linked audit ledger.
 
     block_hash = SHA-256(canonical header), where the header contains the
     previous block's hash, so changing any block breaks every later link.
     The header is also ECDSA-signed. previous_hash is UNIQUE: two blocks can
     never claim the same predecessor (no forks). This is a single-node,
-    append-only simulation — there is no network, consensus or mining.
+    append-only ledger — there is no network, consensus or mining.
     """
     __tablename__ = "audit_blocks"
     __table_args__ = (CheckConstraint("block_index >= 0", name="ck_block_index"),)

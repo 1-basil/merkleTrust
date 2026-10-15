@@ -86,8 +86,14 @@ def test_orchestrator_twice_on_the_same_apk_gives_the_same_digest(tmp_path, monk
 
     # The ledger path is relative to the working directory: keep it out of the repo.
     monkeypatch.chdir(tmp_path)
+    import core.repository as repo
     digests = []
-    for _ in range(2):
+    for i in range(2):
+        # Fresh, empty ledger each run: this test is about the pipeline being
+        # reproducible given the same starting state, not about
+        # certificate_reuse (core/tamper.py) correctly noticing the APK was
+        # already seen — that's real, intentional, history-dependent behaviour.
+        monkeypatch.setattr(repo, "default_ledger_path", lambda i=i: str(tmp_path / f"ledger{i}" / "chain.jsonl"))
         prior = run_job(str(FIXTURE_APK), root=str(tmp_path / "jobs"))
         engine_reports = {k: v for k, v in prior.items() if k != "repository"}
         digests.append(report_digest(engine_reports, str(tmp_path / "jobs")))

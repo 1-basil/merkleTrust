@@ -182,7 +182,7 @@ These are separate questions with separate answers (`core/comparison.py`, `core/
 | BASELINE_INVALID | The stored baseline failed verification |
 
 **Risk** — "does it have dangerous characteristics?" Every finding comes from one
-catalogue (`core/findings.py`, 74 entries) with a plain title, technical title,
+catalogue (`core/findings.py`, 75 entries) with a plain title, technical title,
 severity, explanation, recommendation, points and a *group*. The score is the sum of
 the highest-scoring finding per group (no double counting), capped at 100.
 Level: LOW < 20 ≤ MEDIUM < 45 ≤ HIGH < 70 ≤ CRITICAL; a critical-severity finding
@@ -343,6 +343,7 @@ without echoing input). Interactive docs at `/api/docs` outside production.
 | GET | `/api/v1/scans/{scan_id}/report` | user | Full engine reports |
 | POST | `/api/v1/scans/{scan_id}/verify` | user | Prove the report matches its sealed hash in an intact chain (recorded) |
 | GET | `/api/v1/scans/{scan_id}/files/proof` | user | Merkle proof of one file against the baseline root |
+| GET | `/api/v1/scans/{scan_id}/merkle-proof` | user | Inclusion proof of this scan's sealed report in the repository-wide Merkle tree |
 | GET | `/api/v1/scans/{scan_id}/bundle` | user | Export self-contained verification bundle for zero-trust offline verification |
 | GET | `/api/v1/scans/{scan_id}/attestation` | user | Export signed in-toto Statement v1 with SLSA Provenance v1.0 predicate |
 | GET | `/api/v1/baselines` | user | List baselines (filter by package / status) |
@@ -353,6 +354,7 @@ without echoing input). Interactive docs at `/api/docs` outside production.
 | POST | `/api/v1/baselines/{baseline_id}/revoke` | admin | Revoke an approved baseline |
 | GET | `/api/v1/baselines/{baseline_id}/verify` | user | Re-verify the stored record |
 | GET | `/api/v1/baselines/{baseline_id}/files/proof` | user | Merkle proof of a file in the baseline |
+| GET | `/api/v1/audit/merkle-root` | user | Current Merkle root over every sealed report this instance has ever analysed |
 | GET | `/api/v1/audit/blocks` | user | Blocks (newest first) with per-block verification |
 | GET | `/api/v1/audit/blocks/{index}` | user | One block |
 | GET | `/api/v1/audit/blocks/{index}/proof` | user | Merkle inclusion proof of a block |

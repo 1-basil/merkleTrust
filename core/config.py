@@ -25,8 +25,9 @@ All settings use the ``MERKLETRUST_`` prefix and may also be placed in a local
     MERKLETRUST_AUTO_MIGRATE          apply database migrations at startup (default true)
     MERKLETRUST_LOG_LEVEL / MERKLETRUST_LOG_JSON
 
-  Dynamic (emulator) analysis — runs the uploaded app, so it is off by default
-    MERKLETRUST_DYNAMIC_ENABLED       observe the app in a running emulator (default false)
+  Dynamic (emulator) analysis — runs the uploaded app in a real emulator; needs one
+  booted and reachable via adb, or every scan waits ~10s then reports "no emulator"
+    MERKLETRUST_DYNAMIC_ENABLED       observe the app in a running emulator (default true)
     MERKLETRUST_DYNAMIC_TIMEOUT_S     time budget for the whole stage (default 120)
     MERKLETRUST_DYNAMIC_OBSERVE_S     observation window after launch (default 20)
     MERKLETRUST_ADB_PATH              adb executable (default: PATH, then the Android SDK)
@@ -76,7 +77,7 @@ class Settings(BaseSettings):
     login_rate_per_minute: int = 10
     upload_rate_per_minute: int = 20
 
-    dynamic_enabled: bool = False
+    dynamic_enabled: bool = True
     dynamic_timeout_s: int = 120
     dynamic_observe_s: int = 20
     adb_path: str | None = None

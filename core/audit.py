@@ -1,5 +1,4 @@
-"""core/audit.py — Tamper-evident audit trail: a Cryptographically Linked
-Blockchain Simulation.
+"""core/audit.py — Tamper-evident audit trail: a signed, hash-linked ledger.
 
 WHAT THIS IS: an append-only chain of blocks stored in the application
 database. Each block records one security event and is
@@ -135,7 +134,7 @@ def append_event(db: Session, event_type: str, actor: str, payload: dict[str, An
         if event_type == "GENESIS":
             return _new_block(db, 0, GENESIS_PREVIOUS, event_type, actor, payload, subject, signer)
         last = _new_block(db, 0, GENESIS_PREVIOUS, "GENESIS", "system",
-                          {"chain": CHAIN_ID, "note": "Blockchain simulation started"}, None, signer)
+                          {"chain": CHAIN_ID, "note": "Ledger initialised"}, None, signer)
     return _new_block(db, last.block_index + 1, last.block_hash, event_type, actor, payload, subject, signer)
 
 

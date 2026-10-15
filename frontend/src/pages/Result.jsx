@@ -156,6 +156,9 @@ function IntegrityCard({ jobId, report }) {
   const [check, setCheck] = useState(null);
   const [checking, setChecking] = useState(false);
   const [checkError, setCheckError] = useState(null);
+  const [merkleCheck, setMerkleCheck] = useState(null);
+  const [merkleChecking, setMerkleChecking] = useState(false);
+  const [merkleError, setMerkleError] = useState(null);
 
   const verify = useCallback(async () => {
     setChecking(true);
@@ -166,6 +169,18 @@ function IntegrityCard({ jobId, report }) {
       setCheckError(err);
     } finally {
       setChecking(false);
+    }
+  }, [jobId]);
+
+  const verifyMerkle = useCallback(async () => {
+    setMerkleChecking(true);
+    setMerkleError(null);
+    try {
+      setMerkleCheck(await api.get(`/scans/${jobId}/merkle-proof`));
+    } catch (err) {
+      setMerkleError(err);
+    } finally {
+      setMerkleChecking(false);
     }
   }, [jobId]);
 
@@ -228,9 +243,14 @@ function IntegrityCard({ jobId, report }) {
                 <span>{dateTime(repo.timestamp)}</span>
               </div>
             </div>
-            <Button variant="secondary" onClick={verify} loading={checking}>
-              <ShieldCheck className="size-4" aria-hidden="true" /> Verify now
-            </Button>
+            <div className="flex shrink-0 flex-col gap-2 sm:flex-row">
+              <Button variant="secondary" onClick={verify} loading={checking}>
+                <ShieldCheck className="size-4" aria-hidden="true" /> Verify now
+              </Button>
+              <Button variant="secondary" onClick={verifyMerkle} loading={merkleChecking}>
+                <Link2 className="size-4" aria-hidden="true" /> Check Merkle inclusion
+              </Button>
+            </div>
           </div>
         ) : (
           <p className="flex items-center gap-2 text-sm text-red-200">
@@ -245,6 +265,16 @@ function IntegrityCard({ jobId, report }) {
           </div>
         )}
         <ErrorBox error={checkError} className="mt-3" />
+        {merkleCheck && (
+          <div className={cx('mt-3 rounded-lg px-3 py-2 text-sm animate-fade-in',
+            merkleCheck.valid ? 'bg-emerald-500/10 text-emerald-200' : 'bg-red-500/10 text-red-200')}>
+            {merkleCheck.valid
+              ? `✅ Included: this report is leaf #${merkleCheck.entry_index} of a ${merkleCheck.tree_size}-leaf `
+                + 'Merkle tree spanning every file analysed so far, and the proof recomputes the current root.'
+              : '❌ This report could not be proven to be in the current Merkle tree.'}
+          </div>
+        )}
+        <ErrorBox error={merkleError} className="mt-3" />
       </div>
     </Card>
   );

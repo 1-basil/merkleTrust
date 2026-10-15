@@ -185,6 +185,18 @@ def run(job_id: str, ctx: JobContext) -> dict:
     scope = nullcontext(ctx.db) if ctx.db is not None else session_scope()
     with scope as db:
         report = compare_reports(job_id, integrity, static, db)
+
+    cert_sha = (static.get("certificate") or {}).get("sha256")
+    if cert_sha:
+        from core.repository import certificate_reuse, default_ledger_path
+        reuse = certificate_reuse(ctx.config.get("ledger_path") or default_ledger_path(), cert_sha)
+        if reuse:
+            others = ", ".join(sorted({r["package_name"] or r["job_id"] for r in reuse}))
+            report.setdefault("findings", []).append({
+                "id": "CERT_SIGNER_REUSED", "severity": "medium",
+                "title": f"Signing certificate also used by {len(reuse)} other analysed app(s)",
+                "evidence": f"Same certificate fingerprint ({cert_sha[:16]}…) also signs: {others}.",
+            })
     return emit(ctx, "tamper.json", report)
 
 

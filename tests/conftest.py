@@ -15,6 +15,9 @@ os.environ["MERKLETRUST_DATA_DIR"] = os.path.join(_TEST_ROOT, "data")
 os.environ["MERKLETRUST_DATABASE_URL"] = "sqlite:///" + os.path.join(_TEST_ROOT, "data", "test.db").replace("\\", "/")
 os.environ["MERKLETRUST_DEV_KEY_DIR"] = os.path.join(_TEST_ROOT, "keys")
 os.environ["MERKLETRUST_JOB_EXECUTION"] = "inline"   # analyses run synchronously in tests
+# dynamic_enabled defaults to true for real use, but tests must never block on a wall-clock
+# wait for an emulator that was never going to appear.
+os.environ["MERKLETRUST_DYNAMIC_ENABLED"] = "false"
 os.environ["MERKLETRUST_LOG_JSON"] = "false"
 for _var in ("MERKLETRUST_SIGNING_KEY_PATH", "MERKLETRUST_SIGNING_KEY_PASSWORD", "MERKLETRUST_TRUSTED_KEYS_DIR"):
     os.environ.pop(_var, None)
@@ -30,6 +33,21 @@ def isolated_signing_key(tmp_path_factory):
     reset_key_cache()
     yield
     reset_key_cache()
+
+
+@pytest.fixture(autouse=True)
+def _isolated_ledger(tmp_path, monkeypatch):
+    """A fresh, empty ledger per test, like `db` below.
+
+    default_ledger_path() otherwise resolves from the session-scoped
+    MERKLETRUST_DATA_DIR, so every test in a run would share one ledger file —
+    harmless on its own, but core.tamper's certificate_reuse check means a
+    test's outcome would then depend on which other tests already ran and
+    what APKs they scanned.
+    """
+    from core import repository as _repo
+
+    monkeypatch.setattr(_repo, "default_ledger_path", lambda: str(tmp_path / "ledger" / "chain.jsonl"))
 
 
 @pytest.fixture

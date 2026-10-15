@@ -75,12 +75,17 @@ export default function Chain() {
   const [loadingMore, setLoadingMore] = useState(false);
   const [verifying, setVerifying] = useState(false);
   const [result, setResult] = useState(null);
+  const [merkle, setMerkle] = useState(null);
 
   const load = useCallback(async () => {
     try {
-      const d = await api.get('/audit/blocks', { limit: PAGE, offset: 0 });
+      const [d, m] = await Promise.all([
+        api.get('/audit/blocks', { limit: PAGE, offset: 0 }),
+        api.get('/audit/merkle-root'),
+      ]);
       setData(d);
       setItems(d.items);
+      setMerkle(m);
       setError(null);
     } catch (err) {
       setError(err);
@@ -123,6 +128,24 @@ export default function Chain() {
         description="Every upload, analysis and approval is written as a signed block that contains the fingerprint of the block before it. Changing any old record breaks every link after it — so tampering is always visible."
         action={<Button onClick={verify} loading={verifying}><ShieldCheck className="size-4" aria-hidden="true" />Verify Whole Chain</Button>}
       />
+
+      {merkle && (
+        <Card className="mb-6 flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-3">
+            <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-emerald-500/15 ring-1 ring-emerald-500/30">
+              <Link2 className="size-5 text-emerald-400" aria-hidden="true" />
+            </span>
+            <div>
+              <p className="text-sm font-medium text-zinc-100">Repository-wide Merkle root</p>
+              <p className="text-xs text-zinc-500">
+                The single root hash that commits to all {merkle.length} file{merkle.length === 1 ? '' : 's'} analysed
+                so far. Any scan's result can be proven to be one of these leaves without re-reading the others.
+              </p>
+            </div>
+          </div>
+          <CopyHash value={merkle.root} display={shortHash(merkle.root)} className="shrink-0" />
+        </Card>
+      )}
 
       {result && (
         <div role="status" className={cx('mb-6 flex items-start gap-3 rounded-2xl border px-5 py-4 animate-fade-in',

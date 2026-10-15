@@ -248,7 +248,7 @@ def run_repository(job_id: str, ctx: JobContext) -> dict:
 
     Steps: report_sha256 = SHA-256(canonical JSON of the engine reports)
            -> append an ANALYSIS_COMPLETED block to the audit chain (core.audit,
-              "Cryptographically Linked Blockchain Simulation"): the block hash
+              "a signed, hash-linked ledger"): the block hash
               covers the previous block's hash and the payload hash, and the
               block header is ECDSA-signed
            -> if integrity failed, also append an INTEGRITY_ALERT block

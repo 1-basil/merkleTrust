@@ -3,7 +3,7 @@
     /api/v1/auth/...        sign in / out
     /api/v1/scans/...       upload APKs, follow analysis, read & verify reports
     /api/v1/baselines/...   trusted baselines (admin manages, everyone reads)
-    /api/v1/audit/...       audit trail — Cryptographically Linked Blockchain Simulation
+    /api/v1/audit/...       audit trail — a signed, hash-linked ledger
     /api/v1/dashboard/...   summary for the web dashboard
     /api/v1/health          liveness (no auth)
     /                       web dashboard (static files)

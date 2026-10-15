@@ -21,7 +21,7 @@ from core.baselines import BaselineService
 from core.config import Settings
 from core.crypto import get_signer, public_key_pem
 from core.file_manifest import file_proof, verify_file_proof
-from core.repository import verify_job_report
+from core.repository import default_ledger_path, merkle_proof_for_entry, verify_job_report
 from core.orchestrator import STAGES
 from db.models import ApkFile, EngineStatus, Job, TrustScore
 
@@ -143,6 +143,22 @@ def verify_scan(scan_id: str, user: CurrentUser = Depends(current_user), db: Ses
     audit.record_event("REPORT_VERIFIED", user.username, {"scan_id": job.id, "valid": result["valid"],
                                                            "checks": result["checks"]}, subject=job.id)
     return {"scan_id": job.id, **result}
+
+
+@router.get("/{scan_id}/merkle-proof")
+def get_merkle_proof(scan_id: str, _user: CurrentUser = Depends(current_user), db: Session = Depends(get_db),
+                     settings: Settings = Depends(settings_dep)):
+    """Prove this scan's sealed report is included in the Merkle tree over every file this
+    instance has ever analysed — a fresh inclusion proof against the current tree."""
+    job = _job_or_404(db, scan_id)
+    reports = _load_reports(job, settings).get("reports", {})
+    ledger_entry = (reports.get("repository") or {}).get("ledger")
+    if not ledger_entry:
+        raise ApiError(404, "This scan has no ledger entry yet.")
+    try:
+        return merkle_proof_for_entry(default_ledger_path(), ledger_entry["entry_index"])
+    except IndexError as exc:
+        raise ApiError(404, str(exc)) from exc
 
 
 @router.get("/{scan_id}/files/proof")

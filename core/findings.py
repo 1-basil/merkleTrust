@@ -152,6 +152,14 @@ _CATALOG_SPEC: dict[str, tuple] = {
         "Signed with the Android Debug certificate",
         "Debug certificates are generated automatically on developer machines and are never used for official releases.",
         "Do not distribute or install debug-signed builds.", 10),
+    "CERT_SIGNER_REUSED": _t(
+        "medium", "signature", "Signing certificate also used by other analysed apps",
+        "Identical certificate fingerprint found on a different package name",
+        "Every app previously analysed by this instance is checked for a matching signing certificate. A shared "
+        "certificate across differently-named apps is expected for a shared debug key, but for a release key it "
+        "can mean one signer publishing multiple apps, or a key reused across unrelated — possibly malicious — "
+        "packages.",
+        "Check whether the other app(s) sharing this certificate are genuinely from the same developer.", 8),
 
     # -------------------------------------------------------- archive --
     "STATIC_ARCHIVE_PREFIX": _t(

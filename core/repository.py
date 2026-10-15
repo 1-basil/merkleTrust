@@ -2,7 +2,7 @@
 
 Report sealing stage. After scoring, the complete set of engine reports is
 canonicalised and hashed (report_sha256) and recorded in the audit chain
-(core.audit — Cryptographically Linked Blockchain Simulation) as an
+(core.audit — a signed, hash-linked ledger) as an
 ANALYSIS_COMPLETED block. If integrity failed, an INTEGRITY_ALERT block is
 recorded as well.
 
@@ -26,7 +26,7 @@ from typing import Any, Iterator
 
 from sqlalchemy.orm import Session
 
-from core import audit
+from core import audit, merkle
 from core.config import get_settings
 from core.contracts import JobContext, emit
 from core.crypto import get_keyring, hash_payload
@@ -303,22 +303,36 @@ def read_chain(ledger_path: str) -> list[dict]:
 
 
 def append_entry(report: dict, ledger_path: str, job_id: str, sealed_sha256: str,
-                 workspace: str | None = None) -> dict:
+                 workspace: str | None = None, certificate_sha256: str | None = None,
+                 package_name: str | None = None) -> dict:
     """Append one entry sealing `sealed_sha256` and return it.
 
     `report` is only canonicalised into the secondary reproducibility digest; the chain
     itself commits to `sealed_sha256`, the hash of the bytes written to disk.
+
+    `repo_merkle_root` and `inclusion_proof` commit this entry into a Merkle tree over
+    every sealed_sha256 in the ledger so far (itself included) — the same construction
+    Certificate Transparency logs use: a leaf's proof is relative to the tree size at the
+    time it was added. Building that tree needs every leaf, so (unlike the rest of this
+    module) this reads the whole file rather than just the last line.
+
+    `certificate_sha256`/`package_name` are informational only — not part of the chain's
+    cryptographic commitment — kept so a later entry's certificate can be cross-referenced
+    against every app this instance has ever analysed (see `certificate_reuse`).
     """
     canonical_sha = report_digest(report, workspace)
     with _ledger_lock(ledger_path):
-        last, truncated = _last_line(ledger_path)
+        _last, truncated = _last_line(ledger_path)
         if truncated:
             raise RuntimeError("the ledger ends with an incomplete line (a previous write was interrupted); "
                                "run verify_chain and repair the file before appending")
-        previous = json.loads(last) if last is not None else None
-        prev = previous["entry_hash"] if previous else GENESIS
-        index = previous["entry_index"] + 1 if previous else 0
+        lines, _ = _read_all(ledger_path)
+        prior_entries = [json.loads(line) for line in lines]
+        prev = prior_entries[-1]["entry_hash"] if prior_entries else GENESIS
+        index = len(prior_entries)
         timestamp = datetime.now(timezone.utc).isoformat()
+        leaves = [e["sealed_sha256"] for e in prior_entries] + [sealed_sha256]
+        tree = merkle.build_tree(leaves)
         entry = {
             "entry_index": index,
             "job_id": job_id,
@@ -327,14 +341,65 @@ def append_entry(report: dict, ledger_path: str, job_id: str, sealed_sha256: str
             "prev_entry_hash": prev,
             "entry_hash": entry_hash(prev, sealed_sha256, timestamp),
             "timestamp": timestamp,
-            "signature": "", "pubkey_id": "", "repo_merkle_root": "", "inclusion_proof": [],
+            "signature": "", "pubkey_id": "",
+            "repo_merkle_root": merkle.root(tree),
+            "inclusion_proof": merkle.proof(tree, index),
         }
+        if certificate_sha256:
+            entry["certificate_sha256"] = certificate_sha256
+        if package_name:
+            entry["package_name"] = package_name
         line = json.dumps(entry, sort_keys=True, separators=(",", ":"), ensure_ascii=True) + "\n"
         with open(ledger_path, "a", encoding="utf-8", newline="") as fh:
             fh.write(line)
             fh.flush()
             os.fsync(fh.fileno())
     return entry
+
+
+def repository_root(ledger_path: str) -> dict:
+    """The Merkle root right now, over every sealed report this instance has ever analysed."""
+    entries = read_chain(ledger_path)
+    leaves = [e["sealed_sha256"] for e in entries]
+    tree = merkle.build_tree(leaves)
+    return {"root": merkle.root(tree), "length": len(leaves)}
+
+
+def merkle_proof_for_entry(ledger_path: str, entry_index: int) -> dict:
+    """A fresh inclusion proof for one entry against the CURRENT tree — not the one stored
+    on the entry itself, which only covered entries up to the moment it was added."""
+    entries = read_chain(ledger_path)
+    if not 0 <= entry_index < len(entries):
+        raise IndexError(f"no ledger entry #{entry_index} (the ledger has {len(entries)})")
+    leaves = [e["sealed_sha256"] for e in entries]
+    tree = merkle.build_tree(leaves)
+    leaf, proof, rt = leaves[entry_index], merkle.proof(tree, entry_index), merkle.root(tree)
+    return {
+        "entry_index": entry_index,
+        "job_id": entries[entry_index]["job_id"],
+        "leaf_sealed_sha256": leaf,
+        "proof": proof,
+        "root": rt,
+        "tree_size": len(leaves),
+        "valid": merkle.verify_proof(leaf, proof, rt),
+    }
+
+
+def certificate_reuse(ledger_path: str, certificate_sha256: str, exclude_job_id: str | None = None) -> list[dict]:
+    """Other analysed apps signed with the same certificate fingerprint as this one.
+
+    A shared signing certificate across differently-named packages is a real signal: debug
+    keystores are commonly reused across unrelated apps on the same developer machine, and
+    malware families often reuse one leaked or throwaway key across many samples.
+    """
+    seen: dict[str, dict] = {}
+    for e in read_chain(ledger_path):
+        if e.get("certificate_sha256") != certificate_sha256 or e["job_id"] == exclude_job_id:
+            continue
+        key = e.get("package_name") or e["job_id"]
+        seen.setdefault(key, {"package_name": e.get("package_name"), "job_id": e["job_id"],
+                              "entry_index": e["entry_index"], "timestamp": e["timestamp"]})
+    return sorted(seen.values(), key=lambda s: s["entry_index"])
 
 
 def verify_entry(entry: dict, sealed_path: str) -> dict:
@@ -384,9 +449,15 @@ def run(job_id: str, ctx: JobContext) -> dict:
         fh.write(sealed_bytes)
     sealed_sha256 = hashlib.sha256(sealed_bytes).hexdigest()
 
+    static = ctx.prior.get("static") or {}
+    certificate_sha256 = (static.get("certificate") or {}).get("sha256") or None
+    package_name = static.get("package_name") or None
+
     ledger_entry = append_entry(ctx.prior, ctx.config.get("ledger_path") or default_ledger_path(),
-                                job_id, sealed_sha256, ctx.workspace)
+                                job_id, sealed_sha256, ctx.workspace,
+                                certificate_sha256=certificate_sha256, package_name=package_name)
     sealed = _seal_with_retry(job_id, ctx.prior)
+
     report = {
         "job_id": job_id,
         "engine": "repository",
@@ -395,13 +466,16 @@ def run(job_id: str, ctx: JobContext) -> dict:
             "id": "REPO_SEALED", "severity": "info",
             "title": "Result recorded in the audit log",
             "evidence": f"Block #{sealed['block_index']}, signed with {sealed['key_id']}; "
-                        f"ledger entry #{ledger_entry['entry_index']}",
+                        f"ledger entry #{ledger_entry['entry_index']}, Merkle root "
+                        f"{ledger_entry['repo_merkle_root'][:16]}…",
         }],
         **sealed,
         "ledger": ledger_entry,
         "sealed_file": SEALED_FILE,
-        "simulation_notice": "Cryptographically Linked Blockchain Simulation: a single-node, append-only "
-                             "hash chain — not a distributed blockchain.",
+        "chain_notice": "Every analysed file is sealed into a signed, hash-linked ledger entry and committed "
+                        "into a Merkle tree spanning every file this instance has ever analysed. Altering any "
+                        "stored record breaks the hash chain and the Merkle root — tampering is always "
+                        "mathematically detectable.",
     }
     return emit(ctx, "repo_entry.json", report)
 

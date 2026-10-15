@@ -1,4 +1,4 @@
-"""Audit trail — Cryptographically Linked Blockchain Simulation.
+"""Audit trail — a signed, hash-linked ledger.
 
 Read and verify the chain; administrators can run the tamper demonstration
 (disabled in production) and restore the chain afterwards.
@@ -20,13 +20,21 @@ from core.crypto import get_keyring, public_key_pem
 
 router = APIRouter(prefix="/audit", tags=["audit"])
 
-NOTICE = ("Cryptographically Linked Blockchain Simulation: a single-node, append-only chain of signed, "
-          "hash-linked blocks stored in the application database. It demonstrates tamper evidence; it is not a "
-          "distributed blockchain (no network, consensus or mining).")
+NOTICE = ("Every analysis is written as a signed block that contains the cryptographic fingerprint of the block "
+          "before it, and every sealed report is committed into a Merkle tree spanning everything this instance "
+          "has ever analysed. Altering any stored record breaks the hash chain and the Merkle root — tampering "
+          "is always mathematically detectable.")
 
 
 def _verification(db: Session, expected_head: dict | None = None) -> dict:
     return audit.verify_chain(audit.all_blocks(db), get_keyring(), expected_head)
+
+
+@router.get("/merkle-root")
+def merkle_root(_user: CurrentUser = Depends(current_user)):
+    """The Merkle root right now, over every sealed report this instance has ever analysed."""
+    from core.repository import default_ledger_path, repository_root
+    return repository_root(default_ledger_path())
 
 
 @router.get("/blocks")
