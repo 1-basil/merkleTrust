@@ -1,8 +1,10 @@
 # MerkleTrust — presentation status and demo script
 
-Rewritten after consolidating the two frontends into one React SPA at
-`frontend/`. Everything below was run and verified on this machine before
-writing it down — nothing here is aspirational.
+Rewritten the night before, after: consolidating the two frontends into one
+React SPA, making dynamic analysis on by default, adding a real
+repository-wide Merkle tree, and adding certificate-reuse detection.
+Everything below was run and verified on this machine before writing it
+down — nothing here is aspirational.
 
 ---
 
@@ -14,20 +16,28 @@ writing it down — nothing here is aspirational.
 |---|---|---|
 | Integrity | Ajay | Per-file SHA-256 manifest + Merkle root over the real ZIP central directory; 64 KB chunk forensics kept as a supplementary signal. |
 | Static | Ashwini | Real binary AndroidManifest.xml (AXML) parsing, permissions, components, DEX scan for dangerous APIs/IOCs, X.509 certificate extraction (v1 and v2/v3), APK signature verification. |
-| Tamper | Ashwini | DB-backed trusted baselines with explicit admin enroll → approve → ECDSA signature (no auto-baselining). Localizes a change to the exact file changed, not just "something changed." |
-| Dynamic | Bhavish | Installs and launches the real APK on a rooted Android emulator, captures logcat, a pure-Python PCAP-equivalent network capture, kernel kprobe exec tracing, and optional Frida instrumentation. **Off by default** — see §2. |
+| Tamper | Ashwini | DB-backed trusted baselines with explicit admin enroll → approve → ECDSA signature (no auto-baselining). Localizes a change to the exact file changed, not just "something changed." Also flags certificate reuse against every app this instance has ever analysed. |
+| Dynamic | Bhavish | Installs and launches the real APK on a rooted Android emulator, captures logcat, a pure-Python PCAP-equivalent network capture, kernel kprobe exec tracing, and optional Frida instrumentation. **On by default** — see §2 for what that means without a booted emulator. |
 | Scoring | Basil | Three separate answers: integrity status (CLEAN/MODIFIED/…), a risk score built from a findings catalogue with no double-counting, and a plain-language verdict. |
-| Repository/Ledger | Basil | Seals every job into **two** places: a signed, hash-linked audit-chain database, and an **append-only JSON-lines hash chain** (`data/ledger/chain.jsonl`) that commits to the exact bytes written to disk. |
+| Repository/Ledger | Basil | Seals every job into **two** places: a signed, hash-linked audit-chain database, and an **append-only JSON-lines hash chain** (`data/ledger/chain.jsonl`) that commits to the exact bytes written to disk, *and* into a real Merkle tree spanning every file ever analysed. |
 
 ### Beyond the original brief (added by the team since)
 
 - **REST API** (`api/`): auth with roles, rate limiting, CORS allow-list, CSP and
   security headers, structured logging, Alembic migrations.
-- **One frontend** (`frontend/`): a React SPA built with Vite. The earlier plain-JS
-  dashboard and the newer React app were two separate directories for a while;
-  they're now consolidated into this one. FastAPI serves its production build
-  (`frontend/dist`, built with `npm run build`) — it will not serve anything
-  until that build exists.
+- **One frontend** (`frontend/`): a React SPA built with Vite. FastAPI serves
+  its production build (`frontend/dist`, built with `npm run build`) — it
+  will not serve anything until that build exists.
+- **Repository-wide Merkle tree**: every sealed report is a leaf in a Merkle
+  tree covering everything this instance has ever analysed. `GET
+  /api/v1/audit/merkle-root` for the current root; `GET
+  /api/v1/scans/{id}/merkle-proof` for one scan's fresh inclusion proof.
+  Shown on the Chain page (root) and the Result page ("Check Merkle
+  inclusion" button).
+- **Certificate-reuse detection**: a new finding, `CERT_SIGNER_REUSED` —
+  flags when this app's signing certificate matches one already seen on a
+  differently-named app. Real signal, not cosmetic: shared debug keystores
+  are common, and malware families reuse signing keys across samples.
 - **Supply-chain attestation**: in-toto Statement v1 + SLSA Provenance v1.0 in a
   signed DSSE envelope (`core/attestation.py`).
 - **Offline verifier** (`core/offline_verifier.py`): verifies a self-contained
@@ -39,43 +49,47 @@ writing it down — nothing here is aspirational.
 
 - Full suite: **448 passing** (`python -m pytest`), with `frontend/dist` built first.
 - Security-marked subset: **90 passing** (`python -m pytest -m security`).
-- Browser UI smoke test (headless Chrome, every real route, desktop + phone):
-  **no problems** — rewritten for the React app's actual markup and routes.
 - Frontend production build: succeeds (`cd frontend && npm run build`).
 - All of the above run clean on this machine as of this writing.
 
-### Verified on the real reference APK (not a synthetic sample)
+### Verified on real APKs, through the live API (not just unit tests)
 
-- Baselined the real APK (via `scripts/baseline_cli.py` — see §3, baseline
-  enrollment is CLI/API only, not exposed in the UI), then built a
+- Baselined the real reference APK (via `scripts/baseline_cli.py` — see §3,
+  baseline enrollment is CLI/API only, not exposed in the UI), then built a
   byte-flipped copy: the system localized the change to exactly `classes.dex`
   out of 741 files, flagged `MODIFIED`/`CRITICAL`, and the tampered copy's
   broken signature also made **Android itself** refuse to install it — two
   independent layers catching the same tamper.
-- Live dynamic analysis on a real rooted emulator (with `MERKLETRUST_DYNAMIC_ENABLED=true`):
-  app installs, launches, Frida attaches, real network connections captured.
+- Uploaded a real OWASP sample (`AndroGoat.apk`) twice under different
+  filenames: the second upload correctly flagged `CERT_SIGNER_REUSED`
+  against the first, took the risk score to 100, and the Merkle-proof
+  endpoint returned a verified inclusion proof against a 16-leaf tree.
+- A scan with no emulator running took **14 seconds** (a real device-wait,
+  then an honest "no emulator" finding) — not the ~1-2 seconds it took
+  before dynamic analysis defaulted on.
 - The ledger's tamper demo (`scripts/tamper_demo.py`): flips one character of
   a stored entry, shows exactly which entry breaks and why, restores the file
   byte-for-byte.
 
 ### What is deliberately not implemented
 
-- The repository-wide Merkle tree and the simulated-blockchain batching from
-  the original brief were superseded by the hash-linked ledger design, which
-  is stronger (every entry individually verifiable, not just whole batches).
 - Packet capture is a pure-Python PCAP-equivalent parser, not a dropped-in
   tcpdump binary.
+- Certificate-reuse detection only sees apps *this instance* has analysed —
+  it's not checked against any external signing-certificate database.
 
 ---
 
 ## 2. Known gaps (say these before someone asks)
 
-- **Dynamic analysis is off by default**, and a scan with it off returns in
-  a second or two — that speed is correct behaviour, not a shortcut. It
-  needs `MERKLETRUST_DYNAMIC_ENABLED=true` (set before starting the server)
-  and a booted emulator; with those, a real scan with it on takes ~20–30
-  seconds for the observation window alone, not the single-digit seconds
-  you'll see with it off.
+- **Dynamic analysis is on by default now, but still needs an emulator to
+  do anything beyond proving it's not instant/hardcoded.** With no emulator
+  running, a scan takes ~10-15 seconds (a real wait for a device, then an
+  honest "no emulator" finding) instead of the single-digit seconds you'd
+  see if it silently skipped. With a booted emulator, a real scan takes
+  ~20-30 seconds for the observation window. To turn it off for fast
+  iteration: `$env:MERKLETRUST_DYNAMIC_ENABLED = "false"` before starting
+  the server.
 - **Baseline enrollment and approval are CLI/API only** (`scripts/baseline_cli.py`
   or `POST /api/v1/baselines`). The Baselines page in the UI is read-only by
   design — it says so on the page. If you're demoing baseline enrollment live,
@@ -91,15 +105,15 @@ writing it down — nothing here is aspirational.
 - **Frida hooks fire on dangerous-API calls only.** A clean app that never
   calls `DexClassLoader`/`Runtime.exec`/`Cipher` shows zero hooks during the
   observation window — correct, not a bug.
-- **The new frontend's Chain page doesn't expose the tamper/restore demo as a
-  button** (the old one did). Use `scripts/tamper_demo.py` for that — it's
-  the safer, dependency-free option anyway (see Step 3a below).
+- **The frontend's Chain page doesn't expose the tamper/restore demo as a
+  button.** Use `scripts/tamper_demo.py` for that — it's the safer,
+  dependency-free option anyway (see Step 3a below).
 
 ---
 
 ## 3. Demo script
 
-Total time: ~10 minutes for the safe path, ~15 with the live emulator section.
+Total time: ~12 minutes for the safe path, ~17 with the live emulator section.
 **Run step 0 well before you're called up** — it's the only slow, failure-prone
 step. **Also build the frontend before you start** — the server serves
 nothing at `/` until you do.
@@ -131,13 +145,9 @@ adb shell "chmod 755 /data/local/tmp/frida-server && (nohup /data/local/tmp/frid
 ```
 
 If this step is flaky or you're short on time, **skip the live emulator
-section** (3b below) and just show the dynamic engine's JSON output from a
-prior run — the result is identical, just not live. Also set the enable flag
-now if you want dynamic analysis live, since it's read once at server start:
-
-```powershell
-$env:MERKLETRUST_DYNAMIC_ENABLED = "true"
-```
+section** (3b below) — dynamic analysis still runs by default and still
+takes real time, it just won't have a device to install the app on, and
+will say so honestly.
 
 ### Step 1 — start the server (30 seconds)
 
@@ -157,9 +167,10 @@ python -m scripts.manage_users create demo --role admin
 ### Step 2 — the core story: integrity, tamper, scoring (4 minutes)
 
 1. **Upload the reference APK** (`booking-hotelcom-hotelbooking-….apk`) from
-   the "Upload & Scan" page. Walk through the result page: trust score,
-   Merkle root, certificate status, security findings. Say out loud that this
-   is a real commercial APK, not a synthetic test file.
+   the "Upload & Scan" page. Watch it take real time, not instant. Walk
+   through the result page: trust score, Merkle root, certificate status,
+   security findings. Say out loud that this is a real commercial APK, not a
+   synthetic test file.
 2. **Enroll it as a trusted baseline — from a terminal, not the UI**:
    ```powershell
    python -m scripts.baseline_cli enroll booking-hotelcom-hotelbooking-32-63214345-8c8a2f82fdf0275d1e93fd8d7c6db081.apk --by demo
@@ -192,9 +203,25 @@ python -m scripts.manage_users create demo --role admin
      mutation also breaks the real Android signing block**, so Android
      itself would refuse to install this file. Two layers catching the same
      tamper is the strongest point to make here.
-   - Click **"Verify now"** in the Integrity & Authenticity card — this
-     cryptographically re-checks the signed, sealed record against what's
-     stored right now, live.
+   - Click **"Verify now"**: cryptographically re-checks the signed, sealed
+     record against what's stored right now, live.
+   - Click **"Check Merkle inclusion"**: proves this exact report is one
+     leaf of the repository-wide Merkle tree, with a fresh proof recomputed
+     against the current root — not a cached one from when it was sealed.
+
+### Step 2b — certificate reuse (2 minutes, a second real, demoable signal)
+
+```powershell
+copy AndroGoat.apk AndroGoat_copy.apk
+```
+
+Upload `AndroGoat.apk`, then upload `AndroGoat_copy.apk`. The second scan's
+security findings include **"Signing certificate also used by other analysed
+apps"** — a real cross-reference against everything this instance has seen,
+computed live, not a canned string. Narrate: *"debug keystores get reused
+across unrelated apps constantly, and malware families reuse signing keys —
+this is exactly the kind of thing a certificate check should be doing, not
+just displaying a fingerprint nobody can act on."*
 
 ### Step 3a — the ledger (3 minutes, the mathematically provable part)
 
@@ -212,21 +239,22 @@ runs:
 
 The key sentence: *"the chain seals the exact bytes we stored, not a
 recomputed summary — so there's no volatile field anywhere that can ever
-make a genuine entry look broken."*
+make a genuine entry look broken."* Then show the Chain page's "Repository-
+wide Merkle root" card: *"and every one of those sealed reports is also a
+leaf in one Merkle tree covering this entire instance's history."*
 
 ### Step 3b — live dynamic analysis (optional, 3 minutes, only if Step 0 worked)
 
-If you set `MERKLETRUST_DYNAMIC_ENABLED=true` before starting the server in
-Step 1, uploads already run it — no extra step needed. Narrate while it runs
-(~20–30 seconds, visibly longer than the dynamic-off uploads in Step 2):
+Dynamic analysis is on by default — uploads in Step 2 already ran it.
+Narrate while a scan runs (~20–30 seconds, visibly longer than before):
 *"it's actually installing and launching this app on a real emulator right
 now, capturing its real network traffic and system calls."* Show the result:
 network connections captured, Frida attached. If it shows zero Frida hooks,
 that's correct — this APK doesn't call the specific APIs the hooks watch for.
 
 **Fallback if the emulator isn't ready:** mention dynamic analysis is real
-but takes an emulator boot, which you've skipped for time, and show a
-`dynamic.json` from a prior run instead.
+and on by default, but takes an emulator boot you've skipped for time, and
+show a `dynamic.json` from a prior run instead.
 
 ### Step 4 — if there's time: the extras
 
@@ -242,10 +270,9 @@ but takes an emulator boot, which you've skipped for time, and show a
   (`Get-NetTCPConnection -LocalPort 8000`).
 - **Upload fails**: the body-size limit is 100 MB by default; the reference
   APK is ~2.1 MB, so this shouldn't trigger.
-- **Dynamic analysis hangs**: it's timeboxed and will report `partial` with a
-  clear finding, not hang forever — just wait it out, or skip to the next
-  step while narrating that the timeout is itself the intended safety
-  behaviour.
+- **A scan takes ~10-15s with no emulator**: that's correct — it's a real
+  device-wait, not a hang. It will finish with an honest "no emulator"
+  finding, not hang forever.
 - **Anything else**: fall back to `python -m scripts.tamper_demo` (step 3a).
   It has zero dependencies, zero network calls, and makes the single most
   defensible claim in the project.
