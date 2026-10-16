@@ -93,7 +93,7 @@ database/files, (4) anyone with database or file-system access → stored data.
 | Risk | Why it remains | Mitigation outside the prototype |
 |---|---|---|
 | Stolen signing key | Whoever holds it can sign forged baselines and blocks. | HSM / cloud KMS; key rotation is supported (`MERKLETRUST_TRUSTED_KEYS_DIR`). |
-| Insider deletes the whole chain or rewrites it **and** holds the key | A single-node simulation has no independent witnesses. | Publish signed heads externally (e.g. to a transparency log or another party). |
+| Insider deletes the whole chain or rewrites it **and** holds the key | A single-node ledger has no independent witnesses. | Publish signed heads externally (e.g. to a transparency log or another party). |
 | Truncation without a saved head | Hash links cannot reveal missing *newest* blocks. | Periodically store `GET /api/v1/audit/head` outside the server. |
 | Malicious admin approves a bad baseline | The system warns but cannot know intent. | Two-person approval (not implemented). |
 | Static analysis limits | Cannot see intent (benign plugin loading looks like a dropper) or code downloaded later; no static rule for privilege-escalation commands. | The optional emulator engine observes behaviour (e.g. `su` attempts); more rules; human review. |

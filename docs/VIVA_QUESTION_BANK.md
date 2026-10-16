@@ -85,10 +85,10 @@ certificate, then recompute the content digest: 1 MiB chunks of (entries | centr
 | EOCD with the CD offset replaced), each hashed with a 0xa5 prefix, then a 0x5a top-level
 hash — and compare (`core/apk_signature.py`).
 
-## C. Blockchain simulation and audit
+## C. Audit ledger
 
 **Q14. Is this a blockchain?**
-No — it is a *Cryptographically Linked Blockchain Simulation*: one server, one append-only
+No — it is a *Signed, Hash-Linked Audit Ledger*: one server, one append-only
 table, no network, consensus, mining or decentralisation. It demonstrates the
 tamper-evidence of hash chaining plus signatures, and we say so in the UI and docs.
 

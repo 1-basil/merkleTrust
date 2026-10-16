@@ -95,9 +95,9 @@ tests/e2e/ui_smoke.mjs …` (see the script header).
     **Integrity problem detected**, Report verification performed — each with actor,
     time, and a valid record.
 
-## 12–14. Tamper with the Blockchain Simulation
+## 12–14. Tamper with the Audit Ledger
 
-12. **Blockchain Simulation**. Point at the notice: single-node, append-only, *not* a
+12. **Audit Ledger**. Point at the notice: single-node, append-only, *not* a
     distributed blockchain. Click a block: index, previous hash, block hash, signature.
     Admin panel → enter the number of the **Baseline enrolled** block (block **4** if you
     signed in once and followed the steps above; check the event name on the card), mode

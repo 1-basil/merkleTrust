@@ -45,7 +45,7 @@ Consequences: no HTTP between engines, no port clashes, no CORS, no auth between
 | Person | Owns | Output file | DB tables it writes |
 |---|---|---|---|
 | **Basil** | Ingestion, DB schema, job orchestrator, Trust Score engine, REST API, React frontend | `score.json` | `jobs`, `apk_files`, `engine_status`, `trust_scores` |
-| **Ajay** | Integrity Engine + all cryptography: chunking, Merkle tree, file map, Merkle Repository (canonical JSON, ECDSA, hash chain, inclusion proofs, blockchain simulation) | `integrity.json`, `repo_entry.json` | `chunk_hashes`, `merkle_roots`, `repository_entries`, `hash_chain`, `sim_blocks` |
+| **Ajay** | Integrity Engine + all cryptography: chunking, Merkle tree, file map, Merkle Repository (canonical JSON, ECDSA, hash chain, inclusion proofs, signed, hash-linked ledger) | `integrity.json`, `repo_entry.json` | `chunk_hashes`, `merkle_roots`, `repository_entries`, `hash_chain`, `sim_blocks` |
 | **Ashwini** | Static Analysis Engine + Tamper Detection + baseline management | `static.json`, `tamper.json` | `static_reports`, `permissions`, `certificates`, `iocs`, `dangerous_apis`, `baselines`, `tamper_reports` |
 | **Bhavish** | Dynamic Analysis Engine: emulator, install, logcat, pcap, process monitor, Frida hooks | `dynamic.json` | `dynamic_reports`, `network_events`, `runtime_events`, `hook_events` |
 

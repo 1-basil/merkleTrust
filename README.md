@@ -14,15 +14,15 @@ hash-linked audit chain.
 | **Authenticity** | Own implementation of APK Signature Scheme v1/v2/v3 verification (agrees with Google's `apksigner` on 13/13 cases); signer compared by certificate fingerprint |
 | **Trusted baselines** | Explicit enrol → approve workflow, ECDSA P-256-signed, versioned, re-verified before every use |
 | **Risk** | Explained findings (title, explanation, evidence, recommendation, points), kept separate from integrity; no double counting |
-| **Runtime behaviour** | Optional emulator stage: installs and runs the app, triggers its boot/broadcast receivers, and records child processes (e.g. `su`), connections named from a packet capture, files written, SMS sent and icon hiding; off by default |
-| **Audit** | *Cryptographically Linked Blockchain Simulation*: signed, hash-linked blocks for every security event (single node — not a distributed blockchain) |
+| **Runtime behaviour** | Emulator stage: installs and runs the app, triggers its boot/broadcast receivers, and records child processes (e.g. `su`), connections named from a packet capture, files written, SMS sent and icon hiding; on by default when an emulator is reachable |
+| **Audit** | A signed, hash-linked ledger: every security event is a block containing the cryptographic fingerprint of the block before it, and every sealed report is also committed into a Merkle tree spanning everything this instance has ever analysed |
 | **Platform** | FastAPI REST API with roles, secure uploads and job queue; SQLite + Alembic; plain-language web dashboard |
 
 ## Quick start
 
 ```bash
 pip install -r requirements.txt                     # Python 3.12+
-python -m pytest                                    # 357 tests
+python -m pytest                                    # 448 tests
 python -m scripts.manage_users create admin --role admin
 uvicorn api.main:app --port 8000                    # open http://127.0.0.1:8000
 ```
@@ -31,9 +31,10 @@ Upload `evaluation/dataset/baseline_demo.apk` as a trusted version (admin → *T
 versions*), approve it, then scan `evaluation/dataset/demo_repackaged.apk`. The full
 walk-through is in [docs/DEMO.md](docs/DEMO.md).
 
-To also watch the app run, create and boot the analysis emulator
-(`scripts/setup_avd.ps1`, then `emulator -avd mt_api30_root`) and set
-`MERKLETRUST_DYNAMIC_ENABLED=true`; see [docs/ARCHITECTURE.md §2.1](docs/ARCHITECTURE.md#21-dynamic-analysis-emulator).
+To also watch the app run, create and boot the analysis emulator first
+(`scripts/setup_avd.ps1`, then `emulator -avd mt_api30_root`) — dynamic analysis runs
+automatically whenever an emulator is reachable (set `MERKLETRUST_DYNAMIC_ENABLED=false`
+to turn it off); see [docs/ARCHITECTURE.md §2.1](docs/ARCHITECTURE.md#21-dynamic-analysis-emulator).
 
 Configuration is by environment variables (`MERKLETRUST_*`, see
 [.env.example](.env.example)). For anything beyond a demo, create a signing key outside
@@ -69,8 +70,8 @@ On 35 real APKs built with the Android toolchain ([evaluation/](evaluation/READM
 
 ## What this prototype is not
 
-* Not a distributed blockchain — the audit chain is a single-node simulation of hash
-  chaining with signatures.
+* Not a distributed blockchain — the audit ledger is a single-node, hash-linked chain
+  with signatures.
 * Not a malware detector with measured real-world accuracy — the risk score is an
   explained heuristic indicator.
 * Not production-hardened key management — keys are files; use an HSM/KMS in deployment.

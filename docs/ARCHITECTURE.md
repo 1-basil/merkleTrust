@@ -21,7 +21,7 @@ flowchart TB
     subgraph Core["Analysis & cryptography — core/"]
         ORCH[orchestrator] --> I[integrity] --> S[static] --> T[tamper] --> D[dynamic] --> SC[score] --> R[repository]
         BL[baselines] --- CMP[comparison] --- FM[file_manifest]
-        CR[crypto: canonical JSON, ECDSA P-256] --- MK[merkle: RFC 6962] --- AU[audit: blockchain simulation]
+        CR[crypto: canonical JSON, ECDSA P-256] --- MK[merkle: RFC 6962] --- AU[audit: signed, hash-linked ledger]
     end
     DB[(SQLite via SQLAlchemy + Alembic)]
     FS[(data/: quarantine, job reports)]
@@ -209,7 +209,7 @@ CHANGES_DETECTED > NO_BASELINE > REVIEW > CLEAN.
 | Audit block | header `{chain, index, timestamp, event_type, actor, subject, payload_hash, previous_hash}`; `block_hash = SHA-256(canonical(header))`; header ECDSA-signed | `core/audit.py` |
 | Report seal | `report_sha256 = SHA-256(canonical(engine reports))` stored in an ANALYSIS_COMPLETED block | `core/repository.py` |
 
-### 5.1 Cryptographically Linked Blockchain Simulation
+### 5.1 Signed, Hash-Linked Audit Ledger
 
 ```mermaid
 flowchart LR

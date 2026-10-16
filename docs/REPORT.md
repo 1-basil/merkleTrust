@@ -11,8 +11,9 @@ modifies its code or configuration, re-signs it with their own key and redistrib
 it. MerkleTrust verifies whether an uploaded APK is the same application as an
 administrator-approved **trusted baseline**, identifies exactly which files changed,
 assesses security risk from the app's manifest and bytecode, and records every result in
-a **signed, hash-linked audit chain** (a *Cryptographically Linked Blockchain
-Simulation*) so that reports, baselines and history can later be proven unaltered. The
+a **signed, hash-linked audit ledger**, committed into a Merkle tree spanning every file
+this instance has ever analysed, so that reports, baselines and history can later be
+proven unaltered. The
 system combines per-file SHA-256 manifests committed to RFC 6962 Merkle trees, ECDSA
 P-256 signatures over canonical JSON, a from-scratch implementation of APK Signature
 Scheme v1/v2/v3 verification (13/13 verdicts identical to Google's `apksigner`), and a
@@ -86,7 +87,7 @@ defence, implementing code and evidence, and residual risks are stated:
 | SR4 | Stored baselines, reports and audit history are tamper-evident | ECDSA signatures, sealed report hashes, hash chain, audit cross-checks |
 | SR5 | Untrusted input cannot crash, exhaust or exploit the server | Hardened archive reader, size limits, typed parsers, bounded queue |
 | SR6 | Only authorised users act; secrets are not stored in clear | Bearer sessions, roles, scrypt, hashed tokens, rate limiting |
-| SR7 | Results are explainable and do not overclaim | Findings catalogue, score breakdown, "simulation" labelling |
+| SR7 | Results are explainable and do not overclaim | Findings catalogue, score breakdown, honest single-node ledger framing |
 
 ## 8. APK analysis
 
@@ -146,17 +147,18 @@ contents changes the root. Inclusion proofs let a single file (e.g. `classes.dex
 checked against the signed baseline root: the trusted hash verifies, a modified hash does
 not. A 100 000-leaf tree builds in about 0.3 s; a 17-step proof verifies in about 0.03 ms.
 
-## 13. Blockchain simulation
+## 13. Signed, hash-linked audit ledger
 
 Every security event is a block whose hash covers the previous block's hash and the hash
-of its event data, and whose header is ECDSA-signed. Verification checks position, link,
+of its event data, and whose header is ECDSA-signed. Every sealed report is also a leaf
+in a Merkle tree spanning every file this instance has ever analysed, so a scan's result
+can be proven included without re-reading the others. Verification checks position, link,
 data, hash and signature of every block and explains the first break in plain language.
 Editing a block breaks its payload hash; recomputing its hash breaks its signature and the
 next block's link; appending with a foreign key fails signature checks; deleting the
 newest blocks is detected against a previously saved signed head; a fork is prevented by a
-uniqueness constraint. This is deliberately named a **Cryptographically Linked Blockchain
-Simulation**: it is a single-node chain with no network, consensus, mining or
-decentralisation, and the documentation and UI say so.
+uniqueness constraint. Honestly scoped: it is a single-node ledger with no network,
+consensus, mining or decentralisation, and the documentation and UI say so.
 
 ## 14. Risk analysis
 
@@ -203,7 +205,7 @@ A dependency-free single-page dashboard. The result page leads with a plain-lang
 verdict and answers two questions — "Is this the same app as the trusted version?" and
 "Does it have security concerns?" — before tabs for file changes (with per-file proof
 checks), findings (each with explanation, evidence and recommendation), certificate
-comparison, cryptographic verification and raw reports. The Blockchain Simulation page
+comparison, cryptographic verification and raw reports. The Audit Ledger page
 draws the linked blocks, highlights a tampered block and the broken link, and lets an
 administrator run and undo the tamper demonstration. All data is rendered as text (no HTML
 injection) under a strict Content Security Policy; status is never conveyed by colour
@@ -275,7 +277,7 @@ approver, and the limits of static analysis — are listed in
 
 ## 22. Limitations
 
-* The audit chain is a single-node simulation; it is tamper-*evident*, not tamper-proof
+* The audit ledger is single-node; it is tamper-*evident*, not tamper-proof
   against someone who holds the signing key.
 * The signing key is a file in the prototype (HSM/KMS recommended for deployment).
 * Static analysis cannot determine intent or see code downloaded at runtime; the risk

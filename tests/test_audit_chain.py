@@ -1,4 +1,4 @@
-"""Cryptographically Linked Blockchain Simulation (audit chain): construction,
+"""Signed, Hash-Linked Audit Ledger (audit chain): construction,
 verification, tamper detection, restore, truncation, forks, report sealing."""
 
 import contextlib
